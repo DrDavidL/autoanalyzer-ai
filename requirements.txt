@@ -115,7 +115,7 @@ multimethod==1.11.2
 mypy-extensions==1.0.0
 nbclassic==1.1.0
 nbclient==0.5.13
-nbconvert==6.4.5
+nbconvert==6.5.1
 nbformat==5.10.4
 nest-asyncio==1.6.0
 networkx==3.3
