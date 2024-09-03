@@ -138,7 +138,7 @@ patsy==0.5.6
 pexpect==4.9.0
 phik==0.12.4
 pillow==10.4.0
-pip==23.2.1
+pip==23.3
 platformdirs==4.2.2
 plotly==5.22.0
 ply==3.11
