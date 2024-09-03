@@ -44,7 +44,7 @@ executing==0.8.3
 faker==19.13.0
 fastjsonschema==2.20.0
 flask==3.0.3
-flask-cors==3.0.10
+flask-cors==5.0.0
 fonttools==4.53.1
 formulaic==1.0.1
 fqdn==1.5.1
