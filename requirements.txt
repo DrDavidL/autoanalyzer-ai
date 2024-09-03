@@ -178,7 +178,7 @@ scikit-learn==1.5.1
 scipy==1.11.4
 seaborn==0.12.2
 send2trash==1.8.3
-setuptools==65.5.0
+setuptools==70.0.0
 shap==0.45.1
 six==1.16.0
 slicer==0.0.8
