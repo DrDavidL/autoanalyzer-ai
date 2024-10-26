@@ -224,7 +224,7 @@ wcwidth==0.2.13
 webcolors==24.8.0
 webencodings==0.5.1
 websocket-client==1.8.0
-werkzeug==3.0.3
+werkzeug==3.0.6
 widgetsnbextension==3.6.8
 wordcloud==1.9.3
 wrapt==1.16.0
