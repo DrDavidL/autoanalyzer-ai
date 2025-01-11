@@ -698,7 +698,7 @@ def start_chatbot2(df, question, max_retries=5, delay=2):
     llm = AzureChatOpenAI(
         endpoint=openai_base_url, 
         api_key=openai_api_key, 
-        model="gpt-4o", 
+        model=st.secrets["azure_deployment"], 
         temperature=0.3)
     agent = create_pandas_dataframe_agent(
         llm,
@@ -803,15 +803,17 @@ def start_chatbot3(df, model):
             # sys.exit(1)
             # return None, None
 
-def start_plot_gpt4(df, question, max_retries=5, delay=2):
+def start_plot_gpt4(df, question, max_retries=5, delay=3):
 
+    
     llm = AzureChatOpenAI(
-                    azure_deployment="auto-analyzer-deploy",
-                    api_version="2024-02-01",
+                    azure_deployment=st.secrets["azure_deployment"],
+                    api_version=st.secrets["api_version"],
+                    # api_version= "2024-05-01-preview",
                     azure_endpoint=openai_base_url,
                     api_key=openai_api_key,  
                     temperature=0.3,
-                    max_tokens=None,
+                    max_tokens=1000,
                     timeout=None,
                     max_retries=2,
                     model_kwargs={
@@ -3242,8 +3244,8 @@ with tab3:
         llm = AzureOpenAI(
             api_token=azure_openai_api_key,
             azure_endpoint=azure_base_url,
-            api_version="2024-02-01",
-            deployment_name="auto-analyzer-deploy",
+            api_version=st.secrets["api_version"],
+            deployment_name=st.secrets["azure_deployment"],
             temperature=0,
             seed=42,
         )
