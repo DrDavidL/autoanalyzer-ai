@@ -813,7 +813,7 @@ def start_plot_gpt4(df, question, max_retries=5, delay=3):
                     azure_endpoint=openai_base_url,
                     api_key=openai_api_key,  
                     temperature=0.3,
-                    max_tokens=1000,
+                    max_tokens=4000,
                     timeout=None,
                     max_retries=2,
                     model_kwargs={
