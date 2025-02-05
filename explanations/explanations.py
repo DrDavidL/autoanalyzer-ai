@@ -1,4 +1,3 @@
-
 kaplan_meier = """The Kaplan-Meier survival curve is a graphical representation of the probability of survival over time in a group of patients or study participants. It is commonly used in medical research and clinical trials to analyze and visualize survival data.
 
 Here's a step-by-step explanation of how the Kaplan-Meier survival curve is constructed:
