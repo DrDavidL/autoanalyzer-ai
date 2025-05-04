@@ -1827,7 +1827,13 @@ def plot_corr(df):
 
 
 def plot_enhanced_association_heatmap(df, title="Enhanced Association Heatmap"):
-    # Run dython associations (handles numerical & categorical automatically)
+    # Import associations from dython if available
+    try:
+        from dython.nominal import associations
+    except ImportError:
+        st.warning("dython is not installed. Please install it to use enhanced association heatmap.")
+        return None
+
     assoc = associations(
         df,
         theil_u=True,         # asymmetric measure for categorical vars
@@ -2032,6 +2038,8 @@ with tab1:
                 step=1,
             )
             if st.sidebar.button("Generate Data"):
+                # Use a default model if not otherwise set
+                selected_model = "gpt-3.5-turbo"
                 st.session_state.df, st.session_state.gen_csv = generate_df(
                     user_columns, user_rows, selected_model
                 )
