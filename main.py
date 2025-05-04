@@ -3484,6 +3484,26 @@ with tab3:
                     result = start_plot_gpt4(df, agent_question)
                     st.session_state.model_output1 = result["output"]
                     st.write(st.session_state.model_output1)
+                    # --- Display plot if present in the result ---
+                    # If the agent returns a matplotlib figure or plot, display it
+                    if "plot" in result:
+                        plot_obj = result["plot"]
+                        try:
+                            # If it's a matplotlib Figure
+                            import matplotlib.figure
+                            if isinstance(plot_obj, matplotlib.figure.Figure):
+                                st.pyplot(plot_obj)
+                        except Exception:
+                            pass
+                    # If the agent returns a file path to an image, display it
+                    if "image_path" in result:
+                        image_path = result["image_path"]
+                        try:
+                            from PIL import Image
+                            img = Image.open(image_path)
+                            st.image(img, caption="Generated Plot")
+                        except Exception:
+                            st.warning(f"Could not display image at {image_path}")
                 except Exception as e:
                     st.error(f"Error analyzing your data: {e}")
 
