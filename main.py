@@ -1443,55 +1443,72 @@ def preprocess_old(df, target_col):
 
 
 def create_boxplot(df, numeric_col, categorical_col, show_points=False):
-    if numeric_col and categorical_col:
-        fig, ax = plt.subplots()
+    try:
+        if numeric_col and categorical_col:
+            fig, ax = plt.subplots()
 
-        # Plot the notched box plot
-        sns.boxplot(x=categorical_col, y=numeric_col, data=df, notch=True, ax=ax)
+            # Plot the notched box plot
+            sns.boxplot(x=categorical_col, y=numeric_col, data=df, notch=True, ax=ax)
 
-        if show_points:
-            # Add the actual data points on the plot
-            sns.swarmplot(x=categorical_col, y=numeric_col, data=df, color=".25", ax=ax)
+            if show_points:
+                # Add the actual data points on the plot
+                sns.swarmplot(x=categorical_col, y=numeric_col, data=df, color=".25", ax=ax)
 
-        # Add a title to the plot
-        ax.set_title(f"Box Plot of {numeric_col} by {categorical_col}")
+            # Add a title to the plot
+            ax.set_title(f"Box Plot of {numeric_col} by {categorical_col}")
 
-        st.pyplot(fig)
-        return fig
+            st.pyplot(fig)
+            return fig
+        else:
+            st.warning("Please select both a numerical and a categorical column for the box plot.")
+            return None
+    except Exception as e:
+        st.warning(f"Could not create box plot: {e}")
+        return None
 
 
 def create_violinplot(df, numeric_col, categorical_col):
-    if numeric_col and categorical_col:
-        fig, ax = plt.subplots()
+    try:
+        if numeric_col and categorical_col:
+            fig, ax = plt.subplots()
 
-        # Plot the violin plot
-        sns.violinplot(x=categorical_col, y=numeric_col, data=df, ax=ax)
+            # Plot the violin plot
+            sns.violinplot(x=categorical_col, y=numeric_col, data=df, ax=ax)
 
-        # Add a title to the plot
-        ax.set_title(f"Violin Plot of {numeric_col} by {categorical_col}")
+            # Add a title to the plot
+            ax.set_title(f"Violin Plot of {numeric_col} by {categorical_col}")
 
-        st.pyplot(fig)
-        return fig
+            st.pyplot(fig)
+            return fig
+        else:
+            st.warning("Please select both a numerical and a categorical column for the violin plot.")
+            return None
+    except Exception as e:
+        st.warning(f"Could not create violin plot: {e}")
+        return None
 
 
 def create_scatterplot(df, scatter_x, scatter_y):
-    if scatter_x and scatter_y:
-        fig, ax = plt.subplots()
+    try:
+        if scatter_x and scatter_y:
+            fig, ax = plt.subplots()
 
-        # Plot the scatter plot
-        sns.regplot(x=scatter_x, y=scatter_y, data=df, ax=ax)
+            # Plot the scatter plot
+            sns.regplot(x=scatter_x, y=scatter_y, data=df, ax=ax)
 
-        # Calculate the slope and intercept of the regression line
-        slope, intercept = np.polyfit(df[scatter_x], df[scatter_y], 1)
+            # Calculate the slope and intercept of the regression line
+            try:
+                slope, intercept = np.polyfit(df[scatter_x], df[scatter_y], 1)
+                # Add the slope and intercept as a text annotation on the plot
+                ax.text(0.05, 0.95, f"y={slope:.2f}x+{intercept:.2f}", transform=ax.transAxes)
+            except Exception:
+                pass
 
-        # Add the slope and intercept as a text annotation on the plot
-        ax.text(0.05, 0.95, f"y={slope:.2f}x+{intercept:.2f}", transform=ax.transAxes)
+            ax.set_title("Scatter Plot for " + scatter_y + " vs " + scatter_x)
 
-        ax.set_title("Scatter Plot for " + scatter_y + " vs " + scatter_x)
-
-        st.pyplot(fig)
-        with st.expander("What is a scatter plot?"):
-            st.write("""
+            st.pyplot(fig)
+            with st.expander("What is a scatter plot?"):
+                st.write("""
 A scatterplot is a type of plot that displays values for typically two variables for a set of data. It's used to visualize the relationship between two numerical variables, where one variable is on the x-axis and the other variable is on the y-axis. Each point on the plot represents an observation in your dataset.
 
 **Which types of variables are appropriate for the x and y axes?**
@@ -1513,7 +1530,13 @@ The slope of the regression line also tells you something important: for every u
 However, keep in mind that correlation does not imply causation. Just because two variables move together, it doesn't mean that one is causing the other to change.
 
 For medical students, think of scatterplots as a way to visually inspect the correlation between two numerical variables. It's a way to quickly identify patterns, trends, and outliers, and to formulate hypotheses for further testing.""")
-        return fig
+            return fig
+        else:
+            st.warning("Please select both x and y columns for the scatterplot.")
+            return None
+    except Exception as e:
+        st.warning(f"Could not create scatterplot: {e}")
+        return None
 
 
 # Function to replace missing values
@@ -1548,6 +1571,12 @@ def load_data(file_path):
         if data.empty:
             st.warning("Loaded CSV is empty.")
         return data
+    except pd.errors.EmptyDataError:
+        st.error("The uploaded file is empty or not a valid CSV.")
+        return pd.DataFrame()
+    except pd.errors.ParserError:
+        st.error("The uploaded file could not be parsed. Please check the file format.")
+        return pd.DataFrame()
     except Exception as e:
         st.error(f"Failed to load data: {e}")
         return pd.DataFrame()
@@ -1578,13 +1607,14 @@ def analyze_dataframe(df):
 
 
 def plot_pie(df, col_name):
-    plt.figure(figsize=(10, 8))  # set the size of the plot
-    df[col_name].value_counts().plot(kind="pie", autopct="%1.1f%%")
-
-    # Add title
-    plt.title(f"Distribution for {col_name}")
-
-    return plt
+    try:
+        plt.figure(figsize=(10, 8))  # set the size of the plot
+        df[col_name].value_counts().plot(kind="pie", autopct="%1.1f%%")
+        plt.title(f"Distribution for {col_name}")
+        return plt
+    except Exception as e:
+        st.warning(f"Could not plot pie chart for {col_name}: {e}")
+        return None
 
 
 # Function to summarize categorical data
@@ -1593,67 +1623,83 @@ import pandas as pd
 
 
 def summarize_categorical(df):
-    # Select only categorical columns
-    cat_df = df.select_dtypes(include=["object", "category"])
+    try:
+        # Select only categorical columns
+        cat_df = df.select_dtypes(include=["object", "category"])
 
-    # If there are no categorical columns, return None
-    if cat_df.empty:
-        st.write("The DataFrame does not contain any categorical columns.")
+        # If there are no categorical columns, return None
+        if cat_df.empty:
+            st.write("The DataFrame does not contain any categorical columns.")
+            return None
+
+        # Create a list to store dictionaries for each column's summary
+        summary_data = []
+
+        for col in cat_df.columns:
+            # Number of unique values
+            unique_count = df[col].nunique()
+
+            # Most frequent category and its frequency
+            try:
+                most_frequent = df[col].mode()[0]
+                freq_most_frequent = df[col].value_counts().iloc[0]
+            except Exception:
+                most_frequent = None
+                freq_most_frequent = 0
+
+            # Append the column summary as a dictionary to the list
+            summary_data.append(
+                {
+                    "column": col,
+                    "unique_count": unique_count,
+                    "most_frequent": most_frequent,
+                    "frequency_most_frequent": freq_most_frequent,
+                }
+            )
+
+        # Create the summary DataFrame from the list of dictionaries
+        summary = pd.DataFrame(summary_data)
+        summary.set_index("column", inplace=True)
+
+        return summary
+    except Exception as e:
+        st.warning(f"Could not summarize categorical columns: {e}")
         return None
-
-    # Create a list to store dictionaries for each column's summary
-    summary_data = []
-
-    for col in cat_df.columns:
-        # Number of unique values
-        unique_count = df[col].nunique()
-
-        # Most frequent category and its frequency
-        most_frequent = df[col].mode()[0]
-        freq_most_frequent = df[col].value_counts().iloc[0]
-
-        # Append the column summary as a dictionary to the list
-        summary_data.append(
-            {
-                "column": col,
-                "unique_count": unique_count,
-                "most_frequent": most_frequent,
-                "frequency_most_frequent": freq_most_frequent,
-            }
-        )
-
-    # Create the summary DataFrame from the list of dictionaries
-    summary = pd.DataFrame(summary_data)
-    summary.set_index("column", inplace=True)
-
-    return summary
 
 
 # Function to plot correlation heatmap
 
 
 def plot_corr(df):
-    df_copy = df.copy()
+    try:
+        df_copy = df.copy()
 
-    for col in df_copy.columns:
-        if df_copy[col].dtype == "object":  # Check if the column is categorical
-            unique_vals = df_copy[col].unique()
-            if (
-                len(unique_vals) == 2
-            ):  # If the categorical variable has exactly 2 unique values
-                value_counts = df_copy[col].value_counts()
-                df_copy[col] = df_copy[col].map(
-                    {value_counts.idxmax(): 0, value_counts.idxmin(): 1}
-                )
+        for col in df_copy.columns:
+            if df_copy[col].dtype == "object":  # Check if the column is categorical
+                unique_vals = df_copy[col].unique()
+                if (
+                    len(unique_vals) == 2
+                ):  # If the categorical variable has exactly 2 unique values
+                    value_counts = df_copy[col].value_counts()
+                    df_copy[col] = df_copy[col].map(
+                        {value_counts.idxmax(): 0, value_counts.idxmin(): 1}
+                    )
 
-    # Keep only numerical and binary categorical columns
-    df_copy = df_copy.select_dtypes(include=[np.number])
+        # Keep only numerical and binary categorical columns
+        df_copy = df_copy.select_dtypes(include=[np.number])
 
-    corr = df_copy.corr()  # Compute pairwise correlation of columns
-    plt.figure(figsize=(12, 10))  # Set the size of the plot
-    sns.heatmap(corr, annot=True, cmap="coolwarm", cbar=True)
-    plt.title("Correlation Heatmap")
-    return plt
+        if df_copy.empty:
+            st.warning("No numeric columns available for correlation heatmap.")
+            return None
+
+        corr = df_copy.corr()  # Compute pairwise correlation of columns
+        plt.figure(figsize=(12, 10))  # Set the size of the plot
+        sns.heatmap(corr, annot=True, cmap="coolwarm", cbar=True)
+        plt.title("Correlation Heatmap")
+        return plt
+    except Exception as e:
+        st.warning(f"Could not plot correlation heatmap: {e}")
+        return None
 
 
 
@@ -1687,31 +1733,39 @@ def plot_enhanced_association_heatmap(df, title="Enhanced Association Heatmap"):
 
 # Function to plot bar chart
 def plot_categorical(df, col_name):
-    # Get frequency of categories
-    freq = df[col_name].value_counts()
+    try:
+        # Get frequency of categories
+        freq = df[col_name].value_counts()
 
-    # Create bar chart
-    plt.figure(figsize=(10, 6))  # set the size of the plot
-    plt.bar(freq.index, freq.values)
+        # Create bar chart
+        plt.figure(figsize=(10, 6))  # set the size of the plot
+        plt.bar(freq.index, freq.values)
 
-    # Add title and labels
-    plt.title(f"Frequency of Categories for {col_name}")
-    plt.xlabel("Category")
-    plt.ylabel("Frequency")
+        # Add title and labels
+        plt.title(f"Frequency of Categories for {col_name}")
+        plt.xlabel("Category")
+        plt.ylabel("Frequency")
 
-    return plt
+        return plt
+    except Exception as e:
+        st.warning(f"Could not plot bar chart for {col_name}: {e}")
+        return None
 
 
 def plot_numeric(df, col_name):
-    plt.figure(figsize=(10, 6))  # set the size of the plot
-    plt.hist(df[col_name], bins=30, alpha=0.5, color="blue", edgecolor="black")
+    try:
+        plt.figure(figsize=(10, 6))  # set the size of the plot
+        plt.hist(df[col_name], bins=30, alpha=0.5, color="blue", edgecolor="black")
 
-    # Add title and labels
-    plt.title(f"Distribution for {col_name}")
-    plt.xlabel(col_name)
-    plt.ylabel("Frequency")
+        # Add title and labels
+        plt.title(f"Distribution for {col_name}")
+        plt.xlabel(col_name)
+        plt.ylabel("Frequency")
 
-    return plt
+        return plt
+    except Exception as e:
+        st.warning(f"Could not plot histogram for {col_name}: {e}")
+        return None
 
 
 # Removed unused process_dataframe function

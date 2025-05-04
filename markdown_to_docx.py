@@ -13,8 +13,11 @@ from docx.oxml import parse_xml
 
 
 def write_out_html(file_name, text_html, encoding="utf8"):
-    with open(file_name, "w", encoding=encoding) as output_fd:
-        output_fd.write(text_html)
+    try:
+        with open(file_name, "w", encoding=encoding) as output_fd:
+            output_fd.write(text_html)
+    except Exception as e:
+        print(f"Could not write HTML file {file_name}: {e}")
 
 
 def find_page_width(doc):
@@ -44,31 +47,38 @@ def do_table_of_contents(document):
 
 
 def do_table(doc, table_in, style):
-    the_header = table_in.find("thead")
-    the_column_names = the_header.find_all("th") if the_header else []
-    the_data = table_in.find_all("td")
-    n_cols = (
-        len(the_column_names)
-        if the_column_names
-        else len(table_in.find("tr").find_all(["td", "th"]))
-    )
-    n_rows = len(table_in.find_all("tr"))
-    this_table = doc.add_table(rows=n_rows, cols=n_cols, style=style)
+    try:
+        the_header = table_in.find("thead")
+        the_column_names = the_header.find_all("th") if the_header else []
+        the_data = table_in.find_all("td")
+        n_cols = (
+            len(the_column_names)
+            if the_column_names
+            else len(table_in.find("tr").find_all(["td", "th"]))
+        )
+        n_rows = len(table_in.find_all("tr"))
+        this_table = doc.add_table(rows=n_rows, cols=n_cols, style=style)
 
-    for i, row in enumerate(table_in.find_all("tr")):
-        cells = row.find_all(["th", "td"])
-        for j, cell in enumerate(cells):
-            this_table.cell(i, j).text = cell.get_text(strip=True)
+        for i, row in enumerate(table_in.find_all("tr")):
+            cells = row.find_all(["th", "td"])
+            for j, cell in enumerate(cells):
+                this_table.cell(i, j).text = cell.get_text(strip=True)
 
-    # Make the header row bold
-    for cell in this_table.rows[0].cells:
-        for paragraph in cell.paragraphs:
-            for run in paragraph.runs:
-                run.bold = True
+        # Make the header row bold
+        for cell in this_table.rows[0].cells:
+            for paragraph in cell.paragraphs:
+                for run in paragraph.runs:
+                    run.bold = True
+    except Exception as e:
+        doc.add_paragraph(f"[Table could not be rendered: {e}]")
 
 
 def find_image_size(image_file):
-    return Image.open(image_file).size
+    try:
+        return Image.open(image_file).size
+    except Exception as e:
+        print(f"Could not open image {image_file}: {e}")
+        return (1, 1)
 
 
 def do_paragraph(
@@ -81,28 +91,34 @@ def do_paragraph(
 ):
     is_image = line.find("img")
     if is_image is not None:
-        image_source = is_image["src"]
-        w, h = find_image_size(image_source)
-        w_in_inches = w / assumed_pixels_per_inch
-        picture_width_inches = page_width_inches * picture_fraction_of_width
-        chosen_width = min(picture_width_inches, w_in_inches)
-        doc.add_picture(image_source, width=docx.shared.Inches(chosen_width))
+        try:
+            image_source = is_image["src"]
+            w, h = find_image_size(image_source)
+            w_in_inches = w / assumed_pixels_per_inch
+            picture_width_inches = page_width_inches * picture_fraction_of_width
+            chosen_width = min(picture_width_inches, w_in_inches)
+            doc.add_picture(image_source, width=docx.shared.Inches(chosen_width))
+        except Exception as e:
+            doc.add_paragraph(f"[Image could not be loaded: {e}]")
         return
 
     paragraph = doc.add_paragraph(style=style_body)
     for child in line.children:
-        if child.name == "strong":
-            paragraph.add_run(child.text).bold = True
-        elif child.name == "em":
-            paragraph.add_run(child.text).italic = True
-        elif child.name == "code":
-            run = paragraph.add_run(child.text)
-            run.font.name = "Courier New"
-            run.font.size = Pt(10)
-        elif child.name == "a":
-            add_hyperlink(paragraph, child["href"], child.text)
-        else:
-            paragraph.add_run(child.text)
+        try:
+            if child.name == "strong":
+                paragraph.add_run(child.text).bold = True
+            elif child.name == "em":
+                paragraph.add_run(child.text).italic = True
+            elif child.name == "code":
+                run = paragraph.add_run(child.text)
+                run.font.name = "Courier New"
+                run.font.size = Pt(10)
+            elif child.name == "a":
+                add_hyperlink(paragraph, child["href"], child.text)
+            else:
+                paragraph.add_run(child.text)
+        except Exception as e:
+            paragraph.add_run(f"[Error rendering content: {e}]")
 
 
 def do_pre_code(line, doc, style_quote_table):
@@ -275,11 +291,15 @@ class Markdown2docx:
 
 
 def markdown_to_docx(project_name, markdown_content):
-    project = Markdown2docx(project_name, markdown_content)
-    project.eat_soup()
-    project.write_html()  # optional
-    project.save()
-    return project.outfile
+    try:
+        project = Markdown2docx(project_name, markdown_content)
+        project.eat_soup()
+        project.write_html()  # optional
+        project.save()
+        return project.outfile
+    except Exception as e:
+        print(f"Could not convert markdown to docx: {e}")
+        return None
 
 
 if __name__ == "__main__":
