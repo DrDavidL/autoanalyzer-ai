@@ -3631,8 +3631,51 @@ New input: {input}
                 try:
                     agent_out = agent_executor.invoke(agent_input)
                     # Show the full agent output (including code and stdout)
-                    st.session_state.model_output1 = agent_out.get("output", str(agent_out))
-                    st.write(st.session_state.model_output1)
+                    output_text = agent_out.get("output", str(agent_out))
+                    st.session_state.model_output1 = output_text
+                    st.write(output_text)
+
+                    # --- Attempt to find and display a plot if the agent created one ---
+                    import glob
+                    import shutil
+
+                    temp_dir = tempfile.mkdtemp(prefix="gpt_plot_")
+                    found_plot = False
+
+                    # Search for common plot/image files in the temp dir and outputs_path
+                    search_dirs = [temp_dir, st.session_state.outputs_path, "/tmp", "."]
+                    image_exts = ["png", "jpg", "jpeg", "svg", "pdf"]
+
+                    for search_dir in search_dirs:
+                        for ext in image_exts:
+                            for img_path in glob.glob(f"{search_dir}/*.{ext}"):
+                                try:
+                                    st.image(img_path, caption="Generated Plot")
+                                    found_plot = True
+                                    # Securely erase the file after display
+                                    try:
+                                        os.remove(img_path)
+                                    except Exception:
+                                        pass
+                                except Exception:
+                                    pass
+
+                    # Also check for matplotlib figures left in memory
+                    import matplotlib.pyplot as plt
+                    figs = [plt.figure(n) for n in plt.get_fignums()]
+                    for fig in figs:
+                        st.pyplot(fig)
+                        plt.close(fig)
+
+                    # Clean up temp dir
+                    try:
+                        shutil.rmtree(temp_dir)
+                    except Exception:
+                        pass
+
+                    if not found_plot:
+                        st.info("If a plot was generated, it should appear above. If not, the agent may not have created a plot file.")
+
                 except Exception as e:
                     st.error(f"Error analyzing your data: {e}")
 
