@@ -2164,7 +2164,18 @@ with tab1:
                 st.write(mlr_equation)
             st.write("Download your cooefficients and intercept below.")
             df_download_options(mlr_report, "Your Multiple Linear Regression")
+            with st.expander("Show code for multiple linear regression"):
+                st.code(
+                    f'''from sklearn.linear_model import LinearRegression
 
+# Fit multiple linear regression
+X = df[{x_col}]
+y = df["{y_col}"]
+regr = LinearRegression()
+regr.fit(X, y)
+print("Intercept:", regr.intercept_)
+print("Coefficients:", regr.coef_)
+''', language="python")
         except:
             st.error("Please select at least one column for x and one column for y.")
         # save_image(mult_linear_reg, 'mult_linear_reg.png')
