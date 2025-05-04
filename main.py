@@ -3640,7 +3640,7 @@ New input: {input}
                     output_text = agent_out.get("output", str(agent_out))
                     st.session_state.model_output1 = output_text
 
-                    # Try to extract code from the agent's intermediate steps if available
+                    # --- Extract code from agent's intermediate steps or output ---
                     code_snippet = ""
                     # Try to extract code from the tool calls in the agent's steps
                     if "intermediate_steps" in agent_out:
@@ -3653,7 +3653,13 @@ New input: {input}
                                     code_snippet += f"\n{tool_call['input']}\n"
                                 # tool_output may also contain code or error messages
                                 if isinstance(tool_output, str) and "python" in tool_output.lower():
-                                    code_snippet += f"\n{tool_output}\n"
+                                    # Try to extract code block from tool_output
+                                    import re
+                                    code_blocks = re.findall(r"```python(.*?)```", tool_output, re.DOTALL)
+                                    if code_blocks:
+                                        code_snippet += "\n".join([block.strip() for block in code_blocks])
+                                    else:
+                                        code_snippet += f"\n{tool_output}\n"
                     # Fallback: try to extract code from the output text if not found above
                     if not code_snippet.strip() and isinstance(output_text, str):
                         import re
@@ -3662,6 +3668,7 @@ New input: {input}
                             code_snippet = "\n".join([block.strip() for block in code_blocks])
                     st.session_state.gpt_analysis_code = code_snippet
 
+                    # --- Display code before plot to avoid extra white space ---
                     st.write(output_text)
                     if code_snippet.strip():
                         st.markdown("**Code used for this analysis:**")
@@ -3679,20 +3686,25 @@ New input: {input}
                     search_dirs = [temp_dir, st.session_state.outputs_path, "/tmp", "."]
                     image_exts = ["png", "jpg", "jpeg", "svg", "pdf"]
 
+                    # Only display images after all code and text output
+                    image_paths_to_display = []
                     for search_dir in search_dirs:
                         for ext in image_exts:
                             for img_path in glob.glob(f"{search_dir}/*.{ext}"):
-                                try:
-                                    st.image(img_path, caption="Generated Plot")
-                                    st.session_state.gpt_analysis_images.append(img_path)
-                                    found_plot = True
-                                    # Securely erase the file after display
-                                    try:
-                                        os.remove(img_path)
-                                    except Exception:
-                                        pass
-                                except Exception:
-                                    pass
+                                image_paths_to_display.append(img_path)
+
+                    # Display images (plots) after code, and erase after display
+                    for img_path in image_paths_to_display:
+                        try:
+                            st.image(img_path, caption="Generated Plot")
+                            st.session_state.gpt_analysis_images.append(img_path)
+                            found_plot = True
+                            try:
+                                os.remove(img_path)
+                            except Exception:
+                                pass
+                        except Exception:
+                            pass
 
                     # Also check for matplotlib figures left in memory
                     import matplotlib.pyplot as plt
