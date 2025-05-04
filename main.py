@@ -3618,6 +3618,12 @@ New input: {input}
         st.write("Ask a question about your data. The agent will generate and execute Python code using your dataframe as `df`.")
         agent_question = st.text_input("Ask a question to the AI agent:")
 
+        # New session state for code and images
+        if "gpt_analysis_code" not in st.session_state:
+            st.session_state.gpt_analysis_code = ""
+        if "gpt_analysis_images" not in st.session_state:
+            st.session_state.gpt_analysis_images = []
+
         if st.button("Submit Question"):
             with st.spinner("Analyzing your data..."):
                 # Build agent
@@ -3633,7 +3639,24 @@ New input: {input}
                     # Show the full agent output (including code and stdout)
                     output_text = agent_out.get("output", str(agent_out))
                     st.session_state.model_output1 = output_text
+
+                    # Try to extract code from the agent's intermediate steps if available
+                    code_snippet = ""
+                    if "intermediate_steps" in agent_out:
+                        for step in agent_out["intermediate_steps"]:
+                            if isinstance(step, tuple) and len(step) > 0:
+                                # Try to find code in the tool input or output
+                                for part in step:
+                                    if isinstance(part, dict) and "input" in part:
+                                        code_snippet += f"\n{part['input']}\n"
+                                    elif isinstance(part, str) and "python" in part.lower():
+                                        code_snippet += f"\n{part}\n"
+                    st.session_state.gpt_analysis_code = code_snippet
+
                     st.write(output_text)
+                    if code_snippet.strip():
+                        st.markdown("**Code used for this analysis:**")
+                        st.code(code_snippet, language="python")
 
                     # --- Attempt to find and display a plot if the agent created one ---
                     import glob
@@ -3641,6 +3664,7 @@ New input: {input}
 
                     temp_dir = tempfile.mkdtemp(prefix="gpt_plot_")
                     found_plot = False
+                    st.session_state.gpt_analysis_images = []
 
                     # Search for common plot/image files in the temp dir and outputs_path
                     search_dirs = [temp_dir, st.session_state.outputs_path, "/tmp", "."]
@@ -3651,6 +3675,7 @@ New input: {input}
                             for img_path in glob.glob(f"{search_dir}/*.{ext}"):
                                 try:
                                     st.image(img_path, caption="Generated Plot")
+                                    st.session_state.gpt_analysis_images.append(img_path)
                                     found_plot = True
                                     # Securely erase the file after display
                                     try:
@@ -3665,6 +3690,11 @@ New input: {input}
                     figs = [plt.figure(n) for n in plt.get_fignums()]
                     for fig in figs:
                         st.pyplot(fig)
+                        # Save each figure to a temp file for docx export
+                        fig_temp = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
+                        fig.savefig(fig_temp.name)
+                        st.session_state.gpt_analysis_images.append(fig_temp.name)
+                        fig_temp.close()
                         plt.close(fig)
 
                     # Clean up temp dir
@@ -3673,7 +3703,7 @@ New input: {input}
                     except Exception:
                         pass
 
-                    if not found_plot:
+                    if not found_plot and not st.session_state.gpt_analysis_images:
                         st.info("If a plot was generated, it should appear above. If not, the agent may not have created a plot file.")
 
                 except Exception as e:
@@ -3682,8 +3712,18 @@ New input: {input}
         if st.session_state.model_output1 != "":
             if st.button("Download Last GPT Analysis"):
                 try:
+                    # Compose markdown with code and images for docx
+                    markdown = ""
+                    if st.session_state.model_output1:
+                        markdown += f"## GPT Analysis Output\n\n{st.session_state.model_output1}\n\n"
+                    if st.session_state.gpt_analysis_code:
+                        markdown += f"## Code Used\n\n```python\n{st.session_state.gpt_analysis_code}\n```\n"
+                    # Add images to markdown (as ![]() links, which markdown_to_docx can handle)
+                    for img_path in st.session_state.gpt_analysis_images:
+                        markdown += f"\n![]({img_path})\n"
+
                     docx_file = markdown_to_docx(
-                        "gpt_analysis", st.session_state.model_output1
+                        "gpt_analysis", markdown
                     )
                     with open(docx_file, "rb") as file:
                         btn = st.download_button(
@@ -3693,5 +3733,11 @@ New input: {input}
                             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                         )
                     os.remove(docx_file)
+                    # Clean up temp image files after docx creation
+                    for img_path in st.session_state.gpt_analysis_images:
+                        try:
+                            os.remove(img_path)
+                        except Exception:
+                            pass
                 except Exception as e:
                     st.error(f"An error occurred while creating the DOCX file: {str(e)}")
