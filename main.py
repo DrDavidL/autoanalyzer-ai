@@ -3603,7 +3603,11 @@ New input: {input}
                 chart_prompt = build_metadata_prompt(metadata)
                 try:
                     suggestion = llm.invoke(chart_prompt)
-                    st.write(suggestion)
+                    # If the suggestion is an object with a 'content' attribute, display only the content
+                    if hasattr(suggestion, "content"):
+                        st.markdown(suggestion.content)
+                    else:
+                        st.markdown(str(suggestion))
                 except Exception as e:
                     st.error(f"Error generating chart suggestions: {e}")
 
