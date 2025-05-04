@@ -3453,25 +3453,10 @@ with tab2:
 
 with tab3:
     if hu_key == "True" or check_password():
-        # Set up the Streamlit app
-        st.title("Analyze using GPTs")
+        st.title("Analyze with GPT (LangChain Experimental)")
         st.info("""Data types (e.g., numerical, versus categorical) should be consistent within columns as noted at the top of the app. (*See https://tidyr.tidyverse.org/ for more information.*)
-            Generated python code runs on your host machine. A `dfs` object in generated code refers to the SmartDataframe used by the PandasAI library.""")
-
-        # Initialize the OpenAI LLM with the API key
-        # llm = OpenAI(api_token=api_key)
-
-        azure_openai_api_key = st.secrets["azure-openai-api-key"]
-        azure_base_url = st.secrets["openai-base-url"]
-
-        llm = AzureOpenAI(
-            api_token=azure_openai_api_key,
-            azure_endpoint=azure_base_url,
-            api_version=st.secrets["api_version"],
-            deployment_name=st.secrets["azure_deployment"],
-            temperature=0,
-            seed=42,
-        )
+            All analysis in this tab uses the LangChain experimental agent for pandas DataFrames. This is the only supported option for now.
+            """)
 
         # File uploader
         data_source = st.radio(
@@ -3488,141 +3473,60 @@ with tab3:
 
             if uploaded_file_gpt is None:
                 st.warning("Please upload a file to continue.")
-
             else:
-                # Read the file
                 if uploaded_file_gpt.name.endswith(".csv"):
                     st.session_state.df = pd.read_csv(uploaded_file_gpt)
                 else:
                     st.session_state.df = pd.read_excel(uploaded_file_gpt)
 
-        # if data_source == "Use existing dataframe":
-        # Display the dataframe
+        df = st.session_state.df
+        n_rows, n_cols = df.shape
+        st.write(f"Current DataFrame shape: {n_rows} rows × {n_cols} columns")
 
-        gpt_method = st.radio(
-            "Choose the method for GPT based analyses",
-            ("Focused", "Expansive"),
-            horizontal=True,
-        )
         with st.expander("View the current dataframe", expanded=True):
             st.write("### Current Data Frame")
-            st.dataframe(st.session_state.df, height=200)
+            st.dataframe(df, height=200)
 
+        st.subheader("Quick Description")
+        st.write("Get a quick, AI-generated summary of your dataset.")
+        if st.button("Describe Dataset"):
+            with st.spinner("Generating quick description..."):
+                question = "Describe the columns, data types, and any notable features of this dataframe. Summarize the dataset for a new user."
+                try:
+                    result = start_plot_gpt4(df, question)
+                    st.session_state.model_output1 = result["output"]
+                    st.write(st.session_state.model_output1)
+                except Exception as e:
+                    st.error(f"Error generating description: {e}")
+
+        st.divider()
+
+        st.subheader("Ask a Question (LangChain Experimental)")
+        st.write("Ask a question about your data. The agent will use the DataFrame and GPT to answer.")
         agent_question = st.text_input("Ask a question to the AI agent:")
 
-        if gpt_method == "Focused":
-            with tempfile.TemporaryDirectory() as temp_dir:
-                if st.button("Submit"):
-                    with st.spinner("Evaluating data structures..."):
-                        response, explanation, code_used = generate_agent_response(
-                            st.session_state.df, agent_question, temp_dir
-                        )
+        if st.button("Submit Question"):
+            with st.spinner("Analyzing your data..."):
+                try:
+                    result = start_plot_gpt4(df, agent_question)
+                    st.session_state.model_output1 = result["output"]
+                    st.write(st.session_state.model_output1)
+                except Exception as e:
+                    st.error(f"Error analyzing your data: {e}")
 
-                    if code_used:
-                        st.write("### Code used to generate the response:")
-                        st.code(code_used)
-
-                    if isinstance(response, float):
-                        st.write(f"Answer: **{round(response, 2)}**")
-
-                    # Check if the first four characters start with "/var"
-                    elif response.startswith("/var"):
-                        st.write(f"Plot saved in temporary directory: {response}")
-                    else:
-                        st.write(response)
-
-                    chart_files = os.listdir(temp_dir)
-                    for chart_file in chart_files:
-                        st.image(os.path.join(temp_dir, chart_file))
-
-        if gpt_method == "Expansive":
-            # st.subheader("GPT Analyzer")
-            # st.info("""Ask a large language model (gpt-4o with access to python tools) to analyze your dataset.
-            #         """)
-
-            # chat_context = st.radio("Choose an approach", ("Ask questions about your data (no plots)", "Generate Plots"))
-
-            try:
-                x = st.session_state.df
-            except NameError:
-                st.warning("Please upload a CSV file or choose a demo dataset")
-
-            full_gpt_analysis = st.checkbox(
-                "Full GPT Analysis (Takes a couple minutes and returns a comprehensive answer to your query.)"
-            )
-            if full_gpt_analysis:
-                if st.checkbox("Use a pre-made question for the analysis"):
-                    agent_question = st.selectbox(
-                        "Some helpful generic questions or choose free text specific for the content in your dataset.",
-                        (
-                            "Summarize the main findings of the dataframe.",
-                            "Identify useful correlations found in the dataframe.",
-                            "Describe the population.",
-                            "Identify outliers in the data.",
-                            "Uncover any trends over time.",
-                            "Analyze the distribution of likely key variables.",
-                            "Calculate and interpret the summary statistics.",
-                            "Identify any missing data and suggest handling methods.",
-                            "Perform a correlation analysis among likely key variables.",
-                            "Compare the means of two groups for likely key variables.",
-                        ),
+        if st.session_state.model_output1 != "":
+            if st.button("Download Last GPT Analysis"):
+                try:
+                    docx_file = markdown_to_docx(
+                        "gpt_analysis", st.session_state.model_output1
                     )
-                # if st.checkbox("Enter a free text question for a full analysis."):
-                #     csv_question = st.text_area("Ask a free text question about your data, for example, describe the patient population", "")
-
-                if st.session_state.model_output1 != "":
-                    with st.expander("Prior GPT Analysis"):
-                        st.write(st.session_state.model_output1)
-                        st.write(st.session_state.model_output2)
-
-                if st.button("CLICK HERE to submit your question."):
-                    with st.spinner("Analyzing your data..."):
-                        question1 = f"""{data_analysis_prompt} User question: {agent_question}"""
-                        question2 = f"""{plot_generation_prompt} User question: {agent_question}"""
-                        # Submit both tasks
-                        container = st.container(border=True)
-                        result1 = start_plot_gpt4(st.session_state.df, question1)
-                        st.session_state.model_output1 = result1["output"]
-                        container.write(
-                            st.session_state.model_output1
-                        )  # Write the output to the container
-
-                        result2 = start_plot_gpt4(st.session_state.df, question2)
-                        st.session_state.model_output2 = result2["output"]
-                        container.write(
-                            st.session_state.model_output2
-                        )  # Write the output to the container
-                        # st.session_state.full_gpt_response = result1["output"] + result2["output"] # Save the full response
-
-                # st.warning("Right click to save plots.")
-
-            else:
-                # csv_question = st.text_area("Ask a question about your data!", help="For example, with the test diabetes dataset: Create a plot for age versus cholesterol for women with/without diabetes distinguished")
-                if st.button("CLICK **HERE** to submit your question"):
-                    with st.spinner("Analyzing your data..."):
-                        quick_answer = start_plot_gpt4(
-                            st.session_state.df,
-                            f"{quick_analysis_prompt} User question: {agent_question}",
+                    with open(docx_file, "rb") as file:
+                        btn = st.download_button(
+                            label="Download DOCX",
+                            data=file,
+                            file_name="gpt_analysis.docx",
+                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                         )
-                        st.session_state.model_output1 = quick_answer["output"]
-                        st.write(
-                            st.session_state.model_output1
-                        )  # Write the output to the container
-                # st.warning("Right click to save plots.")
-
-    if st.session_state.model_output1 != "":
-        if st.button("Download Last GPT Analysis"):
-            try:
-                docx_file = markdown_to_docx(
-                    "gpt_analysis", st.session_state.model_output1
-                )
-                with open(docx_file, "rb") as file:
-                    btn = st.download_button(
-                        label="Download DOCX",
-                        data=file,
-                        file_name="gpt_analysis.docx",
-                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                    )
-                os.remove(docx_file)  # Clean up the file after offering download
-            except Exception as e:
-                st.error(f"An error occurred while creating the DOCX file: {str(e)}")
+                    os.remove(docx_file)
+                except Exception as e:
+                    st.error(f"An error occurred while creating the DOCX file: {str(e)}")
