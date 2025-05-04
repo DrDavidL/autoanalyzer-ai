@@ -3642,15 +3642,24 @@ New input: {input}
 
                     # Try to extract code from the agent's intermediate steps if available
                     code_snippet = ""
+                    # Try to extract code from the tool calls in the agent's steps
                     if "intermediate_steps" in agent_out:
                         for step in agent_out["intermediate_steps"]:
-                            if isinstance(step, tuple) and len(step) > 0:
-                                # Try to find code in the tool input or output
-                                for part in step:
-                                    if isinstance(part, dict) and "input" in part:
-                                        code_snippet += f"\n{part['input']}\n"
-                                    elif isinstance(part, str) and "python" in part.lower():
-                                        code_snippet += f"\n{part}\n"
+                            # step is a tuple: (tool_call, tool_output)
+                            if isinstance(step, tuple) and len(step) == 2:
+                                tool_call, tool_output = step
+                                # tool_call is usually a dict with 'input' key containing code
+                                if isinstance(tool_call, dict) and "input" in tool_call:
+                                    code_snippet += f"\n{tool_call['input']}\n"
+                                # tool_output may also contain code or error messages
+                                if isinstance(tool_output, str) and "python" in tool_output.lower():
+                                    code_snippet += f"\n{tool_output}\n"
+                    # Fallback: try to extract code from the output text if not found above
+                    if not code_snippet.strip() and isinstance(output_text, str):
+                        import re
+                        code_blocks = re.findall(r"```python(.*?)```", output_text, re.DOTALL)
+                        if code_blocks:
+                            code_snippet = "\n".join([block.strip() for block in code_blocks])
                     st.session_state.gpt_analysis_code = code_snippet
 
                     st.write(output_text)
