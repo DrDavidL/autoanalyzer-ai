@@ -2175,7 +2175,6 @@ with tab1:
     if cox_ph:
         df = st.session_state.df
 
-        # Select Predictor Columns
         st.markdown("## Cox Analysis: Select Columns")
 
         categ_columns_cox = all_categorical(df)
@@ -2193,27 +2192,24 @@ with tab1:
             if len(selected_columns_cox) < 1:
                 st.error("Select at least one column!")
             else:
-                # Shift DataFrame to Selected Columns
                 cph_data = df[selected_columns_cox + [event_col] + [duration_col]]
-
-                # Define Event & Duration Columns here
-                # Assuming 'event' as Event Column & 'duration' as Duration Column
-                # Please change as per your data
-                # st.write(duration_col)
-                # st.write(cph_data[duration_col])
-                # st.write(cph_data)
                 cph = CoxPHFitter(penalizer=0.1)
                 cph.fit(cph_data, duration_col=duration_col, event_col=event_col)
                 summary_cox = cph.summary
                 st.session_state.df_to_download = summary_cox
-                # st.session_state.df_to_download = summary_df
                 st.subheader("Summary of the Cox PH Analysis")
                 st.info(
                     "Note, the exp(coef) column is the hazard ratio for each variable."
                 )
-                # Display summary DataFrame
                 st.dataframe(summary_cox)
+                with st.expander("Show code for Cox Proportional Hazards model"):
+                    st.code(
+                        f'''from lifelines import CoxPHFitter
 
+cph = CoxPHFitter(penalizer=0.1)
+cph.fit(df[{selected_columns_cox + [event_col] + [duration_col]}], duration_col="{duration_col}", event_col="{event_col}")
+print(cph.summary)
+''', language="python")
         else:
             st.text("Select columns & hit 'Analyze'.")
         if st.session_state.df_to_download is not None:
@@ -2222,7 +2218,6 @@ with tab1:
             st.write(cox)
 
     if survival_curve:
-        # Get column names for time and event from the user
         st.subheader("Survival Curve")
         st.warning(
             "This tool is for use with survival analysis data. Any depiction will not make sense if 'time' isn't a column for your dataset"
@@ -2234,8 +2229,21 @@ with tab1:
             "Select the column for event", st.session_state.df.columns
         )
 
-        # Plot the survival curve
         surv_curve = plot_survival_curve(st.session_state.df, time_col, event_col)
+        with st.expander("Show code for Kaplan-Meier survival curve"):
+            st.code(
+                f'''from lifelines import KaplanMeierFitter
+import matplotlib.pyplot as plt
+
+kmf = KaplanMeierFitter()
+kmf.fit(df["{time_col}"], event_observed=df["{event_col}"])
+fig, ax = plt.subplots()
+kmf.plot_survival_function(ax=ax)
+ax.set_xlabel("Time")
+ax.set_ylabel("Survival Probability")
+ax.set_title("Survival Curve")
+plt.show()
+''', language="python")
         save_image(surv_curve, "survival_curve.png")
         with st.expander("What is a Kaplan-Meier Curve?"):
             st.write(kaplan_meier)
@@ -2368,6 +2376,12 @@ with tab1:
         st.info("Summary of numerical data")
         sum_num_data = st.session_state.df.describe()
         st.write(sum_num_data)
+        with st.expander("Show code for summary (describe)"):
+            st.code(
+                '''# Show summary statistics for numerical columns
+summary = df.describe()
+print(summary)
+''', language="python")
         st.session_state.df_to_download = sum_num_data
         if st.session_state.df_to_download is not None:
             df_download_options(
@@ -2377,6 +2391,11 @@ with tab1:
     if header:
         st.info("First 5 Rows of Data")
         st.write(st.session_state.df.head())
+        with st.expander("Show code for displaying first 5 rows"):
+            st.code(
+                '''# Show the first 5 rows of the dataframe
+print(df.head())
+''', language="python")
 
     if full_analysis:
         full_analysis_method = st.radio(
@@ -2454,47 +2473,21 @@ with tab1:
         if selected_col:
             plt = plot_numeric(st.session_state.df, selected_col)
             st.pyplot(plt)
+            with st.expander("Show code for histogram"):
+                st.code(
+                    f'''import matplotlib.pyplot as plt
+
+# Histogram for numeric column
+plt.figure(figsize=(10, 6))
+plt.hist(df["{selected_col}"], bins=30, alpha=0.5, color="blue", edgecolor="black")
+plt.title("Distribution for {selected_col}")
+plt.xlabel("{selected_col}")
+plt.ylabel("Frequency")
+plt.show()
+''', language="python")
         save_image(plt, "histogram.png")
-        with st.expander("Expand for Python|Streamlit Code"):
-            st.code("""
-import pandas as pd
-import matplotlib.pyplot as plt
-
-# Function to get categorical and numerical columns from a dataframe
-def get_categorical_and_numerical_cols(df):
-    numeric_cols = df.select_dtypes(include=['int', 'float']).columns.tolist()
-    categorical_cols = df.select_dtypes(include=['object']).columns.tolist()
-    return numeric_cols, categorical_cols
-
-# Function to plot a histogram of a selected numeric column
-def plot_numeric(df, column):
-    plt.figure(figsize=(10, 6))
-    plt.hist(df[column], bins=20, color='skyblue')
-    plt.xlabel(column)
-    plt.ylabel('Frequency')
-    plt.title(f'Histogram of {column}')
-    return plt
-
-# Assuming st.session_state.df contains the dataframe
-
-# Display info message
-print("Histogram of data")
-
-# Get numeric and categorical columns
-numeric_cols, categorical_cols = get_categorical_and_numerical_cols(st.session_state.df)
-
-# Display selectbox to choose a column
-selected_col = input("Choose a column: ")
-
-# Check if a column is selected
-if selected_col:
-    # Plot histogram and display
-    plt = plot_numeric(st.session_state.df, selected_col)
-    plt.show()
-                """)
 
     if barchart:
-        # st.info("Barchart for categorical data")
         numeric_cols, categorical_cols = get_categorical_and_numerical_cols(
             st.session_state.df
         )
@@ -2504,6 +2497,17 @@ if selected_col:
         if cat_selected_col:
             plt = plot_categorical(st.session_state.df, cat_selected_col)
             st.pyplot(plt)
+            with st.expander("Show code for bar chart"):
+                st.code(
+                    f'''import matplotlib.pyplot as plt
+
+# Bar chart for categorical column
+df["{cat_selected_col}"].value_counts().plot(kind="bar")
+plt.xlabel("{cat_selected_col}")
+plt.ylabel("Frequency")
+plt.title("Frequency of Categories for {cat_selected_col}")
+plt.show()
+''', language="python")
         save_image(plt, "bar_chart.png")
         with st.expander("Expand for Python|Streamlit Code"):
             st.code("""
@@ -2549,6 +2553,25 @@ plt.show()
         st.info("Correlation heatmap")
         plt = plot_corr(st.session_state.df)
         st.pyplot(plt)
+        with st.expander("Show code for correlation heatmap"):
+            st.code(
+                '''import seaborn as sns
+import matplotlib.pyplot as plt
+
+# Convert binary categorical columns to numeric if needed
+df_copy = df.copy()
+for col in df_copy.columns:
+    if df_copy[col].dtype == "object" and len(df_copy[col].unique()) == 2:
+        value_counts = df_copy[col].value_counts()
+        df_copy[col] = df_copy[col].map({value_counts.idxmax(): 0, value_counts.idxmin(): 1})
+
+# Compute correlation matrix and plot
+corr = df_copy.select_dtypes(include=[float, int]).corr()
+plt.figure(figsize=(12, 10))
+sns.heatmap(corr, annot=True, cmap="coolwarm", cbar=True)
+plt.title("Correlation Heatmap")
+plt.show()
+''', language="python")
         save_image(plt, "heatmap.png")
         with st.expander("What is a correlation heatmap?"):
             st.write("""A correlation heatmap is a graphical representation of the correlation matrix, which is a table showing correlation coefficients between sets of variables. Each cell in the table shows the correlation between two variables. In the heatmap, correlation coefficients are color-coded, where the intensity of the color represents the magnitude of the correlation coefficient. 
@@ -2612,6 +2635,24 @@ plt.show()
         st.info("Summary of categorical data")
         summary = summarize_categorical(st.session_state.df)
         st.write(summary)
+        with st.expander("Show code for summary of categorical data"):
+            st.code(
+                '''# Summarize categorical columns
+cat_df = df.select_dtypes(include=["object", "category"])
+summary_data = []
+for col in cat_df.columns:
+    unique_count = df[col].nunique()
+    most_frequent = df[col].mode()[0]
+    freq_most_frequent = df[col].value_counts().iloc[0]
+    summary_data.append({
+        "column": col,
+        "unique_count": unique_count,
+        "most_frequent": most_frequent,
+        "frequency_most_frequent": freq_most_frequent,
+    })
+summary = pd.DataFrame(summary_data).set_index("column")
+print(summary)
+''', language="python")
         st.session_state.df_to_download = summary
         if st.session_state.df_to_download is not None:
             df_download_options(st.session_state.df_to_download, "categorical_summary")
@@ -2621,17 +2662,21 @@ plt.show()
         numeric_cols, categorical_cols = get_categorical_and_numerical_cols(
             st.session_state.df
         )
-        # cat_options =[]
-        # columns = list(df.columns)
-        # for col in columns:
-        #     if df[col].dtype != np.float64 and df[col].dtype != np.int64:
-        #         cat_options.append(col)
         cat_selected_col = st.selectbox(
             "Choose a column", categorical_cols, key="pie_category"
         )
         if cat_selected_col:
             plt = plot_pie(st.session_state.df, cat_selected_col)
             st.pyplot(plt)
+            with st.expander("Show code for pie chart"):
+                st.code(
+                    f'''import matplotlib.pyplot as plt
+
+# Pie chart for categorical column
+df["{cat_selected_col}"].value_counts().plot(kind="pie", autopct="%1.1f%%")
+plt.title("Distribution for {cat_selected_col}")
+plt.show()
+''', language="python")
         save_image(plt, "pie_chart.png")
 
     if check_preprocess:
@@ -2693,23 +2738,15 @@ plt.show()
         numeric_cols, categorical_cols = get_categorical_and_numerical_cols(
             st.session_state.df
         )
-        # Filter numeric columns
-        # numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
-        numeric_cols.sort()  # sort the list of columns alphabetically
-
-        # Filter categorical columns
-        # categorical_cols = df.select_dtypes(include=[object]).columns.tolist()
-        categorical_cols.sort()  # sort the list of columns alphabetically
-        # Dropdown to select columns to visualize
+        numeric_cols.sort()
+        categorical_cols.sort()
         col1, col2 = st.columns(2)
         with col1:
             scatter_x = st.selectbox("Select column for x axis:", numeric_cols)
         with col2:
             scatter_y = st.selectbox("Select column for y axis:", numeric_cols, index=1)
 
-        # Use st.beta_expander to hide or expand filtering options
         with st.expander("Filter Options"):
-            # Filter for the remaining numerical column
             remaining_cols = [
                 col for col in numeric_cols if col != scatter_x and col != scatter_y
             ]
@@ -2738,7 +2775,6 @@ plt.show()
                             & (st.session_state.df[filter_col] <= filter_range[1])
                         ]
 
-            # Filter for the remaining categorical column
             if categorical_cols:
                 filter_cat_col = st.selectbox(
                     "Select a categorical column to filter data:", categorical_cols
@@ -2753,29 +2789,30 @@ plt.show()
                     st.session_state.df = st.session_state.df[
                         st.session_state.df[filter_cat_col].isin(selected_categories)
                     ]
-        # Check if DataFrame is empty before creating scatterplot
         if st.session_state.df.empty:
             st.write(
                 "The current filter settings result in an empty dataset. Please adjust the filter settings."
             )
         else:
             scatterplot = create_scatterplot(st.session_state.df, scatter_x, scatter_y)
+            with st.expander("Show code for scatterplot"):
+                st.code(
+                    f'''import seaborn as sns
+import matplotlib.pyplot as plt
+
+# Scatterplot with regression line
+sns.regplot(x="{scatter_x}", y="{scatter_y}", data=df)
+plt.title("Scatter Plot for {scatter_y} vs {scatter_x}")
+plt.show()
+''', language="python")
             save_image(scatterplot, "custom_scatterplot.png")
 
     if box_plot:
-        # Call the function to get the lists of numerical and categorical columns
         numeric_cols, categorical_cols = get_categorical_and_numerical_cols(
             st.session_state.df
         )
-        # Filter numeric columns
-        # numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
-        numeric_cols.sort()  # sort the list of columns
-
-        # Filter categorical columns
-        # categorical_cols = df.select_dtypes(include=[object]).columns.tolist()
-        categorical_cols.sort()  # sort the list of columns
-
-        # Dropdown to select columns to visualize
+        numeric_cols.sort()
+        categorical_cols.sort()
         numeric_col = st.selectbox(
             "Select a numerical column:", numeric_cols, key="box_numeric"
         )
@@ -2785,6 +2822,16 @@ plt.show()
         mybox = create_boxplot(
             st.session_state.df, numeric_col, categorical_col, show_points=False
         )
+        with st.expander("Show code for box plot"):
+            st.code(
+                f'''import seaborn as sns
+import matplotlib.pyplot as plt
+
+# Notched box plot
+sns.boxplot(x="{categorical_col}", y="{numeric_col}", data=df, notch=True)
+plt.title("Box Plot of {numeric_col} by {categorical_col}")
+plt.show()
+''', language="python")
         save_image(mybox, "box_plot.png")
         with st.expander("What is a box plot?"):
             st.write("""Box plots (also known as box-and-whisker plots) are a great way to visually represent the distribution of data. They're particularly useful when you want to compare distributions between several groups. For example, you might want to compare the distribution of patients' ages across different diagnostic categories.
@@ -2812,19 +2859,11 @@ The notch, meanwhile, is a bit like the statistical version of a normal range fo
 """)
 
     if violin_plot:
-        # Call the function to get the lists of numerical and categorical columns
         numeric_cols, categorical_cols = get_categorical_and_numerical_cols(
             st.session_state.df
         )
-        # Filter numeric columns
-        # numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
-        numeric_cols.sort()  # sort the list of columns
-
-        # Filter categorical columns
-        # categorical_cols = df.select_dtypes(include=[object]).columns.tolist()
-        categorical_cols.sort()  # sort the list of columns
-
-        # Dropdown to select columns to visualize
+        numeric_cols.sort()
+        categorical_cols.sort()
         numeric_col = st.selectbox(
             "Select a numerical column:", numeric_cols, key="violin_numeric"
         )
@@ -2833,6 +2872,16 @@ The notch, meanwhile, is a bit like the statistical version of a normal range fo
         )
 
         violin = create_violinplot(st.session_state.df, numeric_col, categorical_col)
+        with st.expander("Show code for violin plot"):
+            st.code(
+                f'''import seaborn as sns
+import matplotlib.pyplot as plt
+
+# Violin plot
+sns.violinplot(x="{categorical_col}", y="{numeric_col}", data=df)
+plt.title("Violin Plot of {numeric_col} by {categorical_col}")
+plt.show()
+''', language="python")
         save_image(violin, "violin_plot.png")
         with st.expander("What is a violin plot?"):
             st.write("""Violin plots are a great visualization tool for examining distributions of data and they combine features from box plots and kernel density plots.
@@ -2861,7 +2910,6 @@ Remember, like any statistical tool, violin plots provide a simplified represent
             ).nunique()
             to_drop = nunique[nunique > 15].index
             df_filtered = st.session_state.df.drop(to_drop, axis=1)
-            # Check if any numerical column is binary and add it to categorical list
             numerical_columns = df_filtered.select_dtypes(
                 include=[np.number]
             ).columns.tolist()
@@ -2871,7 +2919,6 @@ Remember, like any statistical tool, violin plots provide a simplified represent
 
             categorical = df_filtered.select_dtypes(include=[object]).columns.tolist()
 
-            # Use Streamlit to create selection box for categorical variable
             st.header("Table 1")
             categorical_variable = st.selectbox(
                 "Select the categorical variable for grouping:", options=categorical
@@ -2881,12 +2928,24 @@ Remember, like any statistical tool, violin plots provide a simplified represent
                 df_filtered.columns.tolist(),
             )
 
-            # st.write(df_filtered.head())
             table = generate_table(
                 df_filtered, categorical_variable, nonnormal_variables
             )
-            # tablefmt = st.radio("Select a format for your table:", ["github", "grid", "fancy_grid", "pipe", "orgtbl", "jira", "presto", "psql", "rst", "mediawiki", "moinmoin", "youtrack", "html", "latex", "latex_raw", "latex_booktabs", "textile"])
-            # st.header("Table 1")
+            with st.expander("Show code for Table 1 (TableOne)"):
+                st.code(
+                    f'''from tableone import TableOne
+
+# Prepare your dataframe (df_filtered), categorical variable, and nonnormal variables
+mytable = TableOne(
+    df_filtered,
+    columns=df_filtered.columns.tolist(),
+    categorical={categorical},
+    groupby="{categorical_variable}",
+    nonnormal={nonnormal_variables},
+    pval=True,
+)
+print(mytable.tabulate(tablefmt="github"))
+''', language="python")
             st.write(table.tabulate(tablefmt="github"))
             st.write("-------")
             st.info("""Courtesy of TableOne: Tom J Pollard, Alistair E W Johnson, Jesse D Raffa, Roger G Mark;
@@ -2894,19 +2953,16 @@ tableone: An open source Python package for producing summary statistics
 for research papers, JAMIA Open, Volume 1, Issue 1, 1 July 2018, Pages 26–31,
 https://doi.org/10.1093/jamiaopen/ooy012""")
             st.write("-------")
-            # Download button for Excel file
             if st.checkbox("Click to Download Your Table 1"):
                 table_format = st.selectbox(
                     "Select a file format:", ["csv", "excel", "html", "latex"]
                 )
 
-                # Save DataFrame as Excel file
                 if table_format == "excel":
                     output_path = (
                         f"{st.session_state.outputs_path}/tableone_results.xlsx"
                     )
                     table.to_excel(output_path)
-                    # Provide the download link
                     st.markdown(
                         get_download_link(output_path, "xlsx"), unsafe_allow_html=True
                     )
@@ -2916,7 +2972,6 @@ https://doi.org/10.1093/jamiaopen/ooy012""")
                         f"{st.session_state.outputs_path}/tableone_results.csv"
                     )
                     table.to_csv(output_path)
-                    # Provide the download link
                     st.markdown(
                         get_download_link(output_path, "csv"), unsafe_allow_html=True
                     )
@@ -2926,7 +2981,6 @@ https://doi.org/10.1093/jamiaopen/ooy012""")
                         f"{st.session_state.outputs_path}/tableone_results.html"
                     )
                     table.to_html(output_path)
-                    # Provide the download link
                     st.markdown(
                         get_download_link(output_path, "html"), unsafe_allow_html=True
                     )
@@ -2940,14 +2994,54 @@ https://doi.org/10.1093/jamiaopen/ooy012""")
                         get_download_link(output_path, "tex"), unsafe_allow_html=True
                     )
 
-                # Save DataFrame as Excel file
-
     if perform_pca:
         # Create PCA plot
 
         pca_fig2 = perform_pca_plot(st.session_state.df)
+        with st.expander("Show code for PCA plot"):
+            st.code(
+                '''from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Standardize features
+x = StandardScaler().fit_transform(df.select_dtypes(include=[float, int]))
+
+# PCA
+pca = PCA(n_components=2)
+principalComponents = pca.fit_transform(x)
+principalDf = pd.DataFrame(data=principalComponents, columns=["PC1", "PC2"])
+
+# Plot
+fig = plt.figure(figsize=(8, 8))
+ax = fig.add_subplot(111)
+ax.set_xlabel("Principal Component 1")
+ax.set_ylabel("Principal Component 2")
+ax.set_title("2 component PCA")
+ax.scatter(principalDf["PC1"], principalDf["PC2"])
+plt.show()
+''', language="python")
         save_image(pca_fig2, f"./{st.session_state.outputs_path}/pca_plot.png")
         scree_plot = create_scree_plot(st.session_state.df)
+        with st.expander("Show code for scree plot"):
+            st.code(
+                '''from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
+import matplotlib.pyplot as plt
+
+x = StandardScaler().fit_transform(df.select_dtypes(include=[float, int]))
+pca = PCA(n_components=None)
+pca.fit_transform(x)
+plt.plot(
+    range(1, len(pca.explained_variance_) + 1),
+    np.cumsum(pca.explained_variance_ratio_),
+)
+plt.title("Cumulative Explained Variance")
+plt.xlabel("Number of Components")
+plt.ylabel("Cumulative Explained Variance Ratio")
+plt.show()
+''', language="python")
         save_image(scree_plot, f"./{st.session_state.outputs_path}/scree_plot.png")
 
         with st.expander("What is PCA?"):
