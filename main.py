@@ -60,8 +60,6 @@ from langchain.callbacks.base import AsyncCallbackHandler
 from langchain_core.outputs import LLMResult
 from typing import Any
 from markdown_to_docx import markdown_to_docx
-from pandasai import Agent
-from pandasai.llm import AzureOpenAI
 import sweetviz as sv
 import streamlit.components.v1 as components
 from ydata_profiling import ProfileReport
@@ -133,33 +131,7 @@ if "outputs_path" not in st.session_state:
     st.session_state.outputs_path = get_output_path()
 
 
-@st.cache_data(show_spinner=False)
-def generate_agent_response(
-    dataframe,
-    question,
-    temp_dir,
-    description="You are a data analysis agent. Your main goal is to help physician researchers analyze data",
-):
-    if not question or dataframe is None:
-        return None, None, None
-
-    # NOTE: 'llm' is not defined in this function or used elsewhere in the app.
-    # To fix the F821 error, remove the "llm" key from the config dict.
-    agent = Agent(
-        [pd.DataFrame(dataframe)],
-        description=description,
-        config={
-            "enforce_privacy": True,
-            "save_charts": True,
-            "save_charts_path": temp_dir,
-        },
-    )
-
-    response = agent.chat(question)
-    explanation = agent.explain()
-    code_used = agent.last_code_executed
-
-    return response, explanation, code_used
+# Removed pandasai Agent-based function, as only langchain-experimental is now used.
 
 
 def is_valid_api_key(api_key):
