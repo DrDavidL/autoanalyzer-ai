@@ -5,7 +5,10 @@ import pandas as pd
 
 # import missingno as msno
 import io
-import visualimiss
+# import visualimiss
+import missingno as msno
+
+
 
 # from ydata_profiling import ProfileReport
 import streamlit as st
@@ -572,9 +575,9 @@ Remember to structure the code such that it is properly indented and formatted a
 def assess_data_readiness(df):
     readiness_summary = {}
     st.write("White horizontal lines (if present) show missing data")
-    st.info("Sorted by most missing columns first")
     try:
-        missing_matrix = visualimiss.matrix(df, color=(43, 102, 189), sort="asc")
+        missing_matrix = msno.matrix(df)
+        # missing_matrix = visualimiss.matrix(df, color=(43, 102, 189), sort="asc")
         # missing_matrix = msno.matrix(df)
         # st.write('line 2 of assess_data_readiness')
         st.pyplot(missing_matrix.figure)
@@ -1821,6 +1824,23 @@ def plot_corr(df):
     sns.heatmap(corr, annot=True, cmap="coolwarm", cbar=True)
     plt.title("Correlation Heatmap")
     return plt
+
+
+
+def plot_enhanced_association_heatmap(df, title="Enhanced Association Heatmap"):
+    # Run dython associations (handles numerical & categorical automatically)
+    assoc = associations(
+        df,
+        theil_u=True,         # asymmetric measure for categorical vars
+        plot=True,
+        return_results=True,
+        nominal_columns='auto',
+        figsize=(14, 12),
+        mark_columns=True,
+        title=title
+    )
+    return assoc
+
 
 
 # @st.cache_resource
