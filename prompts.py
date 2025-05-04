@@ -114,3 +114,101 @@ prefix_teacher = """You politely decline to answer questions outside the domains
 If the question is appropriate, you teach for students at all levels. Your response appears next to a web  
 tool that can generate bar charts, violin charts, histograms, pie charts, scatterplots, and summary statistics for  sample datasets or a user supplied CSV file.         
 """
+# Explanatory text blocks for use in the app
+
+mult_linear_reg_text = """
+Multiple linear regression is a statistical technique used to model the relationship between one dependent variable and two or more independent variables. The goal is to determine the best-fitting linear equation that describes how the dependent variable changes as the independent variables change.
+
+In a medical research setting, multiple linear regression can be used in various ways. For example:
+1. Predicting health outcomes: Multiple linear regression can be used to predict a patient's health outcome (e.g., blood pressure, cholesterol level) based on several risk factors (e.g., age, weight, smoking status).
+2. Identifying risk factors: Multiple linear regression can be used to identify the independent variables that are most strongly associated with a particular health outcome.
+
+The regression equation takes the form:
+y = β0 + β1x1 + β2x2 + ... + βnxn + ε
+
+Where:
+- y is the dependent variable (outcome)
+- x1, x2, ..., xn are the independent variables (predictors)
+- β0 is the intercept
+- β1, β2, ..., βn are the coefficients for each predictor
+- ε is the error term
+
+The coefficients represent the expected change in the dependent variable for a one-unit change in the predictor, holding all other predictors constant.
+"""
+
+cox_text = """
+Cox Proportional Hazards analysis, also known as Cox regression, is a statistical method used to investigate the effect of several variables on the time a specified event takes to happen. It is commonly used in medical research for survival analysis.
+
+Key points:
+1. The Cox model estimates the hazard (risk) of an event occurring, such as death or relapse, at a particular time, given certain predictor variables.
+2. The model assumes that the hazard ratios are constant over time (the proportional hazards assumption).
+3. The output includes hazard ratios for each variable, which indicate how the risk of the event changes with a one-unit increase in the variable.
+
+Interpretation:
+- A hazard ratio greater than 1 indicates increased risk.
+- A hazard ratio less than 1 indicates decreased risk.
+- A hazard ratio equal to 1 indicates no effect.
+
+Cox regression is valuable for identifying risk factors and adjusting for confounding variables in time-to-event data.
+"""
+
+kaplan_meier_text = """
+The Kaplan-Meier survival curve is a graphical representation of the probability of surviving over time, often used in medical research to estimate patient survival rates.
+
+Key points:
+1. The curve shows the proportion of patients surviving at each time point after a treatment or diagnosis.
+2. Each step down in the curve represents an event (e.g., death, relapse).
+3. The curve can be used to compare survival between different groups (e.g., treatment vs. control).
+
+Interpretation:
+- The y-axis shows the probability of survival.
+- The x-axis shows time.
+- The curve provides a visual summary of survival data and can help identify differences between groups.
+"""
+
+correlation_heatmap_text = """
+A correlation heatmap is a graphical representation of the correlation matrix, which is a table showing correlation coefficients between sets of variables. Each cell in the table shows the correlation between two variables. In the heatmap, correlation coefficients are color-coded, where the intensity of the color represents the magnitude of the correlation coefficient.
+
+Key points:
+- Red signifies a high positive correlation (variables move in the same direction).
+- Blue represents negative correlation (variables move in opposite directions).
+- The correlation values appear in each square, giving a precise numeric correlation coefficient along with the visualized color intensity.
+
+Why are correlation heatmaps useful?
+- They help determine the relationship between different variables.
+- In medicine, this can help identify risk factors for diseases, where variables could be different health indicators like age, cholesterol level, blood pressure, etc.
+
+Understanding correlation values:
+- Correlation coefficients range from -1 to 1:
+  - 1: perfect positive correlation
+  - -1: perfect negative correlation
+  - 0: no linear relationship
+
+Note: Correlation does not imply causation. Correlation heatmaps are based on linear relationships; non-linear relationships may not be captured.
+"""
+
+box_plot_text = """
+Box plots (also known as box-and-whisker plots) are a great way to visually represent the distribution of data. They're particularly useful when you want to compare distributions between several groups.
+
+Components of a box plot:
+1. Box: Represents the interquartile range (IQR), containing the middle 50% of the data.
+2. Median: The line inside the box shows the median (50th percentile).
+3. Whiskers: Lines extending from the box indicate variability outside the IQR.
+4. Outliers: Points beyond the whiskers are considered outliers.
+
+The notch in a notched box plot represents the confidence interval around the median. If the notches of two box plots do not overlap, it's a strong indication that the medians differ.
+
+Box plots are useful for comparing distributions and identifying outliers in medical and scientific data.
+"""
+
+violin_plot_text = """
+Violin plots are a visualization tool for examining distributions of data, combining features from box plots and kernel density plots.
+
+Key points:
+1. The width of the "violin" at any point represents the density of data points at that value.
+2. The dot in the middle often represents the median.
+3. The thicker bar in the middle is the interquartile range (IQR).
+4. Violin plots are helpful for visualizing the distribution of a numerical variable across categories.
+
+Violin plots provide a smoothed representation of the data distribution and are useful for comparing groups in medical research.
+"""

@@ -528,15 +528,7 @@ def assess_data_readiness(df):
         missing_matrix = msno.matrix(df)
         # missing_matrix = visualimiss.matrix(df, color=(43, 102, 189), sort="asc")
         # missing_matrix = msno.matrix(df)
-        # st.write('line 2 of assess_data_readiness')
         st.pyplot(missing_matrix.figure)
-        # st.write('line 3 of assess_data_readiness')
-        # bar_missing = visualimiss.bar(df)
-        # missing_heatmap = msno.heatmap(df)
-        # st.write('Heatmap with convergence of missing elements (if any)')
-        # st.pyplot(bar_missing.figure)
-        # visualimiss.info(df)
-        # st.pyplot(summary.figure)
 
     except:
         st.warning(
@@ -557,24 +549,18 @@ def assess_data_readiness(df):
     except:
         st.warning("Dataframe not yet amenable to empty analysis.")
 
-    # Get column information
-    # st.write('second line of assess_data_readiness')
     try:
         columns = {col: str(df[col].dtype) for col in df.columns}
         readiness_summary["columns"] = columns
     except:
         st.warning("Dataframe not yet amenable to column analysis.")
 
-    # Check for missing columns
-    # st.write('third line of assess_data_readiness')
     try:
         missing_columns = df.columns[df.isnull().all()].tolist()
         readiness_summary["missing_columns"] = missing_columns
     except:
         st.warning("Dataframe not yet amenable to missing column analysis.")
 
-    # Check for inconsistent data types
-    # st.write('fourth line of assess_data_readiness')
     try:
         inconsistent_data_types = []
         for col in df.columns:
@@ -586,16 +572,12 @@ def assess_data_readiness(df):
     except:
         st.warning("Dataframe not yet amenable to data type analysis.")
 
-    # Check for missing values
-    # st.write('fifth line of assess_data_readiness')
     try:
         missing_values = df.isnull().sum().to_dict()
         readiness_summary["missing_values"] = missing_values
     except:
         st.warning("Dataframe not yet amenable to specific missing value analysis.")
 
-    # Determine overall data readiness
-    # st.write('sixth line of assess_data_readiness')
     try:
         readiness_summary["data_empty"] = False
         if missing_columns or inconsistent_data_types or any(missing_values.values()):
@@ -2031,7 +2013,8 @@ print("Coefficients:", regr.coef_)
         # save_image(mult_linear_reg, 'mult_linear_reg.png')
         # df_download_options(mult_linear_reg, 'csv')
         with st.expander("What is a Multiple Linear Regression?"):
-            st.write(mult_linear_reg_explanation)
+            from prompts import mult_linear_reg_text
+            st.write(mult_linear_reg_text)
 
     if cox_ph:
         df = st.session_state.df
@@ -2076,7 +2059,8 @@ print(cph.summary)
         if st.session_state.df_to_download is not None:
             df_download_options(st.session_state.df_to_download, "cox_ph_summary")
         with st.expander("What is a Cox Proportional Hazards Analysis?"):
-            st.write(cox)
+            from prompts import cox_text
+            st.write(cox_text)
 
     if survival_curve:
         st.subheader("Survival Curve")
@@ -2107,7 +2091,8 @@ plt.show()
 ''', language="python")
         save_image(surv_curve, "survival_curve.png")
         with st.expander("What is a Kaplan-Meier Curve?"):
-            st.write(kaplan_meier)
+            from prompts import kaplan_meier_text
+            st.write(kaplan_meier_text)
 
     if binary_categ_analysis:
         st.subheader("""
@@ -2419,62 +2404,8 @@ plt.show()
 ''', language="python")
         save_image(plt, "heatmap.png")
         with st.expander("What is a correlation heatmap?"):
-            st.write("""A correlation heatmap is a graphical representation of the correlation matrix, which is a table showing correlation coefficients between sets of variables. Each cell in the table shows the correlation between two variables. In the heatmap, correlation coefficients are color-coded, where the intensity of the color represents the magnitude of the correlation coefficient. 
-
-In your demo dataset heatmap, red signifies a high positive correlation of 1.0, which means the variables move in the same direction. If one variable increases, the other variable also increases. Darker blue, at the other end, represents negative correlation (close to -0.06 in your case), meaning the variables move in opposite directions. If one variable increases, the other variable decreases. 
-
-The correlation values appear in each square, giving a precise numeric correlation coefficient along with the visualized color intensity.
-
-**Why are correlation heatmaps useful?**
-
-Correlation heatmaps are useful to determine the relationship between different variables. In the field of medicine, this can help identify risk factors for diseases, where variables could be different health indicators like age, cholesterol level, blood pressure, etc.
-
-**Understanding correlation values:**
-
-Correlation coefficients range from -1 to 1:
-- A correlation of 1 means a perfect positive correlation.
-- A correlation of -1 means a perfect negative correlation.
-- A correlation of 0 means there is no linear relationship between the variables.
-
-It's important to note that correlation doesn't imply causation. While a correlation can suggest a relationship between two variables, it doesn't mean that changes in one variable cause changes in another.
-
-Also, remember that correlation heatmaps are based on linear relationships between variables. If variables have a non-linear relationship, the correlation coefficient may not capture their relationship accurately.
-
-For medical students, think of correlation heatmaps as a quick way to visually identify relationships between multiple variables at once. This can help guide your understanding of which variables may be important to consider together in further analyses.""")
-            st.code("""import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
-
-# Function to plot correlation heatmap
-def plot_corr(df):
-# Compute correlation matrix
-corr = df.corr()
-
-# Generate a mask for the upper triangle
-mask = np.triu(np.ones_like(corr, dtype=bool))
-
-# Set up the matplotlib figure
-fig, ax = plt.subplots(figsize=(10, 8))
-
-# Generate a custom diverging colormap
-cmap = sns.diverging_palette(230, 20, as_cmap=True)
-
-# Draw the heatmap with the mask and correct aspect ratio
-sns.heatmap(corr, mask=mask, cmap=cmap, vmax=1, vmin=-1, center=0,
-            square=True, linewidths=.5, annot=True, fmt=".2f", ax=ax)
-
-# Set plot title
-ax.set_title("Correlation Heatmap")
-
-return plt
-
-# Load the dataframe
-df = pd.read_csv("your_data.csv")
-
-# Call the plot_corr function and display the correlation heatmap
-plt = plot_corr(df)
-plt.show()
-""")
+            from prompts import correlation_heatmap_text
+            st.write(correlation_heatmap_text)
 
     if summary_cat:
         st.info("Summary of categorical data")
@@ -2679,29 +2610,8 @@ plt.show()
 ''', language="python")
         save_image(mybox, "box_plot.png")
         with st.expander("What is a box plot?"):
-            st.write("""Box plots (also known as box-and-whisker plots) are a great way to visually represent the distribution of data. They're particularly useful when you want to compare distributions between several groups. For example, you might want to compare the distribution of patients' ages across different diagnostic categories.
-(Check out age and diabetes in the sample dataset.)
-
-**Components of a box plot:**
-
-A box plot is composed of several parts:
-
-1. **Box:** The main part of the plot, the box, represents the interquartile range (IQR), which is the range between the 25th percentile (Q1, the lower edge of the box) and the 75th percentile (Q3, the upper edge of the box). The IQR contains the middle 50% of the data points.
-
-2. **Median:** The line (or sometimes a dot) inside the box represents the median of the data - the value separating the higher half from the lower half of a data sample. It's essentially the 50th percentile.
-
-3. **Whiskers:** The lines extending from the box (known as whiskers) indicate variability outside the IQR. Typically, they extend to the most extreme data point within 1.5 times the IQR from the box. 
-
-4. **Outliers:** Points plotted beyond the whiskers are considered outliers - unusually high or low values in comparison with the rest of the data.
-
-**What is the notch used for?**
-
-The notch in a notched box plot represents the confidence interval around the median. If the notches of two box plots do not overlap, it's a strong indication (though not absolute proof) that the medians differ. This can be a useful way to visually compare medians across groups. 
-
-For medical students, a good way to think about box plots might be in comparison to lab results. Just as lab results typically give a reference range and flag values outside of that range, a box plot gives a visual representation of the range of the data (through the box and whiskers) and flags outliers.
-
-The notch, meanwhile, is a bit like the statistical version of a normal range for the median. If a notch doesn't overlap with the notch from another box plot, it's a sign that the medians might be significantly different. But just like lab results, statistical tests are needed to definitively say whether a difference is significant.
-""")
+            from prompts import box_plot_text
+            st.write(box_plot_text)
 
     if violin_plot:
         numeric_cols, categorical_cols = get_categorical_and_numerical_cols(
@@ -2729,17 +2639,8 @@ plt.show()
 ''', language="python")
         save_image(violin, "violin_plot.png")
         with st.expander("What is a violin plot?"):
-            st.write("""Violin plots are a great visualization tool for examining distributions of data and they combine features from box plots and kernel density plots.
-
-1. **Overall Shape**: The violin plot is named for its resemblance to a violin. The shape of the "violin" provides a visual representation of the distribution of the data. The width of the "violin" at any given point represents the density or number of data points at that level. This means a wider section indicates more data points lie in that range, while a narrower section means fewer data points. This is similar to a histogram but it's smoothed out, which can make the distribution clearer.
-
-2. **Dot in the Middle**: This dot often represents the median of the data. The median is the middle point of the data. That means half of all data points are below this value and half are above it. In medicine, the median is often a more useful measure than the mean because it's less affected by outliers or unusually high or low values. For example, if you're looking at the age of patients, a single 100-year-old patient won't dramatically shift the median like it would the mean.
-
-3. **Thicker Bar in the Middle**: This is an interquartile range (IQR), which captures the middle 50% of the data (from the 25th to the 75th percentile). The IQR can help you understand the spread of the central half of your data. If the IQR is small, it means the central half of your data points are clustered closely around the median. If the IQR is large, it means they're more spread out.
-
-4. **Usage**: Violin plots are particularly helpful when you want to visualize the distribution of a numerical variable across different categories. For example, you might want to compare the distribution of patient ages in different diagnostic categories. 
-
-Remember, like any statistical tool, violin plots provide a simplified representation of the data and may not capture all nuances. For example, they usually show a smoothed distribution, which might hide unusual characteristics or outliers in the data. It's always important to also consider other statistical tools and the clinical context of the data.""")
+            from prompts import violin_plot_text
+            st.write(violin_plot_text)
 
     if view_full_df:
         st.dataframe(st.session_state.df)
