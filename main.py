@@ -1,19 +1,9 @@
 import numpy as np
 
-# import langchain
 import pandas as pd
-
-# import missingno as msno
 import io
-# import visualimiss
 import missingno as msno
-
-
-
-# from ydata_profiling import ProfileReport
 import streamlit as st
-
-# from streamlit_pandas_profiling import st_profile_report
 import matplotlib.pyplot as plt
 import seaborn as sns
 from statsmodels.imputation import mice
@@ -29,23 +19,16 @@ from sklearn.metrics import (
     precision_recall_curve,
     auc,
     f1_score,
+    ConfusionMatrixDisplay,
 )
 from sklearn.linear_model import LogisticRegression
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.impute import SimpleImputer
 from sklearn import svm
-
-# from langchain_experimental.agents import create_pandas_dataframe_agent
-# from langchain.chat_models import ChatOpenAI
-# from langchain_community.chat_models import ChatOpenAI
-from langchain_openai import ChatOpenAI
+from langchain_openai import ChatOpenAI, AzureChatOpenAI, AzureOpenAI
 from langchain.agents.agent_types import AgentType
-
-# from langchain.llms import OpenAI
 from langchain_experimental.agents.agent_toolkits import create_pandas_dataframe_agent
-
-# from langchain_openai import ChatOpenAI
 import json
 import base64
 from PIL import Image
@@ -64,7 +47,6 @@ from sklearn import linear_model
 import statsmodels.api as sm
 import category_encoders as ce
 import shap
-from sklearn.metrics import ConfusionMatrixDisplay
 import time
 import tempfile
 from prompts import (
@@ -76,7 +58,6 @@ from prompts import (
 import asyncio
 from langchain.callbacks.base import AsyncCallbackHandler
 from langchain_core.outputs import LLMResult
-from langchain_openai import AzureChatOpenAI, AzureOpenAI
 from typing import Any
 from markdown_to_docx import markdown_to_docx
 from pandasai import Agent
@@ -93,12 +74,10 @@ st.set_page_config(
     initial_sidebar_state="auto",
 )
 
-# nest_asyncio.apply()
 password_key = os.environ.get("PASSWORD")
 openai_api_key = os.environ.get("OPENAI_API_KEY")
 hu_key = os.environ.get("HEALTH_UNIVERSE")
 openai_base_url = os.environ.get("OPENAI_BASE_URL")
-
 
 if password_key is None:
     password_key = st.secrets["password"]
@@ -108,22 +87,14 @@ if password_key is None:
 
 if "full_gpt_response" not in st.session_state:
     st.session_state.full_gpt_response = ""
-
 if "last_response" not in st.session_state:
     st.session_state.last_response = ""
-
 if "df" not in st.session_state:
     st.session_state.df = pd.DataFrame()
-
 if "modified_df" not in st.session_state:
     st.session_state.modified_df = pd.DataFrame()
-
-# if "openai-api-key" not in st.session_state:
-#     st.session_state.openai-api-key = st.secrets("openai-api-key")
-
 if "gen_csv" not in st.session_state:
     st.session_state.gen_csv = None
-
 if "df_to_download" not in st.session_state:
     st.session_state.df_to_download = None
 
@@ -144,44 +115,18 @@ def get_output_path():
 
 
 def convert_markdown_to_docx(markdown_text, file_name):
-    # Create a temporary markdown file
+    # Convert markdown to docx and return the file path
     with tempfile.NamedTemporaryFile(delete=False, suffix=".md") as temp_markdown:
         temp_markdown.write(markdown_text.encode("utf-8"))
         temp_markdown_path = temp_markdown.name
 
-    # Create the Markdown2docx project using the temporary markdown file
     project = markdown_to_docx(temp_markdown_path[:-3])  # Remove the ".md" extension
     project.eat_soup()
-
-    # Save the DOCX file
     docx_file_path = file_name + ".docx"
     project.save()
-
-    # Move the generated docx file to the desired location
     os.rename(temp_markdown_path[:-3] + ".docx", docx_file_path)
-
-    # Clean up the temporary markdown file
     os.remove(temp_markdown_path)
-
     return docx_file_path
-
-    # Markdown2docx(md_temp_filename, docx_temp_filename)
-
-    # # Read the docx file content into memory to provide a download button
-    # with open(gpt_analysis, "rb") as f:
-    #     docx_file_data = f.read()
-
-    # # Provide a download button for the docx content
-    # st.download_button(
-    #     label="Download DOCX",
-    #     data=docx_file_data,
-    #     file_name="gpt-analysis.docx",
-    #     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    # )
-
-    # Clean up the temporary files after the download
-    # os.remove(md_temp_filename)
-    # os.remove(docx_temp_filename)
 
 
 if "outputs_path" not in st.session_state:
@@ -218,17 +163,14 @@ def generate_agent_response(
 
 def is_valid_api_key(api_key):
     openai.api_key = api_key
-
     try:
         # Send a test request to the OpenAI API
-        response = openai.Completion.create(
+        openai.Completion.create(
             model="text-davinci-003", prompt="Hello world"
         )["choices"][0]["text"]
         return True
     except Exception:
-        pass
-
-    return False
+        return False
 
 
 def is_bytes_like(obj):
@@ -704,66 +646,16 @@ def process_model_output(output):
     return processed_output
 
 
-def process_model_output_old(output):
-    # Convert JSON to string if necessary
-    if isinstance(output, dict):
-        output = json.dumps(output)
-
-    # if isinstance(output, str):
-    #     output = json.loads(output)
-
-    if "arguments" in output:
-        output = output["arguments"]
-
-    start_marker = "```python\n"
-    end_marker = "\n```"
-
-    start_index = output.find(start_marker)
-    end_index = output.find(end_marker, start_index)
-
-    # If the markers are found, extract the code part
-    # Adjust the start index to not include the start_marker
-    if start_index != -1 and end_index != -1:
-        code_string = output[start_index + len(start_marker) : end_index]
-    else:
-        code_string = ""
-
-    return code_string.strip()
+# Removed unused process_model_output_old function
 
 
 def safety_check(code):
+    # Basic check for dangerous keywords in code
     dangerous_keywords = [
-        " exec",
-        " eval",
-        " open",
-        " sys",
-        " subprocess",
-        " del",
-        " delete",
-        " remove",
-        " os",
-        " shutil",
-        " pip",
-        " conda",
-        " st.write",
-        " exit",
-        " quit",
-        " globals",
-        " locals",
-        " dir",
-        " reload",
-        " lambda",
-        " setattr",
-        " getattr",
-        " delattr",
-        " yield",
-        " assert",
-        " break",
-        " continue",
-        " raise",
-        " try",
-        "compile",
-        "__import__",
+        " exec", " eval", " open", " sys", " subprocess", " del", " delete", " remove", " os",
+        " shutil", " pip", " conda", " st.write", " exit", " quit", " globals", " locals", " dir",
+        " reload", " lambda", " setattr", " getattr", " delattr", " yield", " assert", " break",
+        " continue", " raise", " try", "compile", "__import__",
     ]
     for keyword in dangerous_keywords:
         if keyword in code:
@@ -772,14 +664,11 @@ def safety_check(code):
 
 
 def replace_show_with_save(code_string, filename="output.png"):
-    # Prepare save command
+    # Replace plt.show() and fig.show() with save commands
     save_cmd1 = f"plt.savefig('{st.session_state.outputs_path}/{filename}')"
     save_cmd2 = f"pio.write_image(fig, '{st.session_state.outputs_path}/{filename}')"
-
-    # Replace plt.show() with plt.savefig()
     code_string = code_string.replace("plt.show()", save_cmd1)
     code_string = code_string.replace("fig.show()", save_cmd2)
-
     return code_string
 
 
@@ -1496,24 +1385,7 @@ def get_categorical_and_numerical_cols(df):
     return numeric_cols, categorical_cols
 
 
-def plot_confusion_matrix_old(y_true, y_pred):
-    cm = confusion_matrix(y_true, y_pred)
-    fig, ax = plt.subplots(dpi=100)  # Set DPI for better clarity
-
-    # Plot the heatmap
-    sns.heatmap(
-        cm, annot=True, fmt="d", cmap="Blues", ax=ax, annot_kws={"size": 16}
-    )  # Set font size
-
-    # Labels, title, and ticks
-    ax.set_ylabel("Actual", fontsize=12)
-    ax.set_xlabel("Predicted", fontsize=12)
-    ax.set_title("Confusion Matrix", fontsize=14)
-
-    # Fix for the bottom cells getting cut off
-    plt.subplots_adjust(bottom=0.2)
-
-    return fig
+# Removed unused plot_confusion_matrix_old function
 
 
 def plot_confusion_matrix(y_true, y_pred):
@@ -1883,29 +1755,7 @@ def plot_numeric(df, col_name):
     return plt
 
 
-def process_dataframe(df):
-    # Iterating over each column
-    for col in df.columns:
-        # Checking if the column is of object type (categorical)
-        if df[col].dtype == "object":
-            # Getting unique values in the column
-            unique_values = df[col].unique()
-
-            # If the column has exactly 2 unique values
-            if len(unique_values) == 2:
-                # Counting the occurrences of each value
-                value_counts = df[col].value_counts()
-
-                # Getting the most and least frequent values
-                most_frequent = value_counts.idxmax()
-                least_frequent = value_counts.idxmin()
-
-                # Replacing the values and converting to integer
-                df[col] = (
-                    df[col].replace({most_frequent: 0, least_frequent: 1}).astype(int)
-                )
-
-    return df
+# Removed unused process_dataframe function
 
 
 st.title("AutoAnalyzer")
@@ -2418,8 +2268,6 @@ print(df.head())
                 st.info(
                     "Full analysis of data using [*Sweetviz*](https://github.com/fbdesignpro/sweetviz)"
                 )
-
-                # Generate the Sweetviz report and save it to a temporary file
                 report_path = temp_file.name
                 report = make_sweet_report(st.session_state.df)
                 report.show_html(
@@ -2428,8 +2276,6 @@ print(df.head())
                     layout="vertical",
                     scale=1.0,
                 )
-
-                # Provide a download button for the user to download the HTML report
                 with open(report_path, "rb") as file:
                     st.download_button(
                         label="Download Sweetviz Report",
@@ -2437,29 +2283,21 @@ print(df.head())
                         file_name="SWEETVIZ_REPORT.html",
                         mime="text/html",
                     )
-
-                # Read the report from the temp directory for display in Streamlit
                 with open(report_path, "r", encoding="utf-8") as display:
                     source_code = display.read()
-
-                # Display the report in the Streamlit app
                 components.html(source_code, height=1200, scrolling=True)
 
         if full_analysis_method == "Pandas Profiling":
             st.info(
                 "Full analysis of data using [*Pandas Profiling*](https://github.com/ydataai/ydata-profiling). Check out *alerts*!"
             )
-
             with tempfile.NamedTemporaryFile(delete=False, suffix=".html") as temp_file:
-                # Generate the Sweetviz report and save it to a temporary file
                 report_path = temp_file.name
                 with st.spinner("Generating the report..."):
                     report = make_pandas_report(
                         st.session_state.df, title="Pandas Profiling Report"
                     )
                     report.to_file(report_path)
-
-                # Provide a download button for the user to download the HTML report
                 with open(report_path, "rb") as file:
                     st.download_button(
                         label="Pandas Profiling Report",
@@ -2467,12 +2305,8 @@ print(df.head())
                         file_name="Pandas_Profile.html",
                         mime="text/html",
                     )
-
-                # Read the report from the temp directory for display in Streamlit
                 with open(report_path, "r", encoding="utf-8") as display:
                     source_code = display.read()
-
-                # Display the report in the Streamlit app
                 components.html(source_code, height=1200, scrolling=True)
 
     if histogram:
