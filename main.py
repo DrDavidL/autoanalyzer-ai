@@ -3426,10 +3426,9 @@ with tab2:
 
 with tab3:
     if hu_key == "True" or check_password():
-        st.title("Analyze with GPT (LangChain Experimental)")
-        st.info("""Data types (e.g., numerical, versus categorical) should be consistent within columns as noted at the top of the app. (*See https://tidyr.tidyverse.org/ for more information.*)
-            All analysis in this tab uses the LangChain experimental agent for pandas DataFrames. This is the only supported option for now.
-            """)
+        st.title("Analyze with GPT (Agentic REPL Approach, Azure GPT-4.1)")
+        st.info("""This tab uses an agentic workflow inspired by Cubode's approach: the LLM receives context about your dataframe, generates Python code to answer your question, and executes it in a safe REPL with access to your dataframe as `df`. Results and errors are shown below.
+        """)
 
         # File uploader
         data_source = st.radio(
@@ -3460,50 +3459,176 @@ with tab3:
             st.write("### Current Data Frame")
             st.dataframe(df, height=200)
 
-        st.subheader("Quick Description")
-        st.write("Get a quick, AI-generated summary of your dataset.")
-        if st.button("Describe Dataset"):
-            with st.spinner("Generating quick description..."):
-                question = "Describe the columns, data types, and any notable features of this dataframe. Summarize the dataset for a new user."
+        # --- Agentic REPL approach with Azure GPT-4.1 ---
+        import types
+        from langchain_experimental.utilities import PythonREPL
+        from langchain_core.tools import tool
+        from langchain_core.prompts import PromptTemplate
+        from langchain.agents import AgentExecutor, create_react_agent
+        from langchain_openai import AzureChatOpenAI
+
+        # 1. Extract metadata
+        def extract_metadata(df):
+            metadata = {}
+            metadata['Number of Columns'] = df.shape[1]
+            metadata['Schema'] = df.columns.tolist()
+            metadata['Data Types'] = str(df.dtypes)
+            metadata['Sample'] = df.head(1).to_dict(orient="records")
+            return metadata
+
+        metadata = extract_metadata(df)
+
+        # 2. Prompt augmentation
+        def build_metadata_prompt(metadata):
+            return f'''
+Assistant is an AI model that takes in metadata from a dataset 
+and suggests charts to use to visualise that data.
+
+New Input: Suggest 2 charts to visualise data from a dataset with the following metadata. 
+
+SCHEMA:
+--------
+{metadata["Schema"]}
+
+DATA TYPES: 
+--------
+{metadata["Data Types"]}
+
+SAMPLE: 
+--------
+{metadata["Sample"]}
+'''
+
+        # 3. REPL tool
+        repl = PythonREPL()
+        repl.globals['df'] = df
+
+        @tool
+        def python_repl(
+            code: str
+        ):
+            """Use this to execute python code. If you want to see the output of a value,
+            you should print it out with `print(...)`. This is visible to the user."""
+            try:
+                result = repl.run(code)
+            except BaseException as e:
+                return f"Failed to execute. Error: {repr(e)}"
+            result_str = f"Successfully executed:\n```python\n{code}\n```\nStdout: {result}"
+            return (
+                result_str + "\n\nIf you have completed all tasks, respond with FINAL ANSWER."
+            )
+
+        tools = [python_repl]
+
+        # 4. System prompt for agent
+        instructions_template = '''
+You are an agent that writes and excutes python code
+
+You have access to a Python abstract REPL, which you can use to execute the python code.
+
+You must write the python code code assuming that the dataframe (stored as df) has already been read.
+
+If you get an error, debug your code and try again.
+
+You might know the answer without running any code, but you should still run the code to get the answer.
+
+If it does not seem like you can write code to answer the question, just return "I don't know" as the answer.
+
+Do not create example dataframes 
+'''
+
+        base_template = '''
+
+{instructions_template}
+
+TOOLS:
+
+------
+
+You have access to the following tools:
+
+{tools}
+
+To use a tool, please use the following format:
+
+```
+Thought: Do I need to use a tool? Yes
+Action: the action to take, should be one of [{tool_names}]
+Action Input: the input to the action
+Observation: the result of the action
+```
+
+When you have a response to say to the Human, or if you do not need to use a tool, you MUST use the format:
+
+```
+Thought: Do I need to use a tool? No
+Final Answer: [your response here]
+```
+
+Begin!
+
+Previous conversation history:
+
+{chat_history}
+
+New input: {input}
+
+{agent_scratchpad}
+'''
+
+        base_prompt = PromptTemplate(
+            template=base_template,
+            input_variables=['agent_scratchpad', 'input', 'instructions', 'tool_names', 'tools']
+        ).partial(instructions_template=instructions_template)
+
+        # 5. LLM setup (Azure GPT-4.1)
+        llm = AzureChatOpenAI(
+            azure_deployment=st.secrets["azure_deployment"],
+            api_version=st.secrets["api_version"],
+            azure_endpoint=openai_base_url,
+            api_key=openai_api_key,
+            temperature=0.0,
+            max_tokens=4000,
+            timeout=None,
+            max_retries=2,
+            model_kwargs={
+                "seed": 42,
+            },
+        )
+
+        # 6. Chart suggestion
+        st.subheader("Chart Suggestions")
+        if st.button("Suggest Charts for this Data"):
+            with st.spinner("Suggesting charts..."):
+                chart_prompt = build_metadata_prompt(metadata)
                 try:
-                    result = start_plot_gpt4(df, question)
-                    st.session_state.model_output1 = result["output"]
-                    st.write(st.session_state.model_output1)
+                    suggestion = llm.invoke(chart_prompt)
+                    st.write(suggestion)
                 except Exception as e:
-                    st.error(f"Error generating description: {e}")
+                    st.error(f"Error generating chart suggestions: {e}")
 
         st.divider()
 
-        st.subheader("Ask a Question (LangChain Experimental)")
-        st.write("Ask a question about your data. The agent will use the DataFrame and GPT to answer.")
+        # 7. Agentic code generation and execution
+        st.subheader("Ask a Question (Agentic REPL)")
+        st.write("Ask a question about your data. The agent will generate and execute Python code using your dataframe as `df`.")
         agent_question = st.text_input("Ask a question to the AI agent:")
 
         if st.button("Submit Question"):
             with st.spinner("Analyzing your data..."):
+                # Build agent
+                agent = create_react_agent(llm, tools, base_prompt)
+                agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
+                # Compose input
+                agent_input = {
+                    "input": agent_question,
+                    "chat_history": ""
+                }
                 try:
-                    result = start_plot_gpt4(df, agent_question)
-                    st.session_state.model_output1 = result["output"]
+                    agent_out = agent_executor.invoke(agent_input)
+                    # Show the full agent output (including code and stdout)
+                    st.session_state.model_output1 = agent_out.get("output", str(agent_out))
                     st.write(st.session_state.model_output1)
-                    # --- Display plot if present in the result ---
-                    # If the agent returns a matplotlib figure or plot, display it
-                    if "plot" in result:
-                        plot_obj = result["plot"]
-                        try:
-                            # If it's a matplotlib Figure
-                            import matplotlib.figure
-                            if isinstance(plot_obj, matplotlib.figure.Figure):
-                                st.pyplot(plot_obj)
-                        except Exception:
-                            pass
-                    # If the agent returns a file path to an image, display it
-                    if "image_path" in result:
-                        image_path = result["image_path"]
-                        try:
-                            from PIL import Image
-                            img = Image.open(image_path)
-                            st.image(img, caption="Generated Plot")
-                        except Exception:
-                            st.warning(f"Could not display image at {image_path}")
                 except Exception as e:
                     st.error(f"Error analyzing your data: {e}")
 
