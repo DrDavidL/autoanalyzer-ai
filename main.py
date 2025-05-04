@@ -236,17 +236,21 @@ def is_bytes_like(obj):
 
 
 def save_image(plot, filename):
-    if is_bytes_like(plot):
-        img = io.BytesIO(plot)
-    else:
-        img = io.BytesIO()
-        plot.savefig(img, format="png")
-    btn = st.download_button(
-        label="Download your plot.",
-        data=img,
-        file_name=filename,
-        mime="image/png",
-    )
+    try:
+        if is_bytes_like(plot):
+            img = io.BytesIO(plot)
+        else:
+            img = io.BytesIO()
+            plot.savefig(img, format="png")
+        img.seek(0)
+        btn = st.download_button(
+            label="Download your plot.",
+            data=img,
+            file_name=filename,
+            mime="image/png",
+        )
+    except Exception as e:
+        st.warning(f"Could not save or download plot: {e}")
 
 
 def generate_regression_equation(intercept, coef, x_col):
@@ -405,11 +409,15 @@ def filter_dataframe(df):
 
 # Function to generate a download link
 def get_download_link(file_path, file_type):
-    with open(file_path, "rb") as file:
-        contents = file.read()
-    base64_data = base64.b64encode(contents).decode("utf-8")
-    download_link = f'<a href="data:application/octet-stream;base64,{base64_data}" download="tableone_results.{file_type}">Click here to download the TableOne results in {file_type} format.</a>'
-    return download_link
+    try:
+        with open(file_path, "rb") as file:
+            contents = file.read()
+        base64_data = base64.b64encode(contents).decode("utf-8")
+        download_link = f'<a href="data:application/octet-stream;base64,{base64_data}" download="tableone_results.{file_type}">Click here to download the TableOne results in {file_type} format.</a>'
+        return download_link
+    except Exception as e:
+        st.warning(f"Could not create download link: {e}")
+        return ""
 
 
 def find_binary_categorical_variables(df):
@@ -445,25 +453,24 @@ def generate_2x2_table(df, var1, var2):
 def plot_survival_curve(df, time_col, event_col):
     # Create a Kaplan-Meier fitter object
     try:
+        if time_col not in df.columns or event_col not in df.columns:
+            st.warning("Selected columns not found in dataframe.")
+            return None
+        if df[time_col].isnull().any() or df[event_col].isnull().any():
+            st.warning("Time or event column contains missing values.")
+            return None
         kmf = KaplanMeierFitter()
-
-        # Fit the survival curve using the dataframe
         kmf.fit(df[time_col], event_observed=df[event_col])
-
-        # Plot the survival curve
         fig, ax = plt.subplots()
         kmf.plot_survival_function(ax=ax)
-
-        # Add labels and title to the plot
         ax.set_xlabel("Time")
         ax.set_ylabel("Survival Probability")
         ax.set_title("Survival Curve")
-
-        # Display the plot
         st.pyplot(fig)
         return fig
-    except TypeError:
-        st.warning("Find the right columns for time and event.")
+    except Exception as e:
+        st.warning(f"Could not plot survival curve: {e}")
+        return None
 
 
 def calculate_rr_arr_nnt(tn, fp, fn, tp):
@@ -1113,23 +1120,6 @@ def start_plot_gpt4_old2(df):
 
 
 def generate_df(columns, n_rows, selected_model):
-    # openai.api_key = st.session_state.openai-api-key
-
-    #     if selected_model == "gpt-3.5-turbo":
-
-    #         system_prompt = f""" You are a medical data expert. Generate random medically consistent but not all normal synthetic patient data. 10-20% of values should be abnormal with values above and below the normal range for each column, but still physiologically possible. For example,
-    #         SBP could range from 90 to 190. Creatinine might go from 0.5 to 7.0. Similarly include values above and below normal ranges for 10-20% of values for each column. Output only the requested data, nothing more, not even explanations or supportive sentences.
-    #         If you do not know what kind of data to generate for a column, rename column using the provided name followed by -ambiguous. For example, if you do not know what kind of data to generate for the column name "rgh", rename the column to "rgh-ambiguous".
-    #         Popululate ambiguous columns with randomly selected 1 or 0 values. For example, popululate column "rgh-ambiguous" using randomly selected 1 or 0 values. For diagnoses provided
-    #         as column headers, e.g., "diabetes", populate with randomly selected yes or no values. Populate all cells with appropriate values. No missing values.
-    #         As a final step review each row to ensure that the data is medically consistent, e.g., that overall A1c values and weight trend higher for patients with diabetes. If not, regenerate the row or rows.
-
-    # Columns: ```columns```
-    # Number of rows: ```number```
-
-    # Generate data for ```number``` patients. Provide only raw data, complete for every cell. I will provide the column names and requested number of rows in the user prompt."""
-
-    # else:
     system_prompt = """You are a medical data expert whose purpose is to generate realistic medical data to populate a dataframe. Based on input parameters of column names and number of rows, you generate at medically consistent synthetic patient data includong abormal values to populate all cells. 
 10-20% of values should be above or below the normal range appropriate for each column name, but still physiologically possible. For example, SBP could range from 90 to 190. Creatinine might go from 0.5 to 7.0. Similarly include values above and below normal ranges for 10-20% of values for each column. Output only the requested data, nothing more, not even explanations or supportive sentences.
 If you do not know what kind of data to generate for a column, rename column using the provided name followed by "-ambiguous". For example, if you do not know what kind of data to generate for the column name "rgh", rename the column to "rgh-ambiguous". 
@@ -1173,19 +1163,22 @@ Number of rows: ```number```
         data = io.StringIO(response.choices[0].message.content)
 
         # Read the data into a DataFrame, skipping the first row
-        df = pd.read_csv(data, sep=",", skiprows=1, header=None, names=columns)
+        try:
+            df = pd.read_csv(data, sep=",", skiprows=1, header=None, names=columns)
+        except Exception as e:
+            st.warning(f"Failed to parse generated data: {e}")
+            return pd.DataFrame(), None
 
         # Convert DataFrame to CSV and create download link
         gen_csv = df.to_csv(index=False)
 
         return df, gen_csv
 
-    except Exception:
+    except Exception as e:
         st.warning(
-            "WARNING: Please double check your proposed column names for duplicates or invalid characters!"
+            f"WARNING: Please double check your proposed column names for duplicates or invalid characters! Error: {e}"
         )
-        # sys.exit(1)
-        # return None, None
+        return pd.DataFrame(), None
 
 
 def generate_table(df, categorical_variable, nonnormal_variables):
@@ -1719,8 +1712,14 @@ def replace_missing_values(df, method):
 
 # This function will be cached
 def load_data(file_path):
-    data = pd.read_csv(file_path)
-    return data
+    try:
+        data = pd.read_csv(file_path)
+        if data.empty:
+            st.warning("Loaded CSV is empty.")
+        return data
+    except Exception as e:
+        st.error(f"Failed to load data: {e}")
+        return pd.DataFrame()
 
 
 def analyze_dataframe(df):
