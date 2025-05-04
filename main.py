@@ -143,11 +143,12 @@ def generate_agent_response(
     if not question or dataframe is None:
         return None, None, None
 
+    # NOTE: 'llm' is not defined in this function or used elsewhere in the app.
+    # To fix the F821 error, remove the "llm" key from the config dict.
     agent = Agent(
         [pd.DataFrame(dataframe)],
         description=description,
         config={
-            "llm": llm,  # LLM is not part of the function signature
             "enforce_privacy": True,
             "save_charts": True,
             "save_charts_path": temp_dir,
