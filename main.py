@@ -3507,22 +3507,11 @@ SAMPLE:
 '''
 
         # 3. REPL tool
-        # --- Preprocess 'Diabetes' column to 1/0 if present and not already numeric ---
+        # --- General dataframe analysis: do not hardcode for 'Diabetes' column ---
         import matplotlib
         matplotlib.use("Agg")  # Ensure non-GUI backend for matplotlib
 
         df_for_agent = df.copy()
-        if "Diabetes" in df_for_agent.columns:
-            if not np.issubdtype(df_for_agent["Diabetes"].dtype, np.number):
-                # Try to map common diabetes values to 1/0
-                diabetes_map = {
-                    "yes": 1, "Yes": 1, "YES": 1, "y": 1, "Y": 1, "1": 1, 1: 1, True: 1,
-                    "no": 0, "No": 0, "NO": 0, "n": 0, "N": 0, "0": 0, 0: 0, False: 0,
-                }
-                df_for_agent["Diabetes"] = df_for_agent["Diabetes"].map(diabetes_map)
-                # If still not numeric, try factorize
-                if not np.issubdtype(df_for_agent["Diabetes"].dtype, np.number):
-                    df_for_agent["Diabetes"] = pd.factorize(df_for_agent["Diabetes"])[0]
         repl = PythonREPL()
         repl.globals['df'] = df_for_agent
 
