@@ -3511,6 +3511,16 @@ with tab3:
             import traceback
             from contextlib import redirect_stdout
 
+            # Remove any prior plot images in the output directory
+            image_exts = ["png", "jpg", "jpeg", "svg", "pdf"]
+            outputs_path = st.session_state.outputs_path
+            for ext in image_exts:
+                for img_path in glob.glob(f"{outputs_path}/*.{ext}"):
+                    try:
+                        os.remove(img_path)
+                    except Exception:
+                        pass
+
             st.session_state.gpt_analysis_code = ""
             st.session_state.gpt_analysis_images = []
             st.session_state.model_output1 = ""
