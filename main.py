@@ -3498,9 +3498,9 @@ with tab3:
         if "model_output1" not in st.session_state:
             st.session_state.model_output1 = ""
 
-        st.subheader("Ask a Question (Natural Language or Python)")
-        st.write("Ask a question about your data, or enter Python code to run on your dataframe (`df`).")
-        agent_question = st.text_area("Ask a question or enter Python code:", "")
+        st.subheader("Ask a Question (English Only)")
+        st.write("Ask a question about your data in plain English. The AI will generate and execute Python code to answer your question and display results and plots below.")
+        agent_question = st.text_area("Ask a question about your data:", "")
 
         if st.button("Submit Question"):
             import re
@@ -3515,19 +3515,9 @@ with tab3:
             st.session_state.gpt_analysis_images = []
             st.session_state.model_output1 = ""
 
-            # 1. If the user input looks like Python code, just run it
-            def is_python_code(text):
-                # Heuristic: if it starts with "import", "def", "for", "plt.", "sns.", or contains "df."
-                code_keywords = ["import ", "def ", "for ", "plt.", "sns.", "df.", "pd.", "print(", "=", ":", "if ", "elif ", "else:"]
-                return any(kw in text for kw in code_keywords) or text.strip().startswith(("import", "def", "for", "plt", "sns", "df", "pd", "print", "if", "elif", "else"))
-
-            # 2. If not, ask the LLM to generate code to answer the question
+            # Only allow English language questions, not direct Python code
             def get_code_from_llm(question, df):
-                # Build a list of all column names, lowercased and original
-                col_map = {col.lower(): col for col in df.columns}
                 col_list = list(df.columns)
-                col_list_lower = [col.lower() for col in df.columns]
-                # Add a system prompt to help the LLM match columns case-insensitively
                 prompt = f"""
 You are an expert Python data analyst. The user has provided a pandas dataframe called `df` and asked the following question:
 
@@ -3556,16 +3546,14 @@ Return only the code, nothing else.
 Respond ONLY with valid Python code, not with natural language or explanations.
 """
                 response = llm.invoke(prompt)
-                # If the response is an object with a 'content' attribute, extract it
                 code = response.content if hasattr(response, "content") else str(response)
-                # Remove any markdown code block markers
                 code = re.sub(r"^```python|^```|```$", "", code, flags=re.MULTILINE).strip()
                 # If the code does not look like Python, return an empty string to avoid exec errors
                 if not any(x in code for x in ("import ", "plt.", "sns.", "df.", "pd.")):
                     return ""
                 return code
 
-            # 3. Run the code and capture output and plots
+            # Run the code and capture output and plots
             def run_code_and_capture(code):
                 f = io.StringIO()
                 images_before = set(glob.glob(f"{st.session_state.outputs_path}/*.png"))
@@ -3586,23 +3574,17 @@ Respond ONLY with valid Python code, not with natural language or explanations.
                     error = str(e)
                 images_after = set(glob.glob(f"{st.session_state.outputs_path}/*.png"))
                 new_images = list(images_after - images_before)
-                # Sort images by modification time (most recent last)
                 new_images = sorted(new_images, key=os.path.getmtime)
-                # If no new images, but a plot was likely created, try to display the last .png in the directory
                 if not new_images:
                     all_pngs = sorted(glob.glob(f"{st.session_state.outputs_path}/*.png"), key=os.path.getmtime)
                     if all_pngs:
                         new_images = [all_pngs[-1]]
                 return output, error, new_images
 
-            # Main logic
-            if is_python_code(agent_question):
-                code_to_run = agent_question
-            else:
-                code_to_run = get_code_from_llm(agent_question, df)
+            # Main logic: always use LLM to generate code from English
+            code_to_run = get_code_from_llm(agent_question, df)
 
             st.session_state.gpt_analysis_code = code_to_run
-            # Always store code for docx export in session state
             st.session_state.gpt_analysis_code_for_doc = code_to_run if code_to_run else ""
 
             output, error, new_images = run_code_and_capture(code_to_run)
@@ -3616,7 +3598,6 @@ Respond ONLY with valid Python code, not with natural language or explanations.
             if code_to_run.strip():
                 with st.expander("Show code used for this analysis", expanded=False):
                     st.code(code_to_run, language="python")
-            # Display any new images (plots)
             shown = set()
             for img_path in new_images:
                 if img_path not in shown:
