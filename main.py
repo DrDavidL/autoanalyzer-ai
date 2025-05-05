@@ -3702,6 +3702,37 @@ New input: {input}
                             st.code(code_snippet, language="python")
                     st.write(output_text)
 
+                    # --- Try to display any printed output from the agent (e.g., correlation tables) ---
+                    # Look for printed output in the captured terminal_output
+                    import pandas as pd
+                    import io as _io
+                    import re as _re
+
+                    # Try to extract printed DataFrame-like output from the terminal output
+                    # Look for lines between "Stdout:" and "If you have completed all tasks" or "Final Answer"
+                    printed_output = ""
+                    if "Stdout:" in terminal_output:
+                        # Try to extract everything after "Stdout:" up to "If you have completed all tasks" or "Final Answer"
+                        match = _re.search(r"Stdout:\s*(.*?)(?:If you have completed all tasks|Final Answer|$)", terminal_output, _re.DOTALL)
+                        if match:
+                            printed_output = match.group(1).strip()
+                    # If we found a printed output, try to display as a table if possible
+                    if printed_output:
+                        # Try to parse as a DataFrame if it looks like a table
+                        try:
+                            # Try to read as CSV/TSV if it looks like a table
+                            if "," in printed_output or "\t" in printed_output:
+                                df_printed = pd.read_csv(_io.StringIO(printed_output), sep=None, engine="python")
+                                st.write("**Printed Output:**")
+                                st.dataframe(df_printed)
+                            else:
+                                # Otherwise, just print as preformatted text
+                                st.write("**Printed Output:**")
+                                st.code(printed_output)
+                        except Exception:
+                            st.write("**Printed Output:**")
+                            st.code(printed_output)
+
                     # --- Attempt to find and display a plot if the agent created one ---
                     import glob
                     import shutil
