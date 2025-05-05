@@ -3581,6 +3581,8 @@ Respond ONLY with valid Python code, not with natural language or explanations.
                     error = str(e)
                 images_after = set(glob.glob(f"{st.session_state.outputs_path}/*.png"))
                 new_images = list(images_after - images_before)
+                # Sort images by modification time (most recent last)
+                new_images = sorted(new_images, key=os.path.getmtime)
                 return output, error, new_images
 
             # Main logic
@@ -3604,8 +3606,11 @@ Respond ONLY with valid Python code, not with natural language or explanations.
                     st.code(code_to_run, language="python")
             # Display any new images (plots)
             for img_path in new_images:
-                st.image(img_path, caption=f"Generated Plot: {os.path.basename(img_path)}")
-                st.session_state.gpt_analysis_images.append(img_path)
+                try:
+                    st.image(img_path, caption=f"Generated Plot: {os.path.basename(img_path)}")
+                    st.session_state.gpt_analysis_images.append(img_path)
+                except Exception as e:
+                    st.warning(f"Could not display image {img_path}: {e}")
 
         if st.session_state.model_output1 != "":
             if st.button("Download Last GPT Analysis"):
