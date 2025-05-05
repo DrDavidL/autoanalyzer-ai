@@ -3498,7 +3498,7 @@ with tab3:
         if "model_output1" not in st.session_state:
             st.session_state.model_output1 = ""
 
-        st.subheader("Ask a Question (English Only)")
+        st.subheader("Ask a Question About Your Data!")
         st.write("Ask a question about your data in plain English. The AI will generate and execute Python code to answer your question and display results and plots below.")
         agent_question = st.text_area("Ask a question about your data:", "")
 
