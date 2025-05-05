@@ -3672,11 +3672,44 @@ New input: {input}
 
                     st.session_state.gpt_analysis_code = code_snippet
 
+                    # --- Extract code from agent's intermediate steps or output ---
+                    code_snippet = ""
+                    import re
+                    # Try to extract code from the tool calls in the agent's steps
+                    if "intermediate_steps" in agent_out:
+                        for step in agent_out["intermediate_steps"]:
+                            # step is a tuple: (tool_call, tool_output)
+                            if isinstance(step, tuple) and len(step) == 2:
+                                tool_call, tool_output = step
+                                # tool_call is usually a dict with 'input' key containing code
+                                if isinstance(tool_call, dict) and "input" in tool_call:
+                                    # If the input looks like code, add it
+                                    code_snippet += f"\n{tool_call['input']}\n"
+                                # tool_output may also contain code or error messages
+                                if isinstance(tool_output, str):
+                                    # Extract all python code blocks from tool_output
+                                    code_blocks = re.findall(r"```python(.*?)```", tool_output, re.DOTALL)
+                                    if code_blocks:
+                                        code_snippet += "\n".join([block.strip() for block in code_blocks])
+                                    # If not found, but the output looks like code, add it
+                                    elif "plt." in tool_output or "sns." in tool_output or "import" in tool_output:
+                                        code_snippet += f"\n{tool_output}\n"
+                    # Fallback: try to extract code from the output text if not found above
+                    if not code_snippet.strip() and isinstance(output_text, str):
+                        code_blocks = re.findall(r"```python(.*?)```", output_text, re.DOTALL)
+                        if code_blocks:
+                            code_snippet = "\n".join([block.strip() for block in code_blocks])
+                        elif "plt." in output_text or "sns." in output_text or "import" in output_text:
+                            code_snippet = output_text
+
+                    st.session_state.gpt_analysis_code = code_snippet
+
                     # --- Display code before plot to avoid extra white space ---
-                    st.write(output_text)
+                    # Show the code in an expander above the plot, always, if any code was found
                     if code_snippet.strip():
-                        st.markdown("**Code used for this analysis:**")
-                        st.code(code_snippet, language="python")
+                        with st.expander("Show code used for this analysis", expanded=True):
+                            st.code(code_snippet, language="python")
+                    st.write(output_text)
 
                     # --- Attempt to find and display a plot if the agent created one ---
                     import glob
