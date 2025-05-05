@@ -3426,8 +3426,8 @@ with tab2:
 
 with tab3:
     if hu_key == "True" or check_password():
-        st.title("Analyze with GPT (Agentic REPL Approach, Azure GPT-4.1)")
-        st.info("""This tab uses an agentic workflow inspired by Cubode's approach: the LLM receives context about your dataframe, generates Python code to answer your question, and executes it in a safe REPL with access to your dataframe as `df`. Results and errors are shown below.
+        st.title("Analyze with GPT (LangChain REPL-Tool, Azure LLM)")
+        st.info("""This tab uses a robust agentic workflow: the LLM receives context about your dataframe, generates Python code to answer your question, and executes it in a safe REPL with access to your dataframe as `df`. Results and plots are shown below.
         """)
 
         # File uploader
@@ -3459,7 +3459,7 @@ with tab3:
             st.write("### Current Data Frame")
             st.dataframe(df, height=200)
 
-        # --- Agentic REPL approach with Azure GPT-4.1 ---
+        # --- LangChain REPL-Tool approach with Azure LLM ---
         import types
         from langchain_experimental.utilities import PythonREPL
         from langchain_core.tools import tool
@@ -3507,7 +3507,6 @@ SAMPLE:
 '''
 
         # 3. REPL tool
-        # --- General dataframe analysis: do not hardcode for 'Diabetes' column ---
         import matplotlib
         matplotlib.use("Agg")  # Ensure non-GUI backend for matplotlib
 
@@ -3534,11 +3533,11 @@ SAMPLE:
 
         # 4. System prompt for agent
         instructions_template = '''
-You are an agent that writes and excutes python code
+You are an agent that writes and executes python code.
 
-You have access to a Python abstract REPL, which you can use to execute the python code.
+You have access to a Python REPL, which you can use to execute the python code.
 
-You must write the python code code assuming that the dataframe (stored as df) has already been read.
+You must write the python code assuming that the dataframe (stored as df) has already been read.
 
 If you get an error, debug your code and try again.
 
@@ -3546,7 +3545,7 @@ You might know the answer without running any code, but you should still run the
 
 If it does not seem like you can write code to answer the question, just return "I don't know" as the answer.
 
-Do not create example dataframes 
+Do not create example dataframes.
 '''
 
         base_template = '''
@@ -3593,7 +3592,7 @@ New input: {input}
             input_variables=['agent_scratchpad', 'input', 'instructions', 'tool_names', 'tools']
         ).partial(instructions_template=instructions_template)
 
-        # 5. LLM setup (Azure GPT-4.1)
+        # 5. LLM setup (Azure LLM)
         llm = AzureChatOpenAI(
             azure_deployment=st.secrets["azure_deployment"],
             api_version=st.secrets["api_version"],
@@ -3615,7 +3614,6 @@ New input: {input}
                 chart_prompt = build_metadata_prompt(metadata)
                 try:
                     suggestion = llm.invoke(chart_prompt)
-                    # If the suggestion is an object with a 'content' attribute, display only the content
                     if hasattr(suggestion, "content"):
                         st.markdown(suggestion.content)
                     else:
@@ -3625,7 +3623,7 @@ New input: {input}
 
         st.divider()
 
-        # 7. Agentic code generation and execution (Iterative REPL-Tool approach)
+        # 7. Agentic code generation and execution (REPL-Tool approach)
         st.subheader("Ask a Question (Agentic REPL)")
         st.write("Ask a question about your data. The agent will generate and execute Python code using your dataframe as `df`.")
         agent_question = st.text_input("Ask a question to the AI agent:")
@@ -3661,25 +3659,22 @@ New input: {input}
             # Iterative tool-call loop
             with st.spinner("Analyzing your data..."):
                 try:
-                    # Start conversation history
                     conversation_history = []
                     max_steps = 8  # Prevent infinite loops
 
                     for step in range(max_steps):
-                        # --- Capture all stdout during agent execution ---
                         f = io.StringIO()
                         with redirect_stdout(f):
                             agent_out = agent_executor.invoke(agent_input)
                         terminal_output = f.getvalue()
                         st.session_state.gpt_analysis_terminal = terminal_output
 
-                        # Show the full agent output (including code and stdout)
                         output_text = agent_out.get("output", str(agent_out))
                         st.session_state.model_output1 += output_text + "\n"
 
-                        # Only display output text if it contains tool output (not just a "Final Answer" natural language string)
-                        # if not re.match(r"^\s*Final Answer:", output_text, re.IGNORECASE) and not re.match(r"^\s*The mean", output_text, re.IGNORECASE):
-                        st.write(output_text)
+                        # Display only tool output, not "Final Answer" text
+                        if not re.match(r"^\s*Final Answer:", output_text, re.IGNORECASE):
+                            st.write(output_text)
 
                         # Display any plot images saved to the temp directory by the agent
                         image_exts = ["png", "jpg", "jpeg", "svg", "pdf"]
@@ -3697,11 +3692,10 @@ New input: {input}
                                 except Exception:
                                     pass
 
-                        # Check for "Final Answer" or a plain answer to break loop
-                        if re.search(r"Final Answer:", output_text, re.IGNORECASE) or re.match(r"^\s*The mean", output_text, re.IGNORECASE):
+                        # Stop if "Final Answer" is present
+                        if re.search(r"Final Answer:", output_text, re.IGNORECASE):
                             break
 
-                        # Prepare next input (simulate conversation)
                         agent_input["chat_history"] += f"\n{output_text}\n"
 
                 except Exception as e:
@@ -3716,7 +3710,6 @@ New input: {input}
                         markdown += f"## GPT Analysis Output\n\n{st.session_state.model_output1}\n\n"
                     if st.session_state.gpt_analysis_code:
                         markdown += f"## Code Used\n\n```python\n{st.session_state.gpt_analysis_code}\n```\n"
-                    # Add images to markdown (as ![]() links, which markdown_to_docx can handle)
                     for img_path in st.session_state.gpt_analysis_images:
                         markdown += f"\n![]({img_path})\n"
 
@@ -3731,7 +3724,6 @@ New input: {input}
                             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                         )
                     os.remove(docx_file)
-                    # Clean up temp image files after docx creation
                     for img_path in st.session_state.gpt_analysis_images:
                         try:
                             os.remove(img_path)
