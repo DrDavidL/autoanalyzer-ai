@@ -3696,12 +3696,6 @@ New input: {input}
 
                     st.session_state.gpt_analysis_code = code_snippet
 
-                    # --- Display code before plot to avoid extra white space ---
-                    if code_snippet.strip():
-                        with st.expander("Show code used for this analysis", expanded=True):
-                            st.code(code_snippet, language="python")
-                    st.write(output_text)
-
                     # --- Try to display any printed output from the agent (e.g., correlation tables) ---
                     # Look for printed output in the captured terminal_output
                     import pandas as pd
@@ -3752,7 +3746,7 @@ New input: {input}
                             for img_path in glob.glob(f"{search_dir}/*.{ext}"):
                                 image_paths_to_display.append(img_path)
 
-                    # Display images (plots) after code, and erase after display
+                    # Display images (plots) first, and erase after display
                     for img_path in image_paths_to_display:
                         try:
                             st.image(img_path, caption="Generated Plot")
@@ -3785,6 +3779,12 @@ New input: {input}
 
                     if not found_plot and not st.session_state.gpt_analysis_images:
                         st.info("If a plot was generated, it should appear above. If not, the agent may not have created a plot file.")
+
+                    # --- Display code after plot, to reduce white space ---
+                    if code_snippet.strip():
+                        with st.expander("Show code used for this analysis", expanded=True):
+                            st.code(code_snippet, language="python")
+                    st.write(output_text)
 
                 except Exception as e:
                     st.error(f"Error analyzing your data: {e}")
