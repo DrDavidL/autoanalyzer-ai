@@ -3532,6 +3532,8 @@ The dataframe columns are: {col_list}
 
 If the user refers to a column name in a different case (e.g., 'glucose' instead of 'Glucose'), always match it to the correct column name in the dataframe, ignoring case. For example, if the user says 'glucose', use 'Glucose' if that is the actual column name.
 
+Before performing any analysis that requires numeric data (such as correlation heatmaps, PCA, or regression), always check for categorical columns (object dtype or string values). If any categorical columns are present, convert them to numeric codes using pandas' `.astype('category').cat.codes` or a mapping (e.g., `df['sex'] = df['sex'].map({{'male': 0, 'female': 1}})`), and print a message indicating which columns were converted and how. Do this as a first step in your code if needed.
+
 At the top of your code, always include:
 import matplotlib.pyplot as plt
 import seaborn as sns
