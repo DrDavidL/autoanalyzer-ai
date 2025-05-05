@@ -3677,8 +3677,9 @@ New input: {input}
                         output_text = agent_out.get("output", str(agent_out))
                         st.session_state.model_output1 += output_text + "\n"
 
-                        # Display output text
-                        st.write(output_text)
+                        # Only display output text if it contains tool output (not just a "Final Answer" natural language string)
+                        if not re.match(r"^\s*Final Answer:", output_text, re.IGNORECASE):
+                            st.write(output_text)
 
                         # Display any plot images saved to the temp directory by the agent
                         image_exts = ["png", "jpg", "jpeg", "svg", "pdf"]
