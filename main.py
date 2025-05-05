@@ -3494,7 +3494,6 @@ with tab3:
 
         st.subheader("Ask a Question (Natural Language or Python)")
         st.write("Ask a question about your data, or enter Python code to run on your dataframe (`df`).")
-        st.info("**Tip:** If you want to create a correlation heatmap or other analysis that requires numeric data, make sure to convert categorical variables (like 'male'/'female') to numbers first. For example, you can use `df['sex'] = df['sex'].map({'male': 0, 'female': 1})` before running your analysis.")
         agent_question = st.text_area("Ask a question or enter Python code:", "")
 
         if st.button("Submit Question"):
@@ -3623,7 +3622,7 @@ Respond ONLY with valid Python code, not with natural language or explanations.
                         st.warning(f"Could not display image {img_path}: {e}")
 
         if st.session_state.model_output1 != "":
-            if st.button("Download Last GPT Analysis"):
+            if st.button("Generate Word Doc from Last GPT Analysis"):
                 try:
                     # Compose markdown with code and images for docx
                     markdown = ""
