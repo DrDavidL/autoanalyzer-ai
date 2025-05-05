@@ -3654,7 +3654,7 @@ New input: {input}
 
             # Compose input
             agent_input = {
-                "input": agent_question,
+                "input": f'Carefully interpret the question in the context of the dataframe column headers to anticipate the user needs and rephrase if needed: {agent_question}',
                 "chat_history": ""
             }
 
@@ -3678,8 +3678,8 @@ New input: {input}
                         st.session_state.model_output1 += output_text + "\n"
 
                         # Only display output text if it contains tool output (not just a "Final Answer" natural language string)
-                        if not re.match(r"^\s*Final Answer:", output_text, re.IGNORECASE) and not re.match(r"^\s*The mean", output_text, re.IGNORECASE):
-                            st.write(output_text)
+                        # if not re.match(r"^\s*Final Answer:", output_text, re.IGNORECASE) and not re.match(r"^\s*The mean", output_text, re.IGNORECASE):
+                        st.write(output_text)
 
                         # Display any plot images saved to the temp directory by the agent
                         image_exts = ["png", "jpg", "jpeg", "svg", "pdf"]
