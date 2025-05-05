@@ -3426,8 +3426,8 @@ with tab2:
 
 with tab3:
     if hu_key == "True" or check_password():
-        st.title("Analyze with GPT (LangChain REPL-Tool, Azure LLM)")
-        st.info("""This tab uses a robust agentic workflow: the LLM receives context about your dataframe, generates Python code to answer your question, and executes it in a safe REPL with access to your dataframe as `df`. Results and plots are shown below.
+        st.title("Analyze with GPT (AutoAnalyzer AI)")
+        st.info("""Ask any question about your data. The LLM will generate and execute Python code using your dataframe as `df`. Results and plots are shown below. This workflow is designed for maximum flexibility and reliability, using best practices for code execution and plot display in Streamlit.
         """)
 
         # File uploader
@@ -3459,140 +3459,13 @@ with tab3:
             st.write("### Current Data Frame")
             st.dataframe(df, height=200)
 
-        # --- LangChain REPL-Tool approach with Azure LLM ---
-        import types
-        from langchain_experimental.utilities import PythonREPL
-        from langchain_core.tools import tool
-        from langchain_core.prompts import PromptTemplate
-        from langchain.agents import AgentExecutor, create_react_agent
-        from langchain_openai import AzureChatOpenAI
-
-        # 1. Extract metadata
-        def extract_metadata(df):
-            metadata = {}
-            metadata['Number of Columns'] = df.shape[1]
-            metadata['Schema'] = df.columns.tolist()
-            metadata['Data Types'] = str(df.dtypes)
-            metadata['Sample'] = df.head(1).to_dict(orient="records")
-            return metadata
-
-        metadata = extract_metadata(df)
-
-        # 2. Prompt augmentation
-        def build_metadata_prompt(metadata):
-            return f'''
-Assistant is an AI model that takes in metadata from a dataset 
-and suggests charts to use to visualise that data.
-
-Guidance: 
-- If you need to use a binary categorical variable in a numeric context (such as correlation or regression), always map its two unique values to integers 1 and 0. For example, if a column has values like "Yes"/"No", "Male"/"Female", or similar, convert them to 1 and 0 before analysis.
-- If you generate any plots or images, always save them to the directory: {st.session_state.outputs_path} and use a unique filename for each plot (e.g., "gpt_plot.png", "gpt_plot1.png", etc). 
-- After saving a plot with plt.savefig(...), always call plt.close() to ensure the file is written and the figure is cleared.
-- Do not use plt.show().
-- When saving plots, always use the directory path provided here: {st.session_state.outputs_path}
-
-New Input: Suggest 2 charts to visualise data from a dataset with the following metadata. 
-
-SCHEMA:
---------
-{metadata["Schema"]}
-
-DATA TYPES: 
---------
-{metadata["Data Types"]}
-
-SAMPLE: 
---------
-{metadata["Sample"]}
-'''
-
-        # 3. REPL tool
         import matplotlib
         matplotlib.use("Agg")  # Ensure non-GUI backend for matplotlib
 
-        df_for_agent = df.copy()
-        repl = PythonREPL()
-        repl.globals['df'] = df_for_agent
+        from langchain_openai import AzureChatOpenAI
+        from langchain_experimental.utilities import PythonREPL
 
-        @tool
-        def python_repl(
-            code: str
-        ):
-            """Use this to execute python code. If you want to see the output of a value,
-            you should print it out with `print(...)`. This is visible to the user."""
-            try:
-                result = repl.run(code)
-            except BaseException as e:
-                return f"Failed to execute. Error: {repr(e)}"
-            result_str = f"Successfully executed:\n```python\n{code}\n```\nStdout: {result}"
-            return (
-                result_str + "\n\nIf you have completed all tasks, respond with FINAL ANSWER."
-            )
-
-        tools = [python_repl]
-
-        # 4. System prompt for agent
-        instructions_template = '''
-You are an agent that writes and executes python code.
-
-You have access to a Python REPL, which you can use to execute the python code.
-
-You must write the python code assuming that the dataframe (stored as df) has already been read.
-
-If you get an error, debug your code and try again.
-
-You might know the answer without running any code, but you should still run the code to get the answer.
-
-If it does not seem like you can write code to answer the question, just return "I don't know" as the answer.
-
-Do not create example dataframes.
-'''
-
-        base_template = '''
-
-{instructions_template}
-
-TOOLS:
-
-------
-
-You have access to the following tools:
-
-{tools}
-
-To use a tool, please use the following format:
-
-```
-Thought: Do I need to use a tool? Yes
-Action: the action to take, should be one of [{tool_names}]
-Action Input: the input to the action
-Observation: the result of the action
-```
-
-When you have a response to say to the Human, or if you do not need to use a tool, you MUST use the format:
-
-```
-Thought: Do I need to use a tool? No
-Final Answer: [your response here]
-```
-
-Begin!
-
-Previous conversation history:
-
-{chat_history}
-
-New input: {input}
-
-{agent_scratchpad}
-'''
-
-        base_prompt = PromptTemplate(
-            template=base_template,
-            input_variables=['agent_scratchpad', 'input', 'instructions', 'tool_names', 'tools']
-        ).partial(instructions_template=instructions_template)
-
-        # 5. LLM setup (Azure LLM)
+        # Set up the LLM (Azure)
         llm = AzureChatOpenAI(
             azure_deployment=st.secrets["azure_deployment"],
             api_version=st.secrets["api_version"],
@@ -3607,32 +3480,21 @@ New input: {input}
             },
         )
 
-        # 6. Chart suggestion
-        st.subheader("Chart Suggestions")
-        if st.button("Suggest Charts for this Data"):
-            with st.spinner("Suggesting charts..."):
-                chart_prompt = build_metadata_prompt(metadata)
-                try:
-                    suggestion = llm.invoke(chart_prompt)
-                    if hasattr(suggestion, "content"):
-                        st.markdown(suggestion.content)
-                    else:
-                        st.markdown(str(suggestion))
-                except Exception as e:
-                    st.error(f"Error generating chart suggestions: {e}")
+        # Set up the REPL for code execution
+        repl = PythonREPL()
+        repl.globals['df'] = df.copy()
 
-        st.divider()
-
-        # 7. Agentic code generation and execution (REPL-Tool approach)
-        st.subheader("Ask a Question (Agentic REPL)")
-        st.write("Ask a question about your data. The agent will generate and execute Python code using your dataframe as `df`.")
-        agent_question = st.text_input("Ask a question to the AI agent:")
-
-        # New session state for code and images
+        # Session state for code, images, and output
         if "gpt_analysis_code" not in st.session_state:
             st.session_state.gpt_analysis_code = ""
         if "gpt_analysis_images" not in st.session_state:
             st.session_state.gpt_analysis_images = []
+        if "model_output1" not in st.session_state:
+            st.session_state.model_output1 = ""
+
+        st.subheader("Ask a Question (Natural Language or Python)")
+        st.write("Ask a question about your data, or enter Python code to run on your dataframe (`df`).")
+        agent_question = st.text_area("Ask a question or enter Python code:", "")
 
         if st.button("Submit Question"):
             import re
@@ -3640,68 +3502,83 @@ New input: {input}
             import sys
             import glob
             import os
+            import traceback
             from contextlib import redirect_stdout
 
             st.session_state.gpt_analysis_code = ""
             st.session_state.gpt_analysis_images = []
             st.session_state.model_output1 = ""
 
-            # Build agent
-            agent = create_react_agent(llm, tools, base_prompt)
-            agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
+            # 1. If the user input looks like Python code, just run it
+            def is_python_code(text):
+                # Heuristic: if it starts with "import", "def", "for", "plt.", "sns.", or contains "df."
+                code_keywords = ["import ", "def ", "for ", "plt.", "sns.", "df.", "pd.", "print(", "=", ":", "if ", "elif ", "else:"]
+                return any(kw in text for kw in code_keywords) or text.strip().startswith(("import", "def", "for", "plt", "sns", "df", "pd", "print", "if", "elif", "else"))
 
-            # Compose input
-            agent_input = {
-                "input": f'Carefully interpret the question in the context of the dataframe column headers to anticipate the user needs and rephrase if needed: {agent_question}',
-                "chat_history": ""
-            }
+            # 2. If not, ask the LLM to generate code to answer the question
+            def get_code_from_llm(question, df):
+                # Give the LLM a clear prompt to generate code only, no explanation
+                prompt = f"""
+You are an expert Python data analyst. The user has provided a pandas dataframe called `df` and asked the following question:
 
-            # Iterative tool-call loop
-            with st.spinner("Analyzing your data..."):
+{question}
+
+Write Python code to answer the question. 
+- If a plot is needed, save it to '{st.session_state.outputs_path}/gpt_plot.png' using plt.savefig and then call plt.close().
+- Do not use plt.show().
+- Do not print explanations, only print results or tables.
+- Do not return any text or explanation, only the code.
+- Assume all necessary imports (pandas as pd, matplotlib.pyplot as plt, seaborn as sns, numpy as np) are already available.
+- If the question is ambiguous, make reasonable assumptions and proceed.
+- If the question is not answerable, raise an Exception with a helpful message.
+Return only the code, nothing else.
+"""
+                response = llm.invoke(prompt)
+                # If the response is an object with a 'content' attribute, extract it
+                code = response.content if hasattr(response, "content") else str(response)
+                # Remove any markdown code block markers
+                code = re.sub(r"^```python|^```|```$", "", code, flags=re.MULTILINE).strip()
+                return code
+
+            # 3. Run the code and capture output and plots
+            def run_code_and_capture(code):
+                f = io.StringIO()
+                images_before = set(glob.glob(f"{st.session_state.outputs_path}/*.png"))
                 try:
-                    conversation_history = []
-                    max_steps = 8  # Prevent infinite loops
-
-                    for step in range(max_steps):
-                        f = io.StringIO()
-                        with redirect_stdout(f):
-                            agent_out = agent_executor.invoke(agent_input)
-                        terminal_output = f.getvalue()
-                        st.session_state.gpt_analysis_terminal = terminal_output
-
-                        output_text = agent_out.get("output", str(agent_out))
-                        st.session_state.model_output1 += output_text + "\n"
-
-                        # Display only tool output, not "Final Answer" text
-                        if not re.match(r"^\s*Final Answer:", output_text, re.IGNORECASE):
-                            st.write(output_text)
-
-                        # Display any plot images saved to the temp directory by the agent
-                        image_exts = ["png", "jpg", "jpeg", "svg", "pdf"]
-                        image_paths_to_display = []
-                        outputs_path = st.session_state.outputs_path
-
-                        for ext in image_exts:
-                            image_paths_to_display.extend(glob.glob(f"{outputs_path}/*.{ext}"))
-
-                        for img_path in image_paths_to_display:
-                            if img_path not in st.session_state.gpt_analysis_images:
-                                try:
-                                    st.image(img_path, caption=f"Generated Plot: {os.path.basename(img_path)}")
-                                    st.session_state.gpt_analysis_images.append(img_path)
-                                except Exception:
-                                    pass
-
-                        # Stop if "Final Answer" is present or if the output is a plain answer (no tool call)
-                        if re.search(r"Final Answer:", output_text, re.IGNORECASE) or (
-                            step > 0 and not re.search(r"Action:", output_text)
-                        ):
-                            break
-
-                        agent_input["chat_history"] += f"\n{output_text}\n"
-
+                    with redirect_stdout(f):
+                        exec(code, repl.globals)
+                    output = f.getvalue()
+                    error = None
                 except Exception as e:
-                    st.error(f"Error analyzing your data: {e}")
+                    output = f.getvalue() + "\n" + traceback.format_exc()
+                    error = str(e)
+                images_after = set(glob.glob(f"{st.session_state.outputs_path}/*.png"))
+                new_images = list(images_after - images_before)
+                return output, error, new_images
+
+            # Main logic
+            if is_python_code(agent_question):
+                code_to_run = agent_question
+            else:
+                code_to_run = get_code_from_llm(agent_question, df)
+
+            st.session_state.gpt_analysis_code = code_to_run
+
+            output, error, new_images = run_code_and_capture(code_to_run)
+            st.session_state.model_output1 = output
+
+            if error:
+                st.error(f"Error running code: {error}")
+            if output.strip():
+                st.write("**Output:**")
+                st.code(output)
+            if code_to_run.strip():
+                with st.expander("Show code used for this analysis", expanded=False):
+                    st.code(code_to_run, language="python")
+            # Display any new images (plots)
+            for img_path in new_images:
+                st.image(img_path, caption=f"Generated Plot: {os.path.basename(img_path)}")
+                st.session_state.gpt_analysis_images.append(img_path)
 
         if st.session_state.model_output1 != "":
             if st.button("Download Last GPT Analysis"):
