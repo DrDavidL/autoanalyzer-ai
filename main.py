@@ -1791,7 +1791,7 @@ with tab1:
 
     st.sidebar.subheader("Step 1: Upload your data or view a demo dataset")
     demo_or_custom = st.sidebar.selectbox(
-        "Upload a CSV file. NO PHI - use only anonymized data",
+        "Upload a CSV or Excel file. NO PHI - use only anonymized data",
         (
             "Demo 1 (diabetes)",
             "Demo 2 (cancer)",
@@ -1799,12 +1799,12 @@ with tab1:
             "Demo 4 (time series -CHF deaths)",
             "Demo 5 (stroke)",
             "Generate Data",
-            "CSV Upload",
+            "CSV or Excel Upload",
             "Modified Dataframe",
         ),
         index=0,
     )
-    if demo_or_custom == "CSV Upload":
+    if demo_or_custom == "CSV or Excel Upload":
         uploaded_file = st.sidebar.file_uploader("Choose a CSV or Excel file", type=["csv", "xlsx"])
         if uploaded_file:
             if uploaded_file.name.endswith(".csv"):
