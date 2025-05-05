@@ -3692,8 +3692,10 @@ New input: {input}
                                 except Exception:
                                     pass
 
-                        # Stop if "Final Answer" is present
-                        if re.search(r"Final Answer:", output_text, re.IGNORECASE):
+                        # Stop if "Final Answer" is present or if the output is a plain answer (no tool call)
+                        if re.search(r"Final Answer:", output_text, re.IGNORECASE) or (
+                            step > 0 and not re.search(r"Action:", output_text)
+                        ):
                             break
 
                         agent_input["chat_history"] += f"\n{output_text}\n"
