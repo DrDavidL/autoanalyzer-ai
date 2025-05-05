@@ -1805,9 +1805,15 @@ with tab1:
         index=0,
     )
     if demo_or_custom == "CSV Upload":
-        uploaded_file = st.sidebar.file_uploader("Choose a CSV file", type="csv")
+        uploaded_file = st.sidebar.file_uploader("Choose a CSV or Excel file", type=["csv", "xlsx"])
         if uploaded_file:
-            st.session_state.df = load_data(uploaded_file)
+            if uploaded_file.name.endswith(".csv"):
+                st.session_state.df = load_data(uploaded_file)
+            else:
+                try:
+                    st.session_state.df = pd.read_excel(uploaded_file)
+                except Exception as e:
+                    st.warning(f"Failed to load Excel file: {e}")
 
     if demo_or_custom == "Demo 1 (diabetes)":
         file_path = "data/predictdm.csv"
