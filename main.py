@@ -3678,7 +3678,7 @@ New input: {input}
                         st.session_state.model_output1 += output_text + "\n"
 
                         # Only display output text if it contains tool output (not just a "Final Answer" natural language string)
-                        if not re.match(r"^\s*Final Answer:", output_text, re.IGNORECASE):
+                        if not re.match(r"^\s*Final Answer:", output_text, re.IGNORECASE) and not re.match(r"^\s*The mean", output_text, re.IGNORECASE):
                             st.write(output_text)
 
                         # Display any plot images saved to the temp directory by the agent
@@ -3697,8 +3697,8 @@ New input: {input}
                                 except Exception:
                                     pass
 
-                        # Check for "Final Answer" to break loop
-                        if re.search(r"Final Answer:", output_text, re.IGNORECASE):
+                        # Check for "Final Answer" or a plain answer to break loop
+                        if re.search(r"Final Answer:", output_text, re.IGNORECASE) or re.match(r"^\s*The mean", output_text, re.IGNORECASE):
                             break
 
                         # Prepare next input (simulate conversation)
