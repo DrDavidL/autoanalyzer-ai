@@ -3545,12 +3545,16 @@ Write Python code to answer the question.
 - If the question is ambiguous, make reasonable assumptions and proceed.
 - If the question is not answerable, raise an Exception with a helpful message.
 Return only the code, nothing else.
+Respond ONLY with valid Python code, not with natural language or explanations.
 """
                 response = llm.invoke(prompt)
                 # If the response is an object with a 'content' attribute, extract it
                 code = response.content if hasattr(response, "content") else str(response)
                 # Remove any markdown code block markers
                 code = re.sub(r"^```python|^```|```$", "", code, flags=re.MULTILINE).strip()
+                # If the code does not look like Python, return an empty string to avoid exec errors
+                if not any(x in code for x in ("import ", "plt.", "sns.", "df.", "pd.")):
+                    return ""
                 return code
 
             # 3. Run the code and capture output and plots
