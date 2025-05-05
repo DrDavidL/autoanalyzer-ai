@@ -3508,6 +3508,9 @@ SAMPLE:
 
         # 3. REPL tool
         # --- Preprocess 'Diabetes' column to 1/0 if present and not already numeric ---
+        import matplotlib
+        matplotlib.use("Agg")  # Ensure non-GUI backend for matplotlib
+
         df_for_agent = df.copy()
         if "Diabetes" in df_for_agent.columns:
             if not np.issubdtype(df_for_agent["Diabetes"].dtype, np.number):
