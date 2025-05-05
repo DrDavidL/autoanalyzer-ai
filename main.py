@@ -3583,6 +3583,11 @@ Respond ONLY with valid Python code, not with natural language or explanations.
                 new_images = list(images_after - images_before)
                 # Sort images by modification time (most recent last)
                 new_images = sorted(new_images, key=os.path.getmtime)
+                # If no new images, but a plot was likely created, try to display the last .png in the directory
+                if not new_images:
+                    all_pngs = sorted(glob.glob(f"{st.session_state.outputs_path}/*.png"), key=os.path.getmtime)
+                    if all_pngs:
+                        new_images = [all_pngs[-1]]
                 return output, error, new_images
 
             # Main logic
@@ -3605,12 +3610,15 @@ Respond ONLY with valid Python code, not with natural language or explanations.
                 with st.expander("Show code used for this analysis", expanded=False):
                     st.code(code_to_run, language="python")
             # Display any new images (plots)
+            shown = set()
             for img_path in new_images:
-                try:
-                    st.image(img_path, caption=f"Generated Plot: {os.path.basename(img_path)}")
-                    st.session_state.gpt_analysis_images.append(img_path)
-                except Exception as e:
-                    st.warning(f"Could not display image {img_path}: {e}")
+                if img_path not in shown:
+                    try:
+                        st.image(img_path, caption=f"Generated Plot: {os.path.basename(img_path)}")
+                        st.session_state.gpt_analysis_images.append(img_path)
+                        shown.add(img_path)
+                    except Exception as e:
+                        st.warning(f"Could not display image {img_path}: {e}")
 
         if st.session_state.model_output1 != "":
             if st.button("Download Last GPT Analysis"):
