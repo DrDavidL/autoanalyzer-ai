@@ -3517,18 +3517,31 @@ with tab3:
 
             # 2. If not, ask the LLM to generate code to answer the question
             def get_code_from_llm(question, df):
-                # Give the LLM a clear prompt to generate code only, no explanation
+                # Build a list of all column names, lowercased and original
+                col_map = {col.lower(): col for col in df.columns}
+                col_list = list(df.columns)
+                col_list_lower = [col.lower() for col in df.columns]
+                # Add a system prompt to help the LLM match columns case-insensitively
                 prompt = f"""
 You are an expert Python data analyst. The user has provided a pandas dataframe called `df` and asked the following question:
 
 {question}
+
+The dataframe columns are: {col_list}
+
+If the user refers to a column name in a different case (e.g., 'glucose' instead of 'Glucose'), always match it to the correct column name in the dataframe, ignoring case. For example, if the user says 'glucose', use 'Glucose' if that is the actual column name.
+
+At the top of your code, always include:
+import matplotlib.pyplot as plt
+import seaborn as sns
+import numpy as np
+import pandas as pd
 
 Write Python code to answer the question. 
 - If a plot is needed, save it to '{st.session_state.outputs_path}/gpt_plot.png' using plt.savefig and then call plt.close().
 - Do not use plt.show().
 - Do not print explanations, only print results or tables.
 - Do not return any text or explanation, only the code.
-- Assume all necessary imports (pandas as pd, matplotlib.pyplot as plt, seaborn as sns, numpy as np) are already available.
 - If the question is ambiguous, make reasonable assumptions and proceed.
 - If the question is not answerable, raise an Exception with a helpful message.
 Return only the code, nothing else.
@@ -3544,6 +3557,13 @@ Return only the code, nothing else.
             def run_code_and_capture(code):
                 f = io.StringIO()
                 images_before = set(glob.glob(f"{st.session_state.outputs_path}/*.png"))
+                # Always ensure the most common imports are available in the exec environment
+                repl.globals.update({
+                    "plt": plt,
+                    "sns": sns,
+                    "np": np,
+                    "pd": pd,
+                })
                 try:
                     with redirect_stdout(f):
                         exec(code, repl.globals)
