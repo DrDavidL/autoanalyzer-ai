@@ -3633,7 +3633,7 @@ New input: {input}
 
         st.divider()
 
-        # 7. Agentic code generation and execution
+        # 7. Agentic code generation and execution (Iterative REPL-Tool approach)
         st.subheader("Ask a Question (Agentic REPL)")
         st.write("Ask a question about your data. The agent will generate and execute Python code using your dataframe as `df`.")
         agent_question = st.text_input("Ask a question to the AI agent:")
@@ -3645,52 +3645,71 @@ New input: {input}
             st.session_state.gpt_analysis_images = []
 
         if st.button("Submit Question"):
+            import re
+            import io
+            import sys
+            import glob
+            import os
+            from contextlib import redirect_stdout
+
+            st.session_state.gpt_analysis_code = ""
+            st.session_state.gpt_analysis_images = []
+            st.session_state.model_output1 = ""
+
+            # Build agent
+            agent = create_react_agent(llm, tools, base_prompt)
+            agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
+
+            # Compose input
+            agent_input = {
+                "input": agent_question,
+                "chat_history": ""
+            }
+
+            # Iterative tool-call loop
             with st.spinner("Analyzing your data..."):
-                import re
-                import io
-                import sys
-                from contextlib import redirect_stdout
-
-                # Build agent
-                agent = create_react_agent(llm, tools, base_prompt)
-                agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
-                # Compose input
-                agent_input = {
-                    "input": agent_question,
-                    "chat_history": ""
-                }
                 try:
-                    # --- Capture all stdout during agent execution ---
-                    f = io.StringIO()
-                    with redirect_stdout(f):
-                        agent_out = agent_executor.invoke(agent_input)
-                    terminal_output = f.getvalue()
-                    st.session_state.gpt_analysis_terminal = terminal_output
+                    # Start conversation history
+                    conversation_history = []
+                    max_steps = 8  # Prevent infinite loops
 
-                    # Show the full agent output (including code and stdout)
-                    output_text = agent_out.get("output", str(agent_out))
-                    st.session_state.model_output1 = output_text
+                    for step in range(max_steps):
+                        # --- Capture all stdout during agent execution ---
+                        f = io.StringIO()
+                        with redirect_stdout(f):
+                            agent_out = agent_executor.invoke(agent_input)
+                        terminal_output = f.getvalue()
+                        st.session_state.gpt_analysis_terminal = terminal_output
 
-                    # Only display the output text and any images specified by the agent
-                    st.write(output_text)
+                        # Show the full agent output (including code and stdout)
+                        output_text = agent_out.get("output", str(agent_out))
+                        st.session_state.model_output1 += output_text + "\n"
 
-                    # --- Display any plot images saved to the temp directory by the agent ---
-                    import glob
-                    import os
+                        # Display output text
+                        st.write(output_text)
 
-                    image_exts = ["png", "jpg", "jpeg", "svg", "pdf"]
-                    image_paths_to_display = []
-                    outputs_path = st.session_state.outputs_path
+                        # Display any plot images saved to the temp directory by the agent
+                        image_exts = ["png", "jpg", "jpeg", "svg", "pdf"]
+                        image_paths_to_display = []
+                        outputs_path = st.session_state.outputs_path
 
-                    for ext in image_exts:
-                        image_paths_to_display.extend(glob.glob(f"{outputs_path}/*.{ext}"))
+                        for ext in image_exts:
+                            image_paths_to_display.extend(glob.glob(f"{outputs_path}/*.{ext}"))
 
-                    for img_path in image_paths_to_display:
-                        try:
-                            st.image(img_path, caption=f"Generated Plot: {os.path.basename(img_path)}")
-                            st.session_state.gpt_analysis_images.append(img_path)
-                        except Exception:
-                            pass
+                        for img_path in image_paths_to_display:
+                            if img_path not in st.session_state.gpt_analysis_images:
+                                try:
+                                    st.image(img_path, caption=f"Generated Plot: {os.path.basename(img_path)}")
+                                    st.session_state.gpt_analysis_images.append(img_path)
+                                except Exception:
+                                    pass
+
+                        # Check for "Final Answer" to break loop
+                        if re.search(r"Final Answer:", output_text, re.IGNORECASE):
+                            break
+
+                        # Prepare next input (simulate conversation)
+                        agent_input["chat_history"] += f"\n{output_text}\n"
 
                 except Exception as e:
                     st.error(f"Error analyzing your data: {e}")
