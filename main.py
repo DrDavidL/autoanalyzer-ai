@@ -3487,6 +3487,7 @@ and suggests charts to use to visualise that data.
 Guidance: 
 - If you need to use a binary categorical variable in a numeric context (such as correlation or regression), always map its two unique values to integers 1 and 0. For example, if a column has values like "Yes"/"No", "Male"/"Female", or similar, convert them to 1 and 0 before analysis.
 - If you generate any plots or images, always save them to the directory: {st.session_state.outputs_path} and use a unique filename for each plot (e.g., "gpt_plot.png", "gpt_plot1.png", etc). Do not use plt.show().
+- When saving plots, always use the directory path provided here: {st.session_state.outputs_path}
 
 New Input: Suggest 2 charts to visualise data from a dataset with the following metadata. 
 
@@ -3670,6 +3671,24 @@ New input: {input}
 
                     # Only display the output text and any images specified by the agent
                     st.write(output_text)
+
+                    # --- Display any plot images saved to the temp directory by the agent ---
+                    import glob
+                    import os
+
+                    image_exts = ["png", "jpg", "jpeg", "svg", "pdf"]
+                    image_paths_to_display = []
+                    outputs_path = st.session_state.outputs_path
+
+                    for ext in image_exts:
+                        image_paths_to_display.extend(glob.glob(f"{outputs_path}/*.{ext}"))
+
+                    for img_path in image_paths_to_display:
+                        try:
+                            st.image(img_path, caption=f"Generated Plot: {os.path.basename(img_path)}")
+                            st.session_state.gpt_analysis_images.append(img_path)
+                        except Exception:
+                            pass
 
                 except Exception as e:
                     st.error(f"Error analyzing your data: {e}")
