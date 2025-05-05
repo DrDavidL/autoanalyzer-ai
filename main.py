@@ -3597,6 +3597,7 @@ Respond ONLY with valid Python code, not with natural language or explanations.
                 code_to_run = get_code_from_llm(agent_question, df)
 
             st.session_state.gpt_analysis_code = code_to_run
+            st.session_state.gpt_analysis_code_for_doc = code_to_run  # Store for docx export
 
             output, error, new_images = run_code_and_capture(code_to_run)
             st.session_state.model_output1 = output
@@ -3627,8 +3628,9 @@ Respond ONLY with valid Python code, not with natural language or explanations.
                     markdown = ""
                     if st.session_state.model_output1:
                         markdown += f"## GPT Analysis Output\n\n{st.session_state.model_output1}\n\n"
-                    if st.session_state.gpt_analysis_code:
-                        markdown += f"## Code Used\n\n```python\n{st.session_state.gpt_analysis_code}\n```\n"
+                    # Use the new session state variable for code
+                    if "gpt_analysis_code_for_doc" in st.session_state and st.session_state.gpt_analysis_code_for_doc:
+                        markdown += f"## Code Used\n\n```python\n{st.session_state.gpt_analysis_code_for_doc}\n```\n"
                     # Always include code before images for clarity
                     if st.session_state.gpt_analysis_images:
                         markdown += "\n## Generated Plots\n"
