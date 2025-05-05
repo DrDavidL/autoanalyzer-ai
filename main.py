@@ -3484,7 +3484,9 @@ with tab3:
 Assistant is an AI model that takes in metadata from a dataset 
 and suggests charts to use to visualise that data.
 
-Guidance: If you need to use a binary categorical variable in a numeric context (such as correlation or regression), always map its two unique values to integers 1 and 0. For example, if a column has values like "Yes"/"No", "Male"/"Female", or similar, convert them to 1 and 0 before analysis.
+Guidance: 
+- If you need to use a binary categorical variable in a numeric context (such as correlation or regression), always map its two unique values to integers 1 and 0. For example, if a column has values like "Yes"/"No", "Male"/"Female", or similar, convert them to 1 and 0 before analysis.
+- If you generate any plots or images, always save them to the directory: {st.session_state.outputs_path} and use a unique filename for each plot (e.g., "gpt_plot.png", "gpt_plot1.png", etc). Do not use plt.show().
 
 New Input: Suggest 2 charts to visualise data from a dataset with the following metadata. 
 
