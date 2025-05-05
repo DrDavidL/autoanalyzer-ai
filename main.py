@@ -3629,8 +3629,11 @@ Respond ONLY with valid Python code, not with natural language or explanations.
                         markdown += f"## GPT Analysis Output\n\n{st.session_state.model_output1}\n\n"
                     if st.session_state.gpt_analysis_code:
                         markdown += f"## Code Used\n\n```python\n{st.session_state.gpt_analysis_code}\n```\n"
-                    for img_path in st.session_state.gpt_analysis_images:
-                        markdown += f"\n![]({img_path})\n"
+                    # Always include code before images for clarity
+                    if st.session_state.gpt_analysis_images:
+                        markdown += "\n## Generated Plots\n"
+                        for img_path in st.session_state.gpt_analysis_images:
+                            markdown += f"\n![]({img_path})\n"
 
                     docx_file = markdown_to_docx(
                         "gpt_analysis", markdown
