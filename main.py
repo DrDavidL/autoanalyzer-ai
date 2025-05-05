@@ -3626,6 +3626,11 @@ New input: {input}
 
         if st.button("Submit Question"):
             with st.spinner("Analyzing your data..."):
+                import re
+                import io
+                import sys
+                from contextlib import redirect_stdout
+
                 # Build agent
                 agent = create_react_agent(llm, tools, base_prompt)
                 agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
@@ -3635,77 +3640,48 @@ New input: {input}
                     "chat_history": ""
                 }
                 try:
-                    agent_out = agent_executor.invoke(agent_input)
+                    # --- Capture all stdout during agent execution ---
+                    f = io.StringIO()
+                    with redirect_stdout(f):
+                        agent_out = agent_executor.invoke(agent_input)
+                    terminal_output = f.getvalue()
+                    st.session_state.gpt_analysis_terminal = terminal_output
+
                     # Show the full agent output (including code and stdout)
                     output_text = agent_out.get("output", str(agent_out))
                     st.session_state.model_output1 = output_text
 
-                    # --- Extract code from agent's intermediate steps or output ---
+                    # --- Extract code from terminal output ---
                     code_snippet = ""
-                    import re
-                    # Try to extract code from the tool calls in the agent's steps
-                    if "intermediate_steps" in agent_out:
-                        for step in agent_out["intermediate_steps"]:
-                            # step is a tuple: (tool_call, tool_output)
-                            if isinstance(step, tuple) and len(step) == 2:
-                                tool_call, tool_output = step
-                                # tool_call is usually a dict with 'input' key containing code
-                                if isinstance(tool_call, dict) and "input" in tool_call:
-                                    # If the input looks like code, add it
-                                    code_snippet += f"\n{tool_call['input']}\n"
-                                # tool_output may also contain code or error messages
-                                if isinstance(tool_output, str):
-                                    # Extract all python code blocks from tool_output
-                                    code_blocks = re.findall(r"```python(.*?)```", tool_output, re.DOTALL)
-                                    if code_blocks:
-                                        code_snippet += "\n".join([block.strip() for block in code_blocks])
-                                    # If not found, but the output looks like code, add it
-                                    elif "plt." in tool_output or "sns." in tool_output or "import" in tool_output:
-                                        code_snippet += f"\n{tool_output}\n"
-                    # Fallback: try to extract code from the output text if not found above
-                    if not code_snippet.strip() and isinstance(output_text, str):
-                        code_blocks = re.findall(r"```python(.*?)```", output_text, re.DOTALL)
-                        if code_blocks:
-                            code_snippet = "\n".join([block.strip() for block in code_blocks])
-                        elif "plt." in output_text or "sns." in output_text or "import" in output_text:
-                            code_snippet = output_text
-
-                    st.session_state.gpt_analysis_code = code_snippet
-
-                    # --- Extract code from agent's intermediate steps or output ---
-                    code_snippet = ""
-                    import re
-                    # Try to extract code from the tool calls in the agent's steps
-                    if "intermediate_steps" in agent_out:
-                        for step in agent_out["intermediate_steps"]:
-                            # step is a tuple: (tool_call, tool_output)
-                            if isinstance(step, tuple) and len(step) == 2:
-                                tool_call, tool_output = step
-                                # tool_call is usually a dict with 'input' key containing code
-                                if isinstance(tool_call, dict) and "input" in tool_call:
-                                    # If the input looks like code, add it
-                                    code_snippet += f"\n{tool_call['input']}\n"
-                                # tool_output may also contain code or error messages
-                                if isinstance(tool_output, str):
-                                    # Extract all python code blocks from tool_output
-                                    code_blocks = re.findall(r"```python(.*?)```", tool_output, re.DOTALL)
-                                    if code_blocks:
-                                        code_snippet += "\n".join([block.strip() for block in code_blocks])
-                                    # If not found, but the output looks like code, add it
-                                    elif "plt." in tool_output or "sns." in tool_output or "import" in tool_output:
-                                        code_snippet += f"\n{tool_output}\n"
-                    # Fallback: try to extract code from the output text if not found above
-                    if not code_snippet.strip() and isinstance(output_text, str):
-                        code_blocks = re.findall(r"```python(.*?)```", output_text, re.DOTALL)
-                        if code_blocks:
-                            code_snippet = "\n".join([block.strip() for block in code_blocks])
-                        elif "plt." in output_text or "sns." in output_text or "import" in output_text:
-                            code_snippet = output_text
+                    # Find all code blocks in the terminal output
+                    code_blocks = re.findall(r"```python(.*?)```", terminal_output, re.DOTALL)
+                    if code_blocks:
+                        # Use the last code block (most likely the final code executed)
+                        code_snippet = code_blocks[-1].strip()
+                    else:
+                        # Fallback: look for code in tool_input or output_text
+                        if "intermediate_steps" in agent_out:
+                            for step in agent_out["intermediate_steps"]:
+                                if isinstance(step, tuple) and len(step) == 2:
+                                    tool_call, tool_output = step
+                                    if isinstance(tool_call, dict) and "input" in tool_call:
+                                        code_snippet += f"\n{tool_call['input']}\n"
+                                    if isinstance(tool_output, str):
+                                        cb = re.findall(r"```python(.*?)```", tool_output, re.DOTALL)
+                                        if cb:
+                                            code_snippet += "\n".join([block.strip() for block in cb])
+                                        elif "plt." in tool_output or "sns." in tool_output or "import" in tool_output:
+                                            code_snippet += f"\n{tool_output}\n"
+                        if not code_snippet.strip() and isinstance(output_text, str):
+                            cb = re.findall(r"```python(.*?)```", output_text, re.DOTALL)
+                            if cb:
+                                code_snippet = "\n".join([block.strip() for block in cb])
+                            elif "plt." in output_text or "sns." in output_text or "import" in output_text:
+                                code_snippet = output_text
 
                     st.session_state.gpt_analysis_code = code_snippet
 
                     # --- Display code before plot to avoid extra white space ---
-                    # Show the code in an expander above the plot, always, if any code was found
                     if code_snippet.strip():
                         with st.expander("Show code used for this analysis", expanded=True):
                             st.code(code_snippet, language="python")
