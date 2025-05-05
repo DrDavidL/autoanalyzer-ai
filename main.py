@@ -3558,7 +3558,8 @@ Write Python code to answer the question.
 Return only the code, nothing else.
 Respond ONLY with valid Python code, not with natural language or explanations.
 """
-                response = llm.invoke(prompt)
+                with st.spinner("Generating code..."):
+                    response = llm.invoke(prompt)
                 code = response.content if hasattr(response, "content") else str(response)
                 code = re.sub(r"^```python|^```|```$", "", code, flags=re.MULTILINE).strip()
                 # If the code does not look like Python, return an empty string to avoid exec errors
