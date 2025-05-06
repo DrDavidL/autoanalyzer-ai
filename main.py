@@ -3355,11 +3355,11 @@ with tab2:
             index=6,
         )
         perform_shapley = st.checkbox(
-            "Include a Shapley Force Plot", value=False, key="perform_shapley-10"
+            "Attempt to Explain Model", value=False, key="perform_shapley-10"
         )
         if perform_shapley == True:
             st.warning(
-                "Shapley interpretation of the model is computationally expensive for some models and may take a while to run. Please be patient"
+                "Model explanation is computationally expensive and may not work well with all model types (like Ridge Classifier or KNN). Please be patient."
             )
         if st.button("Predict"):
             model = None
