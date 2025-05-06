@@ -3692,50 +3692,50 @@ predictions = model.predict(X_test)
                                     expected_val = explainer.expected_value
                                     
                                 try:
-                                # Get feature names for better visualization
-                                feature_names = X_train.columns.tolist() if hasattr(X_train, "columns") else [f"Feature {i}" for i in range(X_train.shape[1])]
-                                
-                                # Handle different shapes of SHAP values
-                                if len(shap_values_for_class.shape) == 3:  # For TreeExplainer with multi-class
-                                    instance_shap_values = shap_values_for_class[0, :, 0]  # First instance, all features, first class
-                                elif len(shap_values_for_class.shape) == 2:  # For binary classification
-                                    instance_shap_values = shap_values_for_class[0]  # First instance
-                                else:
-                                    instance_shap_values = shap_values_for_class  # Fallback
-                                
-                                # Get the feature values for the first instance
-                                if hasattr(X_test_for_shap, "iloc"):
-                                    instance_features = X_test_for_shap.iloc[0]
-                                else:
-                                    instance_features = X_test_for_shap[0]
-                                
-                                # Create a temporary file to save the HTML
-                                with tempfile.NamedTemporaryFile(delete=False, suffix='.html') as tmp:
-                                    temp_path = tmp.name
-                                
-                                # Create the force plot with proper error handling
-                                force_plot = shap.force_plot(
-                                    expected_val,
-                                    instance_shap_values,
-                                    instance_features,
-                                    feature_names=feature_names,
-                                    matplotlib=False,
-                                    show=False
-                                )
-                                
-                                # Save the plot to the temporary file
-                                shap.save_html(temp_path, force_plot)
-                                
-                                # Read the HTML content and display it
-                                with open(temp_path, 'r') as f:
-                                    html_content = f.read()
-                                st.components.v1.html(html_content, height=400)
-                                
-                                # Clean up the temporary file
-                                try:
-                                    os.remove(temp_path)
-                                except:
-                                    pass
+                                    # Get feature names for better visualization
+                                    feature_names = X_train.columns.tolist() if hasattr(X_train, "columns") else [f"Feature {i}" for i in range(X_train.shape[1])]
+                                    
+                                    # Handle different shapes of SHAP values
+                                    if len(shap_values_for_class.shape) == 3:  # For TreeExplainer with multi-class
+                                        instance_shap_values = shap_values_for_class[0, :, 0]  # First instance, all features, first class
+                                    elif len(shap_values_for_class.shape) == 2:  # For binary classification
+                                        instance_shap_values = shap_values_for_class[0]  # First instance
+                                    else:
+                                        instance_shap_values = shap_values_for_class  # Fallback
+                                    
+                                    # Get the feature values for the first instance
+                                    if hasattr(X_test_for_shap, "iloc"):
+                                        instance_features = X_test_for_shap.iloc[0]
+                                    else:
+                                        instance_features = X_test_for_shap[0]
+                                    
+                                    # Create a temporary file to save the HTML
+                                    with tempfile.NamedTemporaryFile(delete=False, suffix='.html') as tmp:
+                                        temp_path = tmp.name
+                                    
+                                    # Create the force plot with proper error handling
+                                    force_plot = shap.force_plot(
+                                        expected_val,
+                                        instance_shap_values,
+                                        instance_features,
+                                        feature_names=feature_names,
+                                        matplotlib=False,
+                                        show=False
+                                    )
+                                    
+                                    # Save the plot to the temporary file
+                                    shap.save_html(temp_path, force_plot)
+                                    
+                                    # Read the HTML content and display it
+                                    with open(temp_path, 'r') as f:
+                                        html_content = f.read()
+                                    st.components.v1.html(html_content, height=400)
+                                    
+                                    # Clean up the temporary file
+                                    try:
+                                        os.remove(temp_path)
+                                    except:
+                                        pass
                             except Exception as e:
                                 st.error(f"Error generating force plot: {str(e)}")
                                 st.write("Debug info:")
