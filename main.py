@@ -3588,6 +3588,8 @@ predictions = model.predict(X_test)
                     with st.spinner("Performing Shapley Analysis..."):
                         # Try to select the best SHAP explainer
                         try:
+                            # Flag to control flow
+                            continue_analysis = True
                             # Standardize features for KernelExplainer if needed
                             # Special handling for different model types
                             if model_option in [
@@ -3626,8 +3628,8 @@ predictions = model.predict(X_test)
                                 
                                 # Skip the regular SHAP plots for KNN
                                 st.info("SHAP force plots are not shown for KNN models due to computational limitations")
-                                # Skip to the end by using a break to exit the current try block
-                                break
+                                # Instead of using break, we'll just return early from this section
+                                return
                             else:
                                 # For other models, use KernelExplainer with careful settings
                                 scaler = StandardScaler()
@@ -3647,41 +3649,49 @@ predictions = model.predict(X_test)
                                 shap_values = explainer.shap_values(X_test_scaled[:max_samples])
                                 X_test_for_shap = X_test_scaled[:max_samples]
 
+                            # Skip the rest of the analysis if the flag is False (for KNN)
+                            if not continue_analysis:
+                                continue
+                                
                             # For binary classification, select the correct class
                             if isinstance(shap_values, list):
                                 shap_values_for_class = shap_values[1]
                             else:
                                 shap_values_for_class = shap_values
 
-                            # Show summary plot (bar)
-                            st.subheader("SHAP Feature Importance (Summary Plot)")
-                            # Create a new figure for the SHAP summary plot
-                            plt.figure(figsize=(10, 6))
-                            # SHAP summary_plot does not support 'ax' in recent versions; use default behavior and display with st.pyplot
-                            shap.summary_plot(
-                                shap_values_for_class,
-                                X_test_for_shap,  # Use the appropriate test data based on model type
-                                plot_type="bar",
-                                show=False,
-                                max_display=10  # Limit to top 10 features for clarity
-                            )
-                            st.pyplot(plt.gcf())
-                            plt.close()  # Close the figure to ensure it doesn't affect subsequent plots
+                            # Only show SHAP plots for non-KNN models
+                            if model_option != "K-Nearest Neighbors (KNN)":
+                                # Show summary plot (bar)
+                                st.subheader("SHAP Feature Importance (Summary Plot)")
+                                # Create a new figure for the SHAP summary plot
+                                plt.figure(figsize=(10, 6))
+                                # SHAP summary_plot does not support 'ax' in recent versions; use default behavior and display with st.pyplot
+                                shap.summary_plot(
+                                    shap_values_for_class,
+                                    X_test_for_shap,  # Use the appropriate test data based on model type
+                                    plot_type="bar",
+                                    show=False,
+                                    max_display=10  # Limit to top 10 features for clarity
+                                )
+                                st.pyplot(plt.gcf())
+                                plt.close()  # Close the figure to ensure it doesn't affect subsequent plots
 
-                            # Show force plot for first instance
-                            st.subheader("SHAP Force Plot (First Test Instance)")
-                            # Handle different model types and their expected_value formats
-                            if isinstance(explainer.expected_value, (list, np.ndarray)):
-                                # For binary classification with TreeExplainer (has two classes)
-                                if len(explainer.expected_value) == 2:
-                                    expected_val = explainer.expected_value[1]  # Use positive class
+                            # Only show force plot for non-KNN models
+                            if model_option != "K-Nearest Neighbors (KNN)":
+                                # Show force plot for first instance
+                                st.subheader("SHAP Force Plot (First Test Instance)")
+                                # Handle different model types and their expected_value formats
+                                if isinstance(explainer.expected_value, (list, np.ndarray)):
+                                    # For binary classification with TreeExplainer (has two classes)
+                                    if len(explainer.expected_value) == 2:
+                                        expected_val = explainer.expected_value[1]  # Use positive class
+                                    else:
+                                        expected_val = explainer.expected_value[0]  # Fallback
                                 else:
-                                    expected_val = explainer.expected_value[0]  # Fallback
-                            else:
-                                # For KernelExplainer or single value
-                                expected_val = explainer.expected_value
-                                
-                            try:
+                                    # For KernelExplainer or single value
+                                    expected_val = explainer.expected_value
+                                    
+                                try:
                                 # Get feature names for better visualization
                                 feature_names = X_train.columns.tolist() if hasattr(X_train, "columns") else [f"Feature {i}" for i in range(X_train.shape[1])]
                                 
