@@ -3456,7 +3456,7 @@ with tab2:
                     st.subheader("Confusion Matrix (Test Set)")
                     st.pyplot(plot_confusion_matrix(y_test, predictions))
                     with st.expander("What is a confusion matrix?"):
-                    st.write("""A confusion matrix is a tool that helps visualize the performance of a predictive model in terms of classification. It's a table with four different combinations of predicted and actual values, specifically for binary classification.
+                        st.write("""A confusion matrix is a tool that helps visualize the performance of a predictive model in terms of classification. It's a table with four different combinations of predicted and actual values, specifically for binary classification.
 
 The four combinations are:
 
@@ -3483,7 +3483,7 @@ Lastly, when interpreting the confusion matrix, it's crucial to consider the cos
                     st.subheader("ROC Curve (Test Set)")
                     st.pyplot(plot_roc_curve(y_test, y_scores))
                     with st.expander("What is an ROC curve?"):
-                    st.write("""
+                        st.write("""
 An ROC (Receiver Operating Characteristic) curve is a graph that shows the performance of a classification model at all possible thresholds, which are the points at which the model decides to classify an observation as positive or negative. 
 
 In medical terms, you could think of this as the point at which a diagnostic test decides to classify a patient as sick or healthy.
@@ -3513,7 +3513,7 @@ Therefore, while the ROC curve and AUC are very useful tools, they should be int
                     pr_fig = plot_pr_curve(y_test, y_scores)
                     st.pyplot(pr_fig)
                     with st.expander("What is a PR curve?"):
-                    st.write("""
+                        st.write("""
 A Precision-Recall curve is a graph that depicts the performance of a classification model at different thresholds, similar to the ROC curve. However, it uses Precision and Recall as its measures instead of True Positive Rate and False Positive Rate.
 
 In the context of medicine:
