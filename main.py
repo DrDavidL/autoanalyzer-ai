@@ -3596,7 +3596,7 @@ predictions = model.predict(X_test)
 
                             # Show force plot for first instance
                             st.subheader("SHAP Force Plot (First Test Instance)")
-                            force_plot = shap.force_plot(
+                            force_plot_html = shap.force_plot(
                                 explainer.expected_value[1] if isinstance(explainer.expected_value, (list, np.ndarray)) else explainer.expected_value,
                                 shap_values_for_class[0],
                                 (X_test.iloc[0] if hasattr(X_test, "iloc") else X_test[0]) if model_option in [
@@ -3605,10 +3605,10 @@ predictions = model.predict(X_test)
                                     "Gradient Boosting Machines (GBMs)",
                                     "XGBoost (if installed)",
                                 ] else X_test_scaled[0],
-                                matplotlib=True,
+                                matplotlib=False,
                                 show=False,
                             )
-                            st.pyplot(force_plot.figure)
+                            st.components.v1.html(shap.save_html(force_plot_html), height=400)
                         except Exception as e:
                             st.warning(f"Could not generate SHAP plots: {e}")
 
