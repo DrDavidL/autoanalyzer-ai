@@ -1196,7 +1196,7 @@ def perform_pca_plot(df):
     return fig
 
 
-def display_metrics(y_true, y_pred, y_scores):
+def display_metrics(y_true, y_pred, y_scores, set_name="Test"):
     # Compute metrics
     f1 = f1_score(y_true, y_pred)
     accuracy = accuracy_score(y_true, y_pred)
@@ -1207,7 +1207,7 @@ def display_metrics(y_true, y_pred, y_scores):
     # Display metrics
 
     st.info(
-        f"**Your Model Metrics:** F1 score: {f1:.2f}, Accuracy: {accuracy:.2f}, ROC AUC: {roc_auc:.2f}, PR AUC: {pr_auc:.2f}"
+        f"**Your Model Metrics ({set_name} Set):** F1 score: {f1:.2f}, Accuracy: {accuracy:.2f}, ROC AUC: {roc_auc:.2f}, PR AUC: {pr_auc:.2f}"
     )
     with st.expander("Explanations for the Metrics"):
         st.write(
@@ -1245,34 +1245,9 @@ It's worth noting that a good machine learning model not only has a high accurac
 
 Lastly, when interpreting the confusion matrix, it's crucial to consider the cost associated with each type of error (false positives and false negatives) within the specific medical context. Sometimes, it's more crucial to minimize one type of error over the other. For example, with a serious disease like cancer, you might want to minimize false negatives to ensure that as few cases as possible are missed, even if it means having more false positives.
 """)
+    st.write(f"**ROC Curve ({set_name} Set):**")
     st.write(plot_roc_curve(y_true, y_scores))
     with st.expander("What is an ROC curve?"):
-        st.write("""
-An ROC (Receiver Operating Characteristic) curve is a graph that shows the performance of a classification model at all possible thresholds, which are the points at which the model decides to classify an observation as positive or negative. 
-
-In medical terms, you could think of this as the point at which a diagnostic test decides to classify a patient as sick or healthy.
-
-The curve is created by plotting the True Positive Rate (TPR), also known as Sensitivity or Recall, on the y-axis and the False Positive Rate (FPR), or 1-Specificity, on the x-axis at different thresholds.
-
-In simpler terms:
-
-- **True Positive Rate (TPR)**: Out of all the actual positive cases (for example, all the patients who really do have a disease), how many did our model correctly identify?
-
-- **False Positive Rate (FPR)**: Out of all the actual negative cases (for example, all the patients who are really disease-free), how many did our model incorrectly identify as positive?
-
-The closer the curve follows the left-hand border and then the top border of the ROC space, the more accurate the test. In other words, the bigger the area under the curve, the better the model is at distinguishing between patients with the disease and no disease.
-
-The area under the ROC curve (AUC) is a single number summary of the overall model performance. The value can range from 0 to 1, where:
-
-- **AUC = 0.5**: This is no better than a random guess, or flipping a coin. It's not an effective classifier.
-- **AUC < 0.5**: This means the model is worse than a random guess. But, by reversing its decision, we can get AUC > 0.5.
-- **AUC = 1**: The model has perfect accuracy. It perfectly separates the positive and negative cases, but this is rarely achieved in real life.
-
-In clinical terms, an AUC of 0.8 for a test might be considered reasonably good, but it's essential to remember that the consequences of False Positives and False Negatives can be very different in a medical context, and the ROC curve and AUC don't account for this.
-
-Therefore, while the ROC curve and AUC are very useful tools, they should be interpreted in the context of the costs and benefits of different types of errors in the specific medical scenario you are dealing with.""")
-    st.write(plot_pr_curve(y_true, y_scores))
-    with st.expander("What is a PR curve?"):
         st.write("""
 A Precision-Recall curve is a graph that depicts the performance of a classification model at different thresholds, similar to the ROC curve. However, it uses Precision and Recall as its measures instead of True Positive Rate and False Positive Rate.
 
@@ -3481,6 +3456,19 @@ with tab2:
 
             if model is not None:
                 model.fit(X_train, y_train)
+                # Training set metrics
+                train_predictions = model.predict(X_train)
+                if hasattr(model, "predict_proba"):
+                    train_y_scores = model.predict_proba(X_train)[:, 1]
+                elif hasattr(model, "decision_function"):
+                    train_y_scores = model.decision_function(X_train)
+                else:
+                    train_y_scores = train_predictions
+
+                st.subheader("Training Set Performance (for reference only)")
+                display_metrics(y_train, train_predictions, train_y_scores, set_name="Training")
+
+                # Test set metrics
                 predictions = model.predict(X_test)
                 if hasattr(model, "predict_proba"):
                     y_scores = model.predict_proba(X_test)[:, 1]
@@ -3489,7 +3477,8 @@ with tab2:
                 else:
                     y_scores = predictions
 
-                display_metrics(y_test, predictions, y_scores)
+                st.subheader("Test Set Performance (most important)")
+                display_metrics(y_test, predictions, y_scores, set_name="Test")
 
                 # Show model explanation
                 with st.expander("About this model"):
