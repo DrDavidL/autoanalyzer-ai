@@ -1229,13 +1229,13 @@ def plot_pr_curve(y_true, y_scores):
     precision, recall, _ = precision_recall_curve(y_true, y_scores)
     pr_auc = auc(recall, precision)
 
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(8, 6))
     ax.plot(recall, precision, label=f"PR curve (AUC = {pr_auc:.2f})")
-    plt.xlabel("Recall")
-    plt.ylabel("Precision")
-    plt.title("Precision-Recall Curve")
-    plt.legend(loc="lower right")
-    st.pyplot(fig)
+    ax.set_xlabel("Recall")
+    ax.set_ylabel("Precision")
+    ax.set_title("Precision-Recall Curve")
+    ax.legend(loc="lower right")
+    return fig
 
 
 def get_categorical_and_numerical_cols(df):
@@ -3483,7 +3483,8 @@ Therefore, while the ROC curve and AUC are very useful tools, they should be int
 
                 # Show PR curve
                 st.subheader("Precision-Recall (PR) Curve (Test Set)")
-                plot_pr_curve(y_test, y_scores)
+                pr_fig = plot_pr_curve(y_test, y_scores)
+                st.pyplot(pr_fig)
                 with st.expander("What is a PR curve?"):
                     st.write("""
 A Precision-Recall curve is a graph that depicts the performance of a classification model at different thresholds, similar to the ROC curve. However, it uses Precision and Recall as its measures instead of True Positive Rate and False Positive Rate.
@@ -3581,6 +3582,8 @@ predictions = model.predict(X_test)
 
                             # Show summary plot (bar)
                             st.subheader("SHAP Feature Importance (Summary Plot)")
+                            # Create a new figure for the SHAP summary plot
+                            plt.figure(figsize=(10, 6))
                             # SHAP summary_plot does not support 'ax' in recent versions; use default behavior and display with st.pyplot
                             shap.summary_plot(
                                 shap_values_for_class,
@@ -3594,7 +3597,7 @@ predictions = model.predict(X_test)
                                 show=False,
                             )
                             st.pyplot(plt.gcf())
-                            plt.clf()
+                            plt.close()  # Close the figure to ensure it doesn't affect subsequent plots
 
                             # Show force plot for first instance
                             st.subheader("SHAP Force Plot (First Test Instance)")
