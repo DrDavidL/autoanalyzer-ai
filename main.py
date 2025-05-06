@@ -3626,7 +3626,8 @@ predictions = model.predict(X_test)
                                 
                                 # Skip the regular SHAP plots for KNN
                                 st.info("SHAP force plots are not shown for KNN models due to computational limitations")
-                                continue
+                                # Instead of continue (which is invalid here), we'll use a return or just skip to the end
+                                return
                             else:
                                 # For other models, use KernelExplainer with careful settings
                                 scaler = StandardScaler()
