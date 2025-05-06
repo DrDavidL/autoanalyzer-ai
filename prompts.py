@@ -371,3 +371,34 @@ Your input parameters will be in this format
 Columns: ```columns```
 Number of rows: ```number```
 """
+
+# Explanations for sidebar tools/options
+tool_explanations = {
+    "Show header (top 5 rows of data)": "Displays the first five rows of your dataset to give you a quick look at the data structure.",
+    "Summary (numerical data)": "Shows summary statistics (mean, median, min, max, etc.) for all numerical columns.",
+    "Summary (categorical data)": "Shows counts and most frequent values for all categorical columns.",
+    "Create a Table 1": "Generates a publication-style Table 1 summarizing key variables by group.",
+    "Scatterplot": "Plots the relationship between two numerical variables, optionally with a regression line.",
+    "View Dataset": "Displays the entire dataset and allows you to download the current (filtered/cleaned) data.",
+    "Categorical outcome analysis (Cohort or case-control datasets)": "Creates a 2x2 table and calculates risk/odds ratios for binary outcomes.",
+    "T-test (2 groups)": "Compares the means of a numerical variable between two groups.",
+    "ANOVA (3+ groups)": "Compares the means of a numerical variable across three or more groups.",
+    "Mann-Whitney U test (2 groups, nonparametric)": "Nonparametric test comparing medians between two groups.",
+    "Kruskal-Wallis test (3+ groups, nonparametric)": "Nonparametric test comparing medians across three or more groups.",
+    "Chi-square test (categorical)": "Tests for association between two categorical variables.",
+    "Crosstab/Frequency Table": "Displays a frequency table (cross-tabulation) for two categorical variables.",
+    "Simple linear regression": "Fits a linear model with one predictor and one outcome variable.",
+    "Time series plot": "Plots a variable over time to visualize trends.",
+    "Visualize missing data": "Shows a heatmap of missing values in your dataset.",
+    "Download a Full Analysis": "Generates a comprehensive data profiling report (Sweetviz or Pandas Profiling).",
+    "Bar chart (categorical data)": "Plots the frequency of categories as bars.",
+    "Histogram (numerical data)": "Shows the distribution of a numerical variable.",
+    "Pie chart (categorical data)": "Displays the proportion of categories as slices of a pie.",
+    "Correlation heatmap": "Visualizes correlations between numerical variables.",
+    "Box plot": "Shows the distribution of a numerical variable by category, highlighting medians and outliers.",
+    "Violin plot": "Shows the distribution and density of a numerical variable by category.",
+    "Multiple linear regression": "Fits a linear model with multiple predictors.",
+    "Perform PCA": "Performs Principal Component Analysis for dimensionality reduction and visualization.",
+    "Survival curve (need duration column)": "Plots a Kaplan-Meier survival curve for time-to-event data.",
+    "Cox Proportional Hazards (need duration column)": "Fits a Cox regression model for survival analysis.",
+}

@@ -55,6 +55,7 @@ from prompts import (
     data_analysis_prompt,
     plot_generation_prompt,
     quick_analysis_prompt,
+    tool_explanations,
 )
 import asyncio
 from langchain.callbacks.base import AsyncCallbackHandler
@@ -2057,51 +2058,123 @@ with tab1:
         )
 
         st.subheader("Step 3: Tools for Analysis")
+        # Balanced tool options for sidebar columns
         col1, col2 = st.columns(2)
+        col1_tools = [
+            "Show header (top 5 rows of data)",
+            "Summary (numerical data)",
+            "Summary (categorical data)",
+            "Create a Table 1",
+            "Scatterplot",
+            "View Dataset",
+            "Bar chart (categorical data)",
+            "Histogram (numerical data)",
+            "Pie chart (categorical data)",
+            "Correlation heatmap",
+            "Box plot",
+        ]
+        col2_tools = [
+            "Violin plot",
+            "T-test (2 groups)",
+            "ANOVA (3+ groups)",
+            "Mann-Whitney U test (2 groups, nonparametric)",
+            "Kruskal-Wallis test (3+ groups, nonparametric)",
+            "Chi-square test (categorical)",
+            "Crosstab/Frequency Table",
+            "Simple linear regression",
+            "Multiple linear regression",
+            "Perform PCA",
+            "Time series plot",
+            "Visualize missing data",
+            "Categorical outcome analysis (Cohort or case-control datasets)",
+            "Survival curve (need duration column)",
+            "Cox Proportional Hazards (need duration column)",
+            "*(Takes 1-2 minutes*) **Download a Full Analysis** (*Check **Alerts** with key findings.*)",
+        ]
+
         with col1:
-            header = st.checkbox("Show header (top 5 rows of data)", key="show header")
-            summary = st.checkbox("Summary (numerical data)", key="show data")
+            header = st.checkbox(
+                col1_tools[0], key="show header", help=tool_explanations.get(col1_tools[0], "")
+            )
+            summary = st.checkbox(
+                col1_tools[1], key="show data", help=tool_explanations.get(col1_tools[1], "")
+            )
             summary_cat = st.checkbox(
-                "Summary (categorical data)", key="show summary cat"
+                col1_tools[2], key="show summary cat", help=tool_explanations.get(col1_tools[2], "")
             )
-            show_table = st.checkbox("Create a Table 1", key="show table")
-            show_scatter = st.checkbox("Scatterplot", key="show scatter")
-            view_full_df = st.checkbox("View Dataset", key="view full df")
-            binary_categ_analysis = st.checkbox(
-                "Categorical outcome analysis (Cohort or case-control datasets)",
-                key="binary categ analysis",
+            show_table = st.checkbox(
+                col1_tools[3], key="show table", help=tool_explanations.get(col1_tools[3], "")
             )
-            ttest = st.checkbox("T-test (2 groups)", key="ttest")
-            anova = st.checkbox("ANOVA (3+ groups)", key="anova")
-            mannwhitney = st.checkbox("Mann-Whitney U test (2 groups, nonparametric)", key="mannwhitney")
-            kruskal = st.checkbox("Kruskal-Wallis test (3+ groups, nonparametric)", key="kruskal")
-            chi2 = st.checkbox("Chi-square test (categorical)", key="chi2")
-            crosstab = st.checkbox("Crosstab/Frequency Table", key="crosstab")
-            simple_linreg = st.checkbox("Simple linear regression", key="simple_linreg")
-            time_series = st.checkbox("Time series plot", key="time_series")
-            missing_data_vis = st.checkbox("Visualize missing data", key="missing_data_vis")
-            # activate_chatbot = st.checkbox("**Activate GPT Analyzer!**", key = "activate chatbot")
-            full_analysis = st.checkbox(
-                "*(Takes 1-2 minutes*) **Download a Full Analysis** (*Check **Alerts** with key findings.*)",
-                key="show analysis",
+            show_scatter = st.checkbox(
+                col1_tools[4], key="show scatter", help=tool_explanations.get(col1_tools[4], "")
+            )
+            view_full_df = st.checkbox(
+                col1_tools[5], key="view full df", help=tool_explanations.get(col1_tools[5], "")
+            )
+            barchart = st.checkbox(
+                col1_tools[6], key="show barchart", help=tool_explanations.get(col1_tools[6], "")
+            )
+            histogram = st.checkbox(
+                col1_tools[7], key="show histogram", help=tool_explanations.get(col1_tools[7], "")
+            )
+            piechart = st.checkbox(
+                col1_tools[8], key="show piechart", help=tool_explanations.get(col1_tools[8], "")
+            )
+            show_corr = st.checkbox(
+                col1_tools[9], key="show corr", help=tool_explanations.get(col1_tools[9], "")
+            )
+            box_plot = st.checkbox(
+                col1_tools[10], key="show box", help=tool_explanations.get(col1_tools[10], "")
             )
 
         with col2:
-            barchart = st.checkbox("Bar chart (categorical data)", key="show barchart")
-            histogram = st.checkbox("Histogram (numerical data)", key="show histogram")
-            piechart = st.checkbox("Pie chart (categorical data)", key="show piechart")
-            show_corr = st.checkbox("Correlation heatmap", key="show corr")
-            box_plot = st.checkbox("Box plot", key="show box")
-            violin_plot = st.checkbox("Violin plot", key="show violin")
-            mult_linear_reg = st.checkbox(
-                "Multiple linear regression", key="show mult linear reg"
+            violin_plot = st.checkbox(
+                col2_tools[0], key="show violin", help=tool_explanations.get(col2_tools[0], "")
             )
-            perform_pca = st.checkbox("Perform PCA", key="show pca")
+            ttest = st.checkbox(
+                col2_tools[1], key="ttest", help=tool_explanations.get(col2_tools[1], "")
+            )
+            anova = st.checkbox(
+                col2_tools[2], key="anova", help=tool_explanations.get(col2_tools[2], "")
+            )
+            mannwhitney = st.checkbox(
+                col2_tools[3], key="mannwhitney", help=tool_explanations.get(col2_tools[3], "")
+            )
+            kruskal = st.checkbox(
+                col2_tools[4], key="kruskal", help=tool_explanations.get(col2_tools[4], "")
+            )
+            chi2 = st.checkbox(
+                col2_tools[5], key="chi2", help=tool_explanations.get(col2_tools[5], "")
+            )
+            crosstab = st.checkbox(
+                col2_tools[6], key="crosstab", help=tool_explanations.get(col2_tools[6], "")
+            )
+            simple_linreg = st.checkbox(
+                col2_tools[7], key="simple_linreg", help=tool_explanations.get(col2_tools[7], "")
+            )
+            mult_linear_reg = st.checkbox(
+                col2_tools[8], key="show mult linear reg", help=tool_explanations.get(col2_tools[8], "")
+            )
+            perform_pca = st.checkbox(
+                col2_tools[9], key="show pca", help=tool_explanations.get(col2_tools[9], "")
+            )
+            time_series = st.checkbox(
+                col2_tools[10], key="time_series", help=tool_explanations.get(col2_tools[10], "")
+            )
+            missing_data_vis = st.checkbox(
+                col2_tools[11], key="missing_data_vis", help=tool_explanations.get(col2_tools[11], "")
+            )
+            binary_categ_analysis = st.checkbox(
+                col2_tools[12], key="binary categ analysis", help=tool_explanations.get(col2_tools[12], "")
+            )
             survival_curve = st.checkbox(
-                "Survival curve (need duration column)", key="show survival"
+                col2_tools[13], key="show survival", help=tool_explanations.get(col2_tools[13], "")
             )
             cox_ph = st.checkbox(
-                "Cox Proportional Hazards (need duration column)", key="show cox ph"
+                col2_tools[14], key="show cox ph", help=tool_explanations.get(col2_tools[14], "")
+            )
+            full_analysis = st.checkbox(
+                col2_tools[15], key="show analysis", help=tool_explanations.get("Download a Full Analysis", "")
             )
 
     if filter_data:
