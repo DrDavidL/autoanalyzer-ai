@@ -3606,20 +3606,35 @@ predictions = model.predict(X_test)
                             else:
                                 # For KernelExplainer or single value
                                 expected_val = explainer.expected_value
+                            
+                            # Debug information to help diagnose issues
+                            st.write(f"Expected value type: {type(explainer.expected_value)}")
+                            st.write(f"Expected value: {explainer.expected_value}")
                                 
-                            force_plot_html = shap.force_plot(
-                                expected_val,
-                                shap_values_for_class[0],
-                                (X_test.iloc[0] if hasattr(X_test, "iloc") else X_test[0]) if model_option in [
-                                    "Decision Tree",
-                                    "Random Forest",
-                                    "Gradient Boosting Machines (GBMs)",
-                                    "XGBoost (if installed)",
-                                ] else X_test_scaled[0],
-                                matplotlib=False,
-                                show=False,
-                            )
-                            st.components.v1.html(shap.save_html(force_plot_html), height=400)
+                            try:
+                                # Get feature names for better visualization
+                                feature_names = X_test.columns.tolist() if hasattr(X_test, "columns") else None
+                                
+                                # Create the force plot with proper error handling
+                                force_plot_html = shap.force_plot(
+                                    expected_val,
+                                    shap_values_for_class[0],
+                                    (X_test.iloc[0] if hasattr(X_test, "iloc") else X_test[0]) if model_option in [
+                                        "Decision Tree",
+                                        "Random Forest",
+                                        "Gradient Boosting Machines (GBMs)",
+                                        "XGBoost (if installed)",
+                                    ] else X_test_scaled[0],
+                                    feature_names=feature_names,
+                                    matplotlib=False,
+                                    show=False,
+                                )
+                                st.components.v1.html(shap.save_html(force_plot_html), height=400)
+                            except Exception as e:
+                                st.error(f"Error generating force plot: {str(e)}")
+                                st.write("SHAP values shape:", shap_values_for_class.shape)
+                                st.write("First instance shape:", 
+                                       (X_test.iloc[0].shape if hasattr(X_test, "iloc") else X_test[0].shape))
                         except Exception as e:
                             st.warning(f"Could not generate SHAP plots: {e}")
             # End of if model is not None
