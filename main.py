@@ -3736,12 +3736,12 @@ predictions = model.predict(X_test)
                                         os.remove(temp_path)
                                     except:
                                         pass
-                            except Exception as e:
-                                st.error(f"Error generating force plot: {str(e)}")
-                                st.write("Debug info:")
-                                st.write(f"SHAP values shape: {shap_values_for_class.shape}")
-                                st.write(f"First instance shape: {(X_test.iloc[0].shape if hasattr(X_test, 'iloc') else X_test[0].shape)}")
-                                st.write(f"Feature names: {feature_names[:5]}...")  # Show first 5 feature names
+                                except Exception as e:
+                                    st.error(f"Error generating force plot: {str(e)}")
+                                    st.write("Debug info:")
+                                    st.write(f"SHAP values shape: {shap_values_for_class.shape}")
+                                    st.write(f"First instance shape: {(X_test.iloc[0].shape if hasattr(X_test, 'iloc') else X_test[0].shape)}")
+                                    st.write(f"Feature names: {feature_names[:5]}...")  # Show first 5 feature names
                         except Exception as e:
                             st.warning(f"Could not generate SHAP plots: {e}")
             # End of if model is not None
