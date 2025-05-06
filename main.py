@@ -3638,7 +3638,8 @@ predictions = model.predict(X_test)
                                     matplotlib=False,
                                     show=False
                                 )
-                                st.components.v1.html(shap.save_html(force_plot_html), height=400)
+                                html_content = shap.save_html(force_plot_html, force_plot_html)
+                                st.components.v1.html(html_content, height=400)
                             except Exception as e:
                                 st.error(f"Error generating force plot: {str(e)}")
                                 st.write("Debug info:")
