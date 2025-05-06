@@ -3319,7 +3319,7 @@ with tab2:
                 "Decision Tree",
                 "Random Forest",
                 "Gradient Boosting Machines (GBMs)",
-                "XGBoost (if installed)",
+                "XGBoost",
                 "Linear Discriminant Analysis (LDA)",
                 "Support Vector Machines (SVMs)",
                 "Neural Network",
@@ -3385,14 +3385,11 @@ with tab2:
                 with st.expander("What is a gradient boosting machine?"):
                     from prompts import gbm_text
                     st.write(gbm_text)
-            elif model_option == "XGBoost (if installed)":
-                if xgboost_available:
-                    model = XGBClassifier(use_label_encoder=False, eval_metric="logloss")
-                    model_explanation = "XGBoost is a high-performance, scalable gradient boosting library that is widely used in data science competitions and industry."
-                    with st.expander("What is XGBoost?"):
-                        st.write("XGBoost is a high-performance, scalable gradient boosting library that is widely used in data science competitions and industry.")
-                else:
-                    st.error("XGBoost is not installed. Please run 'pip install xgboost' to use this model.")
+            elif model_option == "XGBoost":
+                model = XGBClassifier(use_label_encoder=False, eval_metric="logloss")
+                model_explanation = "XGBoost is a high-performance, scalable gradient boosting library that is widely used in data science competitions and industry."
+                with st.expander("What is XGBoost?"):
+                    st.write("XGBoost is a high-performance, scalable gradient boosting library that is widely used in data science competitions and industry.")
             elif model_option == "Linear Discriminant Analysis (LDA)":
                 model = LinearDiscriminantAnalysis()
                 model_explanation = "Linear Discriminant Analysis (LDA) is a classification method that projects data onto a lower-dimensional space to maximize class separability."
@@ -3558,7 +3555,7 @@ predictions = model.predict(X_test)
                                 "Decision Tree",
                                 "Random Forest",
                                 "Gradient Boosting Machines (GBMs)",
-                                "XGBoost (if installed)",
+                                "XGBoost",
                             ]:
                                 explainer = shap.TreeExplainer(model)
                                 shap_values = explainer.shap_values(X_test)
@@ -3591,7 +3588,7 @@ predictions = model.predict(X_test)
                                     "Decision Tree",
                                     "Random Forest",
                                     "Gradient Boosting Machines (GBMs)",
-                                    "XGBoost (if installed)",
+                                    "XGBoost",
                                 ] else X_test_scaled,
                                 plot_type="bar",
                                 show=False,
