@@ -3613,61 +3613,6 @@ predictions = model.predict(X_test)
                             st.warning(f"Could not generate SHAP plots: {e}")
 
             # End of model is not None
-                model = DecisionTreeClassifier()
-                model.fit(X_train, y_train)
-                predictions = model.predict(X_test)
-                accuracy = accuracy_score(y_test, predictions)
-                y_scores = model.predict_proba(X_test)[:, 1]
-                with st.expander("What is a decision tree?"):
-                    from prompts import decision_tree_text
-                    st.write(decision_tree_text)
-                display_metrics(y_test, predictions, y_scores)
-                if perform_shapley == True:  # shapley explanation
-                    # Scale the features
-                    with st.expander("What is a Shapley Force Plot?"):
-                        st.markdown(shapley_explanation)
-                    with st.spinner(
-                        "Performing Analysis for the Shapley Force Plot..."
-                    ):
-                        # shapley explanation using TreeExplainer
-                        explainer = shap.TreeExplainer(model)
-                        shap_values = explainer.shap_values(X_test)
-
-                        # Sort features by absolute contribution for the first instance in the test set
-                        sorted_indices = np.argsort(np.abs(shap_values[1][0]))[::-1]
-                        sorted_shap_values = shap_values[1][0][sorted_indices]
-                        sorted_feature_names = X_test.columns[sorted_indices]
-
-                        # Create a DataFrame to display sorted features and their shapley values
-                        sorted_features_df = pd.DataFrame(
-                            {
-                                "Feature": sorted_feature_names,
-                                "Shapley_Value": sorted_shap_values,
-                            }
-                        )
-
-                        # Display the sorted features DataFrame in Streamlit
-                        st.table(sorted_features_df)
-
-                        # Generate and display the sorted force plot
-                        shap_html = shap.force_plot(
-                            explainer.expected_value[1],
-                            sorted_shap_values,
-                            sorted_feature_names,
-                            show=False,
-                        )
-                        # Use tempfile to create a temporary file
-                        with tempfile.NamedTemporaryFile(
-                            delete=False, suffix=".html"
-                        ) as temp_file:
-                            shap.save_html(temp_file.name, shap_html)
-                            temp_file_path = temp_file.name
-
-                        # Read and display the temporary HTML file in Streamlit
-                        with open(temp_file_path, "r") as f:
-                            st.components.v1.html(f.read(), height=500)
-
-            elif model_option == "Random Forest":
                 model = RandomForestClassifier()
                 model.fit(X_train, y_train)
                 predictions = model.predict(X_test)
