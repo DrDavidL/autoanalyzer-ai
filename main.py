@@ -3579,7 +3579,7 @@ predictions = model.predict(X_test)
 
                             # Show summary plot (bar)
                             st.subheader("SHAP Feature Importance (Summary Plot)")
-                            fig_summary, ax = plt.subplots()
+                            # SHAP summary_plot does not support 'ax' in recent versions; use default behavior and display with st.pyplot
                             shap.summary_plot(
                                 shap_values_for_class,
                                 X_test if model_option in [
@@ -3590,9 +3590,9 @@ predictions = model.predict(X_test)
                                 ] else X_test_scaled,
                                 plot_type="bar",
                                 show=False,
-                                ax=ax,
                             )
-                            st.pyplot(fig_summary)
+                            st.pyplot(plt.gcf())
+                            plt.clf()
 
                             # Show force plot for first instance
                             st.subheader("SHAP Force Plot (First Test Instance)")
