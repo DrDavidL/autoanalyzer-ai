@@ -1197,32 +1197,60 @@ def perform_pca_plot(df):
 
 
 def display_metrics(y_true, y_pred, y_scores, set_name="Test"):
-    # Compute metrics
-    f1 = f1_score(y_true, y_pred)
-    accuracy = accuracy_score(y_true, y_pred)
-    roc_auc = roc_auc_score(y_true, y_scores)
-    precision, recall, _ = precision_recall_curve(y_true, y_scores)
-    pr_auc = auc(recall, precision)
-
-    # Display metrics
-
-    st.info(
-        f"**Your Model Metrics ({set_name} Set):** F1 score: {f1:.2f}, Accuracy: {accuracy:.2f}, ROC AUC: {roc_auc:.2f}, PR AUC: {pr_auc:.2f}"
-    )
+    # Check if this is a regression model (continuous outputs) or classification model
+    is_regression = False
+    try:
+        # Try to compute classification metrics
+        f1 = f1_score(y_true, y_pred)
+        accuracy = accuracy_score(y_true, y_pred)
+        roc_auc = roc_auc_score(y_true, y_scores)
+        precision, recall, _ = precision_recall_curve(y_true, y_scores)
+        pr_auc = auc(recall, precision)
+        
+        # Display classification metrics
+        st.info(
+            f"**Your Model Metrics ({set_name} Set):** F1 score: {f1:.2f}, Accuracy: {accuracy:.2f}, ROC AUC: {roc_auc:.2f}, PR AUC: {pr_auc:.2f}"
+        )
+    except ValueError as e:
+        # If we get a ValueError, it's likely because we're using a regression model
+        is_regression = True
+        from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+        
+        # Compute regression metrics
+        mse = mean_squared_error(y_true, y_pred)
+        rmse = np.sqrt(mse)
+        mae = mean_absolute_error(y_true, y_pred)
+        r2 = r2_score(y_true, y_pred)
+        
+        # Display regression metrics
+        st.info(
+            f"**Your Model Metrics ({set_name} Set):** RMSE: {rmse:.2f}, MAE: {mae:.2f}, R²: {r2:.2f}"
+        )
+    
     with st.expander("Explanations for the Metrics"):
-        st.write(
-            # Explain differences
-            """
-### Explanation of Metrics
+        if is_regression:
+            st.write(
+                """
+### Explanation of Regression Metrics
+- **RMSE** (Root Mean Squared Error) measures the average magnitude of the errors. It gives higher weight to larger errors.
+- **MAE** (Mean Absolute Error) measures the average magnitude of the errors without considering their direction.
+- **R²** (R-squared) represents the proportion of variance in the dependent variable that is predictable from the independent variables. It ranges from 0 to 1, with higher values indicating better fit.
+"""
+            )
+        else:
+            st.write(
+                """
+### Explanation of Classification Metrics
 - **F1 score** is the harmonic mean of precision and recall, and it tries to balance the two. It is a good metric when you have imbalanced classes.
 - **Accuracy** is the ratio of correct predictions to the total number of predictions. It can be misleading if the classes are imbalanced.
 - **ROC AUC** (Receiver Operating Characteristic Area Under Curve) represents the likelihood of the classifier distinguishing between a positive sample and a negative sample. It's equal to 0.5 for random predictions and 1.0 for perfect predictions.
 - **PR AUC** (Precision-Recall Area Under Curve) is another way of summarizing the trade-off between precision and recall, and it gives more weight to precision. It's useful when the classes are imbalanced.
 """
-        )
-    # st.write(f"Accuracy: {accuracy}")
+            )
     # Confusion matrix, ROC, and PR curves are now shown in the main ML tab for clarity.
     # ROC curve is now shown only once per set, outside this function.
+    
+    return is_regression
 
 
 def plot_pr_curve(y_true, y_scores):
@@ -3354,9 +3382,9 @@ with tab2:
                     st.write("Ridge Classifier is a linear model for classification that applies L2 regularization, helping to prevent overfitting.")
             elif model_option == "Lasso Regression":
                 model = Lasso()
-                model_explanation = "Lasso Regression is a linear model that uses L1 regularization, which can shrink some coefficients to zero, effectively performing feature selection."
+                model_explanation = "Lasso Regression is a linear model that uses L1 regularization, which can shrink some coefficients to zero, effectively performing feature selection. Note: This is a regression model, not a classification model."
                 with st.expander("What is Lasso Regression?"):
-                    st.write("Lasso Regression is a linear model that uses L1 regularization, which can shrink some coefficients to zero, effectively performing feature selection.")
+                    st.write("Lasso Regression is a linear model that uses L1 regularization, which can shrink some coefficients to zero, effectively performing feature selection. It produces continuous outputs rather than binary classifications.")
             elif model_option == "K-Nearest Neighbors (KNN)":
                 model = KNeighborsClassifier()
                 model_explanation = "K-Nearest Neighbors (KNN) is a simple, instance-based learning algorithm that classifies data points based on the majority class among their k nearest neighbors."
@@ -3420,12 +3448,14 @@ with tab2:
                     y_scores = predictions
 
                 st.subheader("Test Set Performance (most important)")
-                display_metrics(y_test, predictions, y_scores, set_name="Test")
+                is_regression = display_metrics(y_test, predictions, y_scores, set_name="Test")
 
-                # Show confusion matrix
-                st.subheader("Confusion Matrix (Test Set)")
-                st.pyplot(plot_confusion_matrix(y_test, predictions))
-                with st.expander("What is a confusion matrix?"):
+                # Only show classification visualizations for classification models
+                if not is_regression:
+                    # Show confusion matrix
+                    st.subheader("Confusion Matrix (Test Set)")
+                    st.pyplot(plot_confusion_matrix(y_test, predictions))
+                    with st.expander("What is a confusion matrix?"):
                     st.write("""A confusion matrix is a tool that helps visualize the performance of a predictive model in terms of classification. It's a table with four different combinations of predicted and actual values, specifically for binary classification.
 
 The four combinations are:
@@ -3449,10 +3479,10 @@ It's worth noting that a good machine learning model not only has a high accurac
 Lastly, when interpreting the confusion matrix, it's crucial to consider the cost associated with each type of error (false positives and false negatives) within the specific medical context. Sometimes, it's more crucial to minimize one type of error over the other. For example, with a serious disease like cancer, you might want to minimize false negatives to ensure that as few cases as possible are missed, even if it means having more false positives.
 """)
 
-                # Show ROC curve
-                st.subheader("ROC Curve (Test Set)")
-                st.pyplot(plot_roc_curve(y_test, y_scores))
-                with st.expander("What is an ROC curve?"):
+                    # Show ROC curve
+                    st.subheader("ROC Curve (Test Set)")
+                    st.pyplot(plot_roc_curve(y_test, y_scores))
+                    with st.expander("What is an ROC curve?"):
                     st.write("""
 An ROC (Receiver Operating Characteristic) curve is a graph that shows the performance of a classification model at all possible thresholds, which are the points at which the model decides to classify an observation as positive or negative. 
 
@@ -3478,11 +3508,11 @@ In clinical terms, an AUC of 0.8 for a test might be considered reasonably good,
 
 Therefore, while the ROC curve and AUC are very useful tools, they should be interpreted in the context of the costs and benefits of different types of errors in the specific medical scenario you are dealing with.""")
 
-                # Show PR curve
-                st.subheader("Precision-Recall (PR) Curve (Test Set)")
-                pr_fig = plot_pr_curve(y_test, y_scores)
-                st.pyplot(pr_fig)
-                with st.expander("What is a PR curve?"):
+                    # Show PR curve
+                    st.subheader("Precision-Recall (PR) Curve (Test Set)")
+                    pr_fig = plot_pr_curve(y_test, y_scores)
+                    st.pyplot(pr_fig)
+                    with st.expander("What is a PR curve?"):
                     st.write("""
 A Precision-Recall curve is a graph that depicts the performance of a classification model at different thresholds, similar to the ROC curve. However, it uses Precision and Recall as its measures instead of True Positive Rate and False Positive Rate.
 
@@ -3519,11 +3549,19 @@ predictions = model.predict(X_test)
 
                 # Show comparison table for metrics
                 st.subheader("Model Performance Metrics")
-                metrics_data = {
-                    "F1 Score": f1_score(y_test, predictions),
-                    "Accuracy": accuracy_score(y_test, predictions),
-                    "ROC AUC": roc_auc_score(y_test, y_scores),
-                }
+                if is_regression:
+                    from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+                    metrics_data = {
+                        "RMSE": np.sqrt(mean_squared_error(y_test, predictions)),
+                        "MAE": mean_absolute_error(y_test, predictions),
+                        "R²": r2_score(y_test, predictions),
+                    }
+                else:
+                    metrics_data = {
+                        "F1 Score": f1_score(y_test, predictions),
+                        "Accuracy": accuracy_score(y_test, predictions),
+                        "ROC AUC": roc_auc_score(y_test, y_scores),
+                    }
                 metrics_df = pd.DataFrame(
                     [metrics_data], index=[type(model).__name__]
                 )
