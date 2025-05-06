@@ -3589,25 +3589,62 @@ predictions = model.predict(X_test)
                         # Try to select the best SHAP explainer
                         try:
                             # Standardize features for KernelExplainer if needed
+                            # Special handling for different model types
                             if model_option in [
                                 "Decision Tree",
                                 "Random Forest",
                                 "Gradient Boosting Machines (GBMs)",
                                 "XGBoost",
                             ]:
+                                # Tree-based models can use TreeExplainer
                                 explainer = shap.TreeExplainer(model)
                                 shap_values = explainer.shap_values(X_test)
+                                X_test_for_shap = X_test
+                            elif model_option == "K-Nearest Neighbors (KNN)":
+                                # For KNN, use a simpler approach with permutation importance
+                                st.info("For KNN models, we'll show feature importance using permutation importance instead of SHAP values")
+                                
+                                from sklearn.inspection import permutation_importance
+                                result = permutation_importance(
+                                    model, X_test, y_test, 
+                                    n_repeats=10, 
+                                    random_state=42
+                                )
+                                
+                                # Create a DataFrame for visualization
+                                perm_importance_df = pd.DataFrame({
+                                    'Feature': X_train.columns if hasattr(X_train, "columns") else [f"Feature {i}" for i in range(X_train.shape[1])],
+                                    'Importance': result.importances_mean
+                                }).sort_values('Importance', ascending=False)
+                                
+                                # Plot permutation importance instead of SHAP
+                                fig, ax = plt.subplots(figsize=(10, 6))
+                                sns.barplot(x='Importance', y='Feature', data=perm_importance_df, ax=ax)
+                                ax.set_title("Feature Importance (Permutation Method)")
+                                st.pyplot(fig)
+                                plt.close()
+                                
+                                # Skip the regular SHAP plots for KNN
+                                st.info("SHAP force plots are not shown for KNN models due to computational limitations")
+                                continue
                             else:
+                                # For other models, use KernelExplainer with careful settings
                                 scaler = StandardScaler()
                                 X_train_scaled = scaler.fit_transform(X_train)
                                 X_test_scaled = scaler.transform(X_test)
-                                # Use a fixed number of features to avoid the l1_reg='auto' deprecation warning
+                                
+                                # Use a fixed number of features and a small background dataset
+                                # to avoid computational issues
                                 explainer = shap.KernelExplainer(
                                     model.predict_proba if hasattr(model, "predict_proba") else model.predict,
-                                    shap.sample(X_train_scaled, 100),
-                                    l1_reg='num_features(10)'  # Use top 10 features
+                                    shap.sample(X_train_scaled, min(50, len(X_train_scaled))),
+                                    l1_reg='num_features(5)'  # Limit to top 5 features for speed and stability
                                 )
-                                shap_values = explainer.shap_values(X_test_scaled)
+                                
+                                # Use fewer test samples for SHAP calculation to improve performance
+                                max_samples = min(20, len(X_test_scaled))
+                                shap_values = explainer.shap_values(X_test_scaled[:max_samples])
+                                X_test_for_shap = X_test_scaled[:max_samples]
 
                             # For binary classification, select the correct class
                             if isinstance(shap_values, list):
@@ -3622,14 +3659,10 @@ predictions = model.predict(X_test)
                             # SHAP summary_plot does not support 'ax' in recent versions; use default behavior and display with st.pyplot
                             shap.summary_plot(
                                 shap_values_for_class,
-                                X_test if model_option in [
-                                    "Decision Tree",
-                                    "Random Forest",
-                                    "Gradient Boosting Machines (GBMs)",
-                                    "XGBoost",
-                                ] else X_test_scaled,
+                                X_test_for_shap,  # Use the appropriate test data based on model type
                                 plot_type="bar",
                                 show=False,
+                                max_display=10  # Limit to top 10 features for clarity
                             )
                             st.pyplot(plt.gcf())
                             plt.close()  # Close the figure to ensure it doesn't affect subsequent plots
@@ -3660,12 +3693,10 @@ predictions = model.predict(X_test)
                                     instance_shap_values = shap_values_for_class  # Fallback
                                 
                                 # Get the feature values for the first instance
-                                if hasattr(X_test, "iloc"):
-                                    instance_features = X_test.iloc[0]
-                                elif model_option in ["Decision Tree", "Random Forest", "Gradient Boosting Machines (GBMs)", "XGBoost (if installed)"]:
-                                    instance_features = X_test[0]
+                                if hasattr(X_test_for_shap, "iloc"):
+                                    instance_features = X_test_for_shap.iloc[0]
                                 else:
-                                    instance_features = X_test_scaled[0]
+                                    instance_features = X_test_for_shap[0]
                                 
                                 # Create a temporary file to save the HTML
                                 with tempfile.NamedTemporaryFile(delete=False, suffix='.html') as tmp:
