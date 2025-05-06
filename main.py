@@ -3596,8 +3596,19 @@ predictions = model.predict(X_test)
 
                             # Show force plot for first instance
                             st.subheader("SHAP Force Plot (First Test Instance)")
+                            # Handle different model types and their expected_value formats
+                            if isinstance(explainer.expected_value, (list, np.ndarray)):
+                                # For binary classification with TreeExplainer (has two classes)
+                                if len(explainer.expected_value) == 2:
+                                    expected_val = explainer.expected_value[1]  # Use positive class
+                                else:
+                                    expected_val = explainer.expected_value[0]  # Fallback
+                            else:
+                                # For KernelExplainer or single value
+                                expected_val = explainer.expected_value
+                                
                             force_plot_html = shap.force_plot(
-                                explainer.expected_value[1] if isinstance(explainer.expected_value, (list, np.ndarray)) else explainer.expected_value,
+                                expected_val,
                                 shap_values_for_class[0],
                                 (X_test.iloc[0] if hasattr(X_test, "iloc") else X_test[0]) if model_option in [
                                     "Decision Tree",
