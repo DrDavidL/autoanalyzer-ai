@@ -22,11 +22,19 @@ from sklearn.metrics import (
     f1_score,
     ConfusionMatrixDisplay,
 )
-from sklearn.linear_model import LogisticRegression
+from sklearn.linear_model import LogisticRegression, RidgeClassifier, Lasso
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.impute import SimpleImputer
 from sklearn import svm
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.naive_bayes import GaussianNB
+try:
+    from xgboost import XGBClassifier
+    xgboost_available = True
+except ImportError:
+    xgboost_available = False
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from langchain_openai import ChatOpenAI, AzureChatOpenAI, AzureOpenAI
 from langchain.agents.agent_types import AgentType
 from langchain_experimental.agents.agent_toolkits import create_pandas_dataframe_agent
@@ -3372,13 +3380,19 @@ with tab2:
             "Which machine learning model would you like to use?",
             (
                 "Logistic Regression",
+                "Ridge Classifier",
+                "Lasso Regression",
+                "K-Nearest Neighbors (KNN)",
+                "Naive Bayes",
                 "Decision Tree",
                 "Random Forest",
                 "Gradient Boosting Machines (GBMs)",
+                "XGBoost (if installed)",
+                "Linear Discriminant Analysis (LDA)",
                 "Support Vector Machines (SVMs)",
                 "Neural Network",
             ),
-            index=3,
+            index=6,
         )
         perform_shapley = st.checkbox(
             "Include a Shapley Force Plot", value=False, key="perform_shapley-10"
@@ -3388,91 +3402,202 @@ with tab2:
                 "Shapley interpretation of the model is computationally expensive for some models and may take a while to run. Please be patient"
             )
         if st.button("Predict"):
+            model = None
+            model_explanation = ""
+            shap_explainer = None
+            shap_values = None
+            shap_summary_plot = None
+            y_scores = None
+            # Model selection and fitting
             if model_option == "Logistic Regression":
                 model = LogisticRegression()
-                model.fit(X_train, y_train)
-                predictions = model.predict(X_test)
-                accuracy = accuracy_score(y_test, predictions)
-                y_scores = model.predict_proba(X_test)[:, 1]
-
+                model_explanation = "Logistic regression is a statistical model commonly used in the field of medicine to predict binary outcomes. It models the probability that a given input belongs to a particular category."
                 with st.expander("What is logistic regression?"):
                     from prompts import logistic_regression_text
                     st.write(logistic_regression_text)
+            elif model_option == "Ridge Classifier":
+                model = RidgeClassifier()
+                model_explanation = "Ridge Classifier is a linear model for classification that applies L2 regularization, helping to prevent overfitting."
+                with st.expander("What is Ridge Classifier?"):
+                    st.write("Ridge Classifier is a linear model for classification that applies L2 regularization, helping to prevent overfitting.")
+            elif model_option == "Lasso Regression":
+                model = Lasso()
+                model_explanation = "Lasso Regression is a linear model that uses L1 regularization, which can shrink some coefficients to zero, effectively performing feature selection."
+                with st.expander("What is Lasso Regression?"):
+                    st.write("Lasso Regression is a linear model that uses L1 regularization, which can shrink some coefficients to zero, effectively performing feature selection.")
+            elif model_option == "K-Nearest Neighbors (KNN)":
+                model = KNeighborsClassifier()
+                model_explanation = "K-Nearest Neighbors (KNN) is a simple, instance-based learning algorithm that classifies data points based on the majority class among their k nearest neighbors."
+                with st.expander("What is K-Nearest Neighbors (KNN)?"):
+                    st.write("K-Nearest Neighbors (KNN) is a simple, instance-based learning algorithm that classifies data points based on the majority class among their k nearest neighbors.")
+            elif model_option == "Naive Bayes":
+                model = GaussianNB()
+                model_explanation = "Naive Bayes is a probabilistic classifier based on Bayes' theorem, assuming independence between features. It's especially useful for categorical data."
+                with st.expander("What is Naive Bayes?"):
+                    st.write("Naive Bayes is a probabilistic classifier based on Bayes' theorem, assuming independence between features. It's especially useful for categorical data.")
+            elif model_option == "Decision Tree":
+                model = DecisionTreeClassifier()
+                model_explanation = "A decision tree is a type of predictive model that you can think of as similar to the flowcharts sometimes used in medical decision making."
+                with st.expander("What is a decision tree?"):
+                    from prompts import decision_tree_text
+                    st.write(decision_tree_text)
+            elif model_option == "Random Forest":
+                model = RandomForestClassifier()
+                model_explanation = "Random Forest is a type of machine learning model that is excellent for making predictions (both binary and multiclass) and for understanding which features are most important."
+                with st.expander("What is a random forest?"):
+                    from prompts import random_forest_text
+                    st.write(random_forest_text)
+            elif model_option == "Gradient Boosting Machines (GBMs)":
+                model = GradientBoostingClassifier()
+                model_explanation = "Gradient Boosting Machines (GBMs) are ensemble models that build trees sequentially, each one correcting the errors of the previous."
+                with st.expander("What is a gradient boosting machine?"):
+                    from prompts import gbm_text
+                    st.write(gbm_text)
+            elif model_option == "XGBoost (if installed)":
+                if xgboost_available:
+                    model = XGBClassifier(use_label_encoder=False, eval_metric="logloss")
+                    model_explanation = "XGBoost is a high-performance, scalable gradient boosting library that is widely used in data science competitions and industry."
+                    with st.expander("What is XGBoost?"):
+                        st.write("XGBoost is a high-performance, scalable gradient boosting library that is widely used in data science competitions and industry.")
+                else:
+                    st.error("XGBoost is not installed. Please run 'pip install xgboost' to use this model.")
+            elif model_option == "Linear Discriminant Analysis (LDA)":
+                model = LinearDiscriminantAnalysis()
+                model_explanation = "Linear Discriminant Analysis (LDA) is a classification method that projects data onto a lower-dimensional space to maximize class separability."
+                with st.expander("What is Linear Discriminant Analysis (LDA)?"):
+                    st.write("Linear Discriminant Analysis (LDA) is a classification method that projects data onto a lower-dimensional space to maximize class separability.")
+            elif model_option == "Support Vector Machines (SVMs)":
+                model = svm.SVC(probability=True)
+                model_explanation = "Support Vector Machines (SVMs) are powerful classifiers that find the optimal hyperplane to separate classes in the feature space."
+                with st.expander("What is a support vector machine?"):
+                    from prompts import svm_text
+                    st.write(svm_text)
+            elif model_option == "Neural Network":
+                model = MLPClassifier(hidden_layer_sizes=(100,), activation="relu")
+                model_explanation = "A neural network is a type of machine learning model inspired by the structure and function of the human brain."
+                with st.expander("What is a neural network?"):
+                    from prompts import neural_network_text
+                    st.write(neural_network_text)
+
+            if model is not None:
+                model.fit(X_train, y_train)
+                predictions = model.predict(X_test)
+                if hasattr(model, "predict_proba"):
+                    y_scores = model.predict_proba(X_test)[:, 1]
+                elif hasattr(model, "decision_function"):
+                    y_scores = model.decision_function(X_test)
+                else:
+                    y_scores = predictions
 
                 display_metrics(y_test, predictions, y_scores)
-                # After training the logistic regression model, assuming the model's name is "model"
 
-                coeff = model.coef_[0]
-                features = X_train.columns
+                # Show model explanation
+                with st.expander("About this model"):
+                    st.write(model_explanation)
 
-                equation = "Logit(P) = " + str(model.intercept_[0])
+                # Show code for model training
+                with st.expander("Show code for model training"):
+                    st.code(
+                        f"""# Model training code
+model = {model.__class__.__name__}()
+model.fit(X_train, y_train)
+predictions = model.predict(X_test)
+""",
+                        language="python",
+                    )
 
-                for c, feature in zip(coeff, features):
-                    equation += " + " + str(c) + " * " + feature
+                # Show comparison table for metrics
+                st.subheader("Model Performance Metrics")
+                metrics_data = {
+                    "F1 Score": [f1_score(y_test, predictions)],
+                    "Accuracy": [accuracy_score(y_test, predictions)],
+                    "ROC AUC": [roc_auc_score(y_test, y_scores)],
+                }
+                metrics_df = pd.DataFrame(metrics_data, index=[model.__class__.__name__])
+                st.table(metrics_df)
 
-                st.write("The equation of the logistic regression model is:")
-                st.write(equation)
+                # Show equation for linear models
+                if model_option in ["Logistic Regression", "Ridge Classifier", "Lasso Regression"]:
+                    try:
+                        coeff = model.coef_[0]
+                        features = X_train.columns if hasattr(X_train, "columns") else [f"X{i}" for i in range(len(coeff))]
+                        intercept = model.intercept_[0] if hasattr(model.intercept_, "__len__") else model.intercept_
+                        equation = f"{model.__class__.__name__} Equation: y = {intercept:.3f}"
+                        for c, feature in zip(coeff, features):
+                            equation += f" + {c:.3f} * {feature}"
+                        st.write("The equation of the model is:")
+                        st.write(equation)
+                    except Exception:
+                        pass
 
-                if perform_shapley == True:  # shapley explanation
-                    # Scale the features
+                # --- Improved SHAP Implementation ---
+                if perform_shapley:
                     with st.expander("What is a Shapley Force Plot?"):
                         st.markdown(shapley_explanation)
+                    with st.spinner("Performing Shapley Analysis..."):
+                        # Try to select the best SHAP explainer
+                        try:
+                            # Standardize features for KernelExplainer if needed
+                            if model_option in [
+                                "Decision Tree",
+                                "Random Forest",
+                                "Gradient Boosting Machines (GBMs)",
+                                "XGBoost (if installed)",
+                            ]:
+                                explainer = shap.TreeExplainer(model)
+                                shap_values = explainer.shap_values(X_test)
+                            else:
+                                scaler = StandardScaler()
+                                X_train_scaled = scaler.fit_transform(X_train)
+                                X_test_scaled = scaler.transform(X_test)
+                                explainer = shap.KernelExplainer(
+                                    model.predict_proba if hasattr(model, "predict_proba") else model.predict,
+                                    shap.sample(X_train_scaled, 100),
+                                )
+                                shap_values = explainer.shap_values(X_test_scaled)
 
-                    with st.spinner(
-                        "Performing Analysis for the Shapley Force Plot..."
-                    ):
-                        # Standardize the features
-                        scaler = StandardScaler()
-                        X_train_scaled = scaler.fit_transform(X_train)
-                        X_test_scaled = scaler.transform(X_test)
+                            # For binary classification, select the correct class
+                            if isinstance(shap_values, list):
+                                shap_values_for_class = shap_values[1]
+                            else:
+                                shap_values_for_class = shap_values
 
-                        # Shapley explanation using KernelExplainer
-                        # Set l1_reg='num_features(10)' to ensure at least 10 features are considered
-                        explainer = shap.KernelExplainer(
-                            model.predict_proba,
-                            shap.sample(X_train_scaled, 100),
-                            l1_reg="num_features(10)",
-                        )
+                            # Show summary plot (bar)
+                            st.subheader("SHAP Feature Importance (Summary Plot)")
+                            fig_summary, ax = plt.subplots()
+                            shap.summary_plot(
+                                shap_values_for_class,
+                                X_test if model_option in [
+                                    "Decision Tree",
+                                    "Random Forest",
+                                    "Gradient Boosting Machines (GBMs)",
+                                    "XGBoost (if installed)",
+                                ] else X_test_scaled,
+                                plot_type="bar",
+                                show=False,
+                                ax=ax,
+                            )
+                            st.pyplot(fig_summary)
 
-                        shap_values = explainer.shap_values(X_test_scaled)
+                            # Show force plot for first instance
+                            st.subheader("SHAP Force Plot (First Test Instance)")
+                            force_plot = shap.force_plot(
+                                explainer.expected_value[1] if isinstance(explainer.expected_value, (list, np.ndarray)) else explainer.expected_value,
+                                shap_values_for_class[0],
+                                (X_test.iloc[0] if hasattr(X_test, "iloc") else X_test[0]) if model_option in [
+                                    "Decision Tree",
+                                    "Random Forest",
+                                    "Gradient Boosting Machines (GBMs)",
+                                    "XGBoost (if installed)",
+                                ] else X_test_scaled[0],
+                                matplotlib=True,
+                                show=False,
+                            )
+                            st.pyplot(force_plot.figure)
+                        except Exception as e:
+                            st.warning(f"Could not generate SHAP plots: {e}")
 
-                        # Sort features by absolute contribution for the first instance in the test set
-                        sorted_indices = np.argsort(np.abs(shap_values[1][0]))[::-1]
-                        sorted_shap_values = shap_values[1][0][sorted_indices]
-                        sorted_feature_names = X_test.columns[sorted_indices]
-
-                        # Create a DataFrame to display sorted features and their Shapley values
-                        sorted_features_df = pd.DataFrame(
-                            {
-                                "Feature": sorted_feature_names,
-                                "Shapley_Value": sorted_shap_values,
-                            }
-                        )
-
-                        # Display the sorted features DataFrame in Streamlit
-                        st.table(
-                            sorted_features_df
-                        )  # Ensure all features are displayed in the table
-
-                        # Generate and display the sorted force plot
-                        force_plot = shap.plots.force(
-                            explainer.expected_value[1],
-                            sorted_shap_values,
-                            sorted_feature_names,
-                        )
-
-                        # Use tempfile to create a temporary file
-                        with tempfile.NamedTemporaryFile(
-                            delete=False, suffix=".html"
-                        ) as temp_file:
-                            shap.save_html(temp_file.name, force_plot)
-                            temp_file_path = temp_file.name
-
-                        # Read and display the temporary HTML file in Streamlit
-                        with open(temp_file_path, "r") as f:
-                            st.components.v1.html(f.read(), height=500)
-
-            elif model_option == "Decision Tree":
+            # End of model is not None
                 model = DecisionTreeClassifier()
                 model.fit(X_train, y_train)
                 predictions = model.predict(X_test)
