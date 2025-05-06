@@ -2093,89 +2093,91 @@ with tab1:
             "*(Takes 1-2 minutes*) **Download a Full Analysis** (*Check **Alerts** with key findings.*)",
         ]
 
+        # Use explicit keys for each checkbox to ensure correct mapping
         with col1:
             header = st.checkbox(
-                col1_tools[0], key="show header", help=tool_explanations.get(col1_tools[0], "")
+                col1_tools[0], key="show_header", help=tool_explanations.get(col1_tools[0], "")
             )
             summary = st.checkbox(
-                col1_tools[1], key="show data", help=tool_explanations.get(col1_tools[1], "")
+                col1_tools[1], key="show_data", help=tool_explanations.get(col1_tools[1], "")
             )
             summary_cat = st.checkbox(
-                col1_tools[2], key="show summary cat", help=tool_explanations.get(col1_tools[2], "")
+                col1_tools[2], key="show_summary_cat", help=tool_explanations.get(col1_tools[2], "")
             )
             show_table = st.checkbox(
-                col1_tools[3], key="show table", help=tool_explanations.get(col1_tools[3], "")
+                col1_tools[3], key="show_table", help=tool_explanations.get(col1_tools[3], "")
             )
             show_scatter = st.checkbox(
-                col1_tools[4], key="show scatter", help=tool_explanations.get(col1_tools[4], "")
+                col1_tools[4], key="show_scatter", help=tool_explanations.get(col1_tools[4], "")
             )
             view_full_df = st.checkbox(
-                col1_tools[5], key="view full df", help=tool_explanations.get(col1_tools[5], "")
+                col1_tools[5], key="view_full_df", help=tool_explanations.get(col1_tools[5], "")
             )
             barchart = st.checkbox(
-                col1_tools[6], key="show barchart", help=tool_explanations.get(col1_tools[6], "")
+                col1_tools[6], key="show_barchart", help=tool_explanations.get(col1_tools[6], "")
             )
             histogram = st.checkbox(
-                col1_tools[7], key="show histogram", help=tool_explanations.get(col1_tools[7], "")
+                col1_tools[7], key="show_histogram", help=tool_explanations.get(col1_tools[7], "")
             )
             piechart = st.checkbox(
-                col1_tools[8], key="show piechart", help=tool_explanations.get(col1_tools[8], "")
+                col1_tools[8], key="show_piechart", help=tool_explanations.get(col1_tools[8], "")
             )
             show_corr = st.checkbox(
-                col1_tools[9], key="show corr", help=tool_explanations.get(col1_tools[9], "")
+                col1_tools[9], key="show_corr", help=tool_explanations.get(col1_tools[9], "")
             )
             box_plot = st.checkbox(
-                col1_tools[10], key="show box", help=tool_explanations.get(col1_tools[10], "")
+                col1_tools[10], key="show_box", help=tool_explanations.get(col1_tools[10], "")
+            )
+            violin_plot = st.checkbox(
+                col1_tools[11], key="show_violin", help=tool_explanations.get(col1_tools[11], "")
+            )
+            ttest = st.checkbox(
+                col1_tools[12], key="ttest", help=tool_explanations.get(col1_tools[12], "")
+            )
+            anova = st.checkbox(
+                col1_tools[13], key="anova", help=tool_explanations.get(col1_tools[13], "")
             )
 
         with col2:
-            # Only create checkboxes for the number of items in col2_tools to avoid IndexError
-            col2_checkboxes = []
-            for idx, tool in enumerate(col2_tools):
-                key_map = {
-                    "Violin plot": "show violin",
-                    "T-test (2 groups)": "ttest",
-                    "ANOVA (3+ groups)": "anova",
-                    "Mann-Whitney U test (2 groups, nonparametric)": "mannwhitney",
-                    "Kruskal-Wallis test (3+ groups, nonparametric)": "kruskal",
-                    "Chi-square test (categorical)": "chi2",
-                    "Crosstab/Frequency Table": "crosstab",
-                    "Simple linear regression": "simple_linreg",
-                    "Multiple linear regression": "show mult linear reg",
-                    "Perform PCA": "show pca",
-                    "Time series plot": "time_series",
-                    "Visualize missing data": "missing_data_vis",
-                    "Categorical outcome analysis (Cohort or case-control datasets)": "binary categ analysis",
-                    "Survival curve (need duration column)": "show survival",
-                    "Cox Proportional Hazards (need duration column)": "show cox ph",
-                    "*(Takes 1-2 minutes*) **Download a Full Analysis** (*Check **Alerts** with key findings.*)": "show analysis",
-                }
-                key = key_map.get(tool, tool)
-                cb = st.checkbox(
-                    tool,
-                    key=key,
-                    help=tool_explanations.get(tool, "")
-                )
-                col2_checkboxes.append(cb)
-            # Unpack checkboxes for downstream logic
-            (
-                violin_plot,
-                ttest,
-                anova,
-                mannwhitney,
-                kruskal,
-                chi2,
-                crosstab,
-                simple_linreg,
-                mult_linear_reg,
-                perform_pca,
-                time_series,
-                missing_data_vis,
-                binary_categ_analysis,
-                survival_curve,
-                cox_ph,
-                full_analysis,
-            ) = col2_checkboxes + [False] * (16 - len(col2_checkboxes))
+            mannwhitney = st.checkbox(
+                col2_tools[0], key="mannwhitney", help=tool_explanations.get(col2_tools[0], "")
+            )
+            kruskal = st.checkbox(
+                col2_tools[1], key="kruskal", help=tool_explanations.get(col2_tools[1], "")
+            )
+            chi2 = st.checkbox(
+                col2_tools[2], key="chi2", help=tool_explanations.get(col2_tools[2], "")
+            )
+            crosstab = st.checkbox(
+                col2_tools[3], key="crosstab", help=tool_explanations.get(col2_tools[3], "")
+            )
+            simple_linreg = st.checkbox(
+                col2_tools[4], key="simple_linreg", help=tool_explanations.get(col2_tools[4], "")
+            )
+            mult_linear_reg = st.checkbox(
+                col2_tools[5], key="show_mult_linear_reg", help=tool_explanations.get(col2_tools[5], "")
+            )
+            perform_pca = st.checkbox(
+                col2_tools[6], key="show_pca", help=tool_explanations.get(col2_tools[6], "")
+            )
+            time_series = st.checkbox(
+                col2_tools[7], key="time_series", help=tool_explanations.get(col2_tools[7], "")
+            )
+            missing_data_vis = st.checkbox(
+                col2_tools[8], key="missing_data_vis", help=tool_explanations.get(col2_tools[8], "")
+            )
+            binary_categ_analysis = st.checkbox(
+                col2_tools[9], key="binary_categ_analysis", help=tool_explanations.get(col2_tools[9], "")
+            )
+            survival_curve = st.checkbox(
+                col2_tools[10], key="show_survival", help=tool_explanations.get(col2_tools[10], "")
+            )
+            cox_ph = st.checkbox(
+                col2_tools[11], key="show_cox_ph", help=tool_explanations.get(col2_tools[11], "")
+            )
+            full_analysis = st.checkbox(
+                col2_tools[12], key="show_analysis", help=tool_explanations.get("Download a Full Analysis", "")
+            )
 
     if filter_data:
         current_df = st.session_state.df
