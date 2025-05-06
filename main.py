@@ -1221,9 +1221,10 @@ def display_metrics(y_true, y_pred, y_scores, set_name="Test"):
 """
         )
     # st.write(f"Accuracy: {accuracy}")
-    st.write(plot_confusion_matrix(y_true, y_pred))
-    with st.expander("What is a confusion matrix?"):
-        st.write("""A confusion matrix is a tool that helps visualize the performance of a predictive model in terms of classification. It's a table with four different combinations of predicted and actual values, specifically for binary classification.
+    with st.expander("Show confusion matrix"):
+        st.write(plot_confusion_matrix(y_true, y_pred))
+        with st.expander("What is a confusion matrix?"):
+            st.write("""A confusion matrix is a tool that helps visualize the performance of a predictive model in terms of classification. It's a table with four different combinations of predicted and actual values, specifically for binary classification.
 
 The four combinations are:
 
@@ -3436,21 +3437,7 @@ with tab2:
 
             if model is not None:
                 model.fit(X_train, y_train)
-                # Training set metrics
-                train_predictions = model.predict(X_train)
-                if hasattr(model, "predict_proba"):
-                    train_y_scores = model.predict_proba(X_train)[:, 1]
-                elif hasattr(model, "decision_function"):
-                    train_y_scores = model.decision_function(X_train)
-                else:
-                    train_y_scores = train_predictions
-
-                st.subheader("Training Set Performance (for reference only)")
-                display_metrics(y_train, train_predictions, train_y_scores, set_name="Training")
-                st.write("**ROC Curve (Training Set):**")
-                st.pyplot(plot_roc_curve(y_train, train_y_scores))
-
-                # Test set metrics
+                # Test set metrics only
                 predictions = model.predict(X_test)
                 if hasattr(model, "predict_proba"):
                     y_scores = model.predict_proba(X_test)[:, 1]
