@@ -3565,9 +3565,11 @@ predictions = model.predict(X_test)
                                 scaler = StandardScaler()
                                 X_train_scaled = scaler.fit_transform(X_train)
                                 X_test_scaled = scaler.transform(X_test)
+                                # Use a fixed number of features to avoid the l1_reg='auto' deprecation warning
                                 explainer = shap.KernelExplainer(
                                     model.predict_proba if hasattr(model, "predict_proba") else model.predict,
                                     shap.sample(X_train_scaled, 100),
+                                    l1_reg='num_features(10)'  # Use top 10 features
                                 )
                                 shap_values = explainer.shap_values(X_test_scaled)
 
@@ -3606,35 +3608,43 @@ predictions = model.predict(X_test)
                             else:
                                 # For KernelExplainer or single value
                                 expected_val = explainer.expected_value
-                            
-                            # Debug information to help diagnose issues
-                            st.write(f"Expected value type: {type(explainer.expected_value)}")
-                            st.write(f"Expected value: {explainer.expected_value}")
                                 
                             try:
                                 # Get feature names for better visualization
-                                feature_names = X_test.columns.tolist() if hasattr(X_test, "columns") else None
+                                feature_names = X_train.columns.tolist() if hasattr(X_train, "columns") else [f"Feature {i}" for i in range(X_train.shape[1])]
+                                
+                                # Handle different shapes of SHAP values
+                                if len(shap_values_for_class.shape) == 3:  # For TreeExplainer with multi-class
+                                    instance_shap_values = shap_values_for_class[0, :, 0]  # First instance, all features, first class
+                                elif len(shap_values_for_class.shape) == 2:  # For binary classification
+                                    instance_shap_values = shap_values_for_class[0]  # First instance
+                                else:
+                                    instance_shap_values = shap_values_for_class  # Fallback
+                                
+                                # Get the feature values for the first instance
+                                if hasattr(X_test, "iloc"):
+                                    instance_features = X_test.iloc[0]
+                                elif model_option in ["Decision Tree", "Random Forest", "Gradient Boosting Machines (GBMs)", "XGBoost (if installed)"]:
+                                    instance_features = X_test[0]
+                                else:
+                                    instance_features = X_test_scaled[0]
                                 
                                 # Create the force plot with proper error handling
                                 force_plot_html = shap.force_plot(
                                     expected_val,
-                                    shap_values_for_class[0],
-                                    (X_test.iloc[0] if hasattr(X_test, "iloc") else X_test[0]) if model_option in [
-                                        "Decision Tree",
-                                        "Random Forest",
-                                        "Gradient Boosting Machines (GBMs)",
-                                        "XGBoost (if installed)",
-                                    ] else X_test_scaled[0],
+                                    instance_shap_values,
+                                    instance_features,
                                     feature_names=feature_names,
                                     matplotlib=False,
-                                    show=False,
+                                    show=False
                                 )
                                 st.components.v1.html(shap.save_html(force_plot_html), height=400)
                             except Exception as e:
                                 st.error(f"Error generating force plot: {str(e)}")
-                                st.write("SHAP values shape:", shap_values_for_class.shape)
-                                st.write("First instance shape:", 
-                                       (X_test.iloc[0].shape if hasattr(X_test, "iloc") else X_test[0].shape))
+                                st.write("Debug info:")
+                                st.write(f"SHAP values shape: {shap_values_for_class.shape}")
+                                st.write(f"First instance shape: {(X_test.iloc[0].shape if hasattr(X_test, 'iloc') else X_test[0].shape)}")
+                                st.write(f"Feature names: {feature_names[:5]}...")  # Show first 5 feature names
                         except Exception as e:
                             st.warning(f"Could not generate SHAP plots: {e}")
             # End of if model is not None
