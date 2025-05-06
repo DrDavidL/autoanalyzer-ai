@@ -1851,7 +1851,43 @@ def plot_numeric(df, col_name):
 # Removed unused process_dataframe function
 
 
-st.title("AutoAnalyzer")
+# Custom CSS for better styling
+st.markdown("""
+<style>
+    .main-title {
+        font-size: 3rem !important;
+        color: #1E88E5;
+        margin-bottom: 0.5rem;
+    }
+    .subtitle {
+        font-size: 1.2rem;
+        color: #424242;
+        margin-bottom: 1.5rem;
+    }
+    .step-header {
+        font-size: 1.5rem;
+        font-weight: bold;
+        color: #1E88E5;
+        margin-top: 1rem;
+        margin-bottom: 0.5rem;
+    }
+    .tool-category {
+        font-weight: bold;
+        color: #1976D2;
+        margin-top: 0.8rem;
+    }
+    .highlight-box {
+        background-color: #E3F2FD;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        border-left: 5px solid #1E88E5;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# Main title with custom styling
+st.markdown("<h1 class='main-title'>📊 AutoAnalyzer</h1>", unsafe_allow_html=True)
+st.markdown("<p class='subtitle'>Interactive data exploration and machine learning for healthcare data</p>", unsafe_allow_html=True)
 
 if "model_output1" not in st.session_state:
     st.session_state.model_output1 = ""
@@ -1862,10 +1898,12 @@ if "model_output2" not in st.session_state:
 if "full_gpt_response" not in st.session_state:
     st.session_state.full_gpt_response = ""
 
-st.info(
-    "Welcome to the AutoAnalyzer! Use the left sidebar to upload your data or select a demo dataset. Then, follow the steps to explore your data."
+st.markdown(
+    "<div class='highlight-box'>Welcome to the AutoAnalyzer! Use the left sidebar to upload your data or select a demo dataset. Then, follow the steps to explore your data.</div>",
+    unsafe_allow_html=True
 )
-with st.expander("Please Read: Using AutoAnalyzer"):
+
+with st.expander("📚 Getting Started: Using AutoAnalyzer"):
     st.info("""Be sure your data is first in a 'tidy' format. Use the demo datasets for examples. (*See https://tidyr.tidyverse.org/ for more information.*)
 Follow the steps listed in the sidebar on the left. After your exploratory analysis is complete, try the machine learning tab to see if you can predict a target variable.""")
     st.warning(
@@ -1879,7 +1917,7 @@ Follow the steps listed in the sidebar on the left. After your exploratory analy
     )
     st.write("Last updated 5/4/25")
 
-tab1, tab2, tab3 = st.tabs(["Data Exploration", "Machine Learning", "Analyze with GPT"])
+tab1, tab2, tab3 = st.tabs(["📊 Data Exploration", "🧠 Machine Learning", "🤖 Analyze with GPT"])
 # fetch_api_key()
 # gpt_version = st.sidebar.radio("Select GPT model:", ("GPT-3.5 ($)", "GPT-4 ($$$$)"), index=0)
 # if gpt_version == "GPT-3.5 ($)":
@@ -1896,18 +1934,19 @@ tab1, tab2, tab3 = st.tabs(["Data Exploration", "Machine Learning", "Analyze wit
 with tab1:
     # st.sidebar.subheader("Upload your data")
 
-    st.sidebar.subheader("Step 1: Upload your data or view a demo dataset")
+    st.sidebar.markdown("<div class='step-header'>Step 1: Upload your data or view a demo dataset</div>", unsafe_allow_html=True)
+    
     demo_or_custom = st.sidebar.selectbox(
         "Upload a CSV or Excel file. NO PHI - use only anonymized data",
         (
-            "Demo 1 (diabetes)",
-            "Demo 2 (cancer)",
-            "Demo 3 (missing data example)",
-            "Demo 4 (time series -CHF deaths)",
-            "Demo 5 (stroke)",
-            "Generate Data",
-            "CSV or Excel Upload",
-            "Modified Dataframe",
+            "🩸 Demo 1 (diabetes)",
+            "🔬 Demo 2 (cancer)",
+            "❓ Demo 3 (missing data example)",
+            "📈 Demo 4 (time series -CHF deaths)",
+            "🧠 Demo 5 (stroke)",
+            "✨ Generate Data",
+            "📁 CSV or Excel Upload",
+            "🔄 Modified Dataframe",
         ),
         index=0,
     )
@@ -2015,58 +2054,63 @@ with tab1:
         if st.session_state.gen_csv is not None:
             # st.warning("Save your generated data!")
             st.download_button(
-                label="Download Generated Data!",
+                label="💾 Download Generated Data!",
                 data=st.session_state.gen_csv,
                 file_name="patient_data.csv",
                 mime="text/csv",
+                use_container_width=True,
             )
-        st.subheader("Step 2: Assess Data Readiness")
+        st.markdown("<div class='step-header'>Step 2: Assess Data Readiness</div>", unsafe_allow_html=True)
 
         check_preprocess = st.checkbox(
-            "Assess dataset readiness", key="Preprocess now needed"
+            "🔍 Assess dataset readiness", key="Preprocess now needed"
         )
         needs_preprocess = st.checkbox(
-            "Select if dataset fails readiness", key="Open Preprocess"
+            "🛠️ Select if dataset fails readiness", key="Open Preprocess"
         )
         filter_data = st.checkbox(
-            "Filter data if needed (Switch to Modified Dataframe after filtering)",
+            "🔎 Filter data if needed (Switch to Modified Dataframe after filtering)",
             key="Filter data",
         )
 
-        st.subheader("Step 3: Tools for Analysis")
+        st.markdown("<div class='step-header'>Step 3: Tools for Analysis</div>", unsafe_allow_html=True)
         # Balanced tool options for sidebar columns
         col1, col2 = st.columns(2)
+        
+        # Add category headers
+        st.markdown("<div class='tool-category'>Basic Analysis Tools</div>", unsafe_allow_html=True)
+        
         # Re-balance: move three tools from col2_tools to col1_tools for better balance
         col1_tools = [
-            "Show header (top 5 rows of data)",
-            "Summary (numerical data)",
-            "Summary (categorical data)",
-            "Create a Table 1",
-            "Scatterplot",
-            "View Dataset",
-            "Bar chart (categorical data)",
-            "Histogram (numerical data)",
-            "Pie chart (categorical data)",
-            "Correlation heatmap",
-            "Box plot",
-            "Violin plot",
-            "T-test (2 groups)",
-            "ANOVA (3+ groups)",
+            "📋 Show header (top 5 rows of data)",
+            "📊 Summary (numerical data)",
+            "📑 Summary (categorical data)",
+            "📝 Create a Table 1",
+            "📈 Scatterplot",
+            "🔍 View Dataset",
+            "📊 Bar chart (categorical data)",
+            "📊 Histogram (numerical data)",
+            "🥧 Pie chart (categorical data)",
+            "🔥 Correlation heatmap",
+            "📦 Box plot",
+            "🎻 Violin plot",
+            "🧪 T-test (2 groups)",
+            "🧪 ANOVA (3+ groups)",
         ]
         col2_tools = [
-            "Mann-Whitney U test (2 groups, nonparametric)",
-            "Kruskal-Wallis test (3+ groups, nonparametric)",
-            "Chi-square test (categorical)",
-            "Crosstab/Frequency Table",
-            "Simple linear regression",
-            "Multiple linear regression",
-            "Perform PCA",
-            "Time series plot",
-            "Visualize missing data",
-            "Categorical outcome analysis (Cohort or case-control datasets)",
-            "Survival curve (need duration column)",
-            "Cox Proportional Hazards (need duration column)",
-            "*(Takes 1-2 minutes*) **Download a Full Analysis** (*Check **Alerts** with key findings.*)",
+            "🧪 Mann-Whitney U test (2 groups, nonparametric)",
+            "🧪 Kruskal-Wallis test (3+ groups, nonparametric)",
+            "🧪 Chi-square test (categorical)",
+            "📊 Crosstab/Frequency Table",
+            "📈 Simple linear regression",
+            "📈 Multiple linear regression",
+            "🧮 Perform PCA",
+            "📈 Time series plot",
+            "❓ Visualize missing data",
+            "🔬 Categorical outcome analysis (Cohort or case-control datasets)",
+            "📉 Survival curve (need duration column)",
+            "📉 Cox Proportional Hazards (need duration column)",
+            "📑 *(Takes 1-2 minutes*) **Download a Full Analysis** (*Check **Alerts** with key findings.*)",
         ]
 
         # Use explicit keys for each checkbox to ensure correct mapping
@@ -3159,8 +3203,12 @@ Each Principal Component represents a combination of original features (like gen
 Finally, PCA can be particularly useful in visualizing high-dimensional data. By focusing on the first two or three principal components, we can create a scatterplot of our data, potentially highlighting clusters or outliers. However, remember that this visualization doesn't capture all the variability in the data—only the variability best captured by the first few principal components.""")
 
 with tab2:
-    st.info("""N.B. This merely shows a glimpse of what is possible. Any model shown is not yet optimized and requires ML and domain level expertise.
-            Yet, this is a good start to get a sense of what is possible.""")
+    st.markdown("""
+    <div style="background-color: #E3F2FD; padding: 15px; border-radius: 5px; border-left: 5px solid #1E88E5;">
+        <h3 style="margin-top: 0; color: #1976D2;">Machine Learning Playground</h3>
+        <p>This section shows a glimpse of what's possible with machine learning on your data. Any model shown is not yet optimized and requires ML and domain expertise. This is a good starting point to explore predictive modeling with your dataset.</p>
+    </div>
+    """, unsafe_allow_html=True)
     try:
         x = st.session_state.df
     except NameError:
@@ -3762,9 +3810,20 @@ predictions = model.predict(X_test)
 
 with tab3:
     if hu_key == "True" or check_password():
-        st.title("Analyze with GPT (AutoAnalyzer AI)")
-        st.info("""Ask any question about your data. The LLM will generate and execute Python code using your dataframe as `df`. Results and plots are shown below. This workflow is designed for maximum flexibility and reliability, using best practices for code execution and plot display in Streamlit.
-        """)
+        st.markdown("<h1 style='color: #1E88E5;'>🤖 Analyze with GPT (AutoAnalyzer AI)</h1>", unsafe_allow_html=True)
+        st.markdown("""
+        <div style="background-color: #E3F2FD; padding: 15px; border-radius: 5px; border-left: 5px solid #1E88E5;">
+            <h3 style="margin-top: 0; color: #1976D2;">AI-Powered Data Analysis</h3>
+            <p>Ask any question about your data in plain English. The AI will generate and execute Python code using your dataframe as <code>df</code>. Results and plots will appear below.</p>
+            <p><strong>Example questions:</strong></p>
+            <ul>
+                <li>Show me the relationship between age and blood pressure with a regression line</li>
+                <li>Create a heatmap of correlations between all numerical variables</li>
+                <li>What's the average BMI by gender? Show it as a bar chart</li>
+                <li>Is there a significant difference in cholesterol levels between diabetic and non-diabetic patients?</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
 
         # File uploader
         data_source = st.radio(
@@ -3828,11 +3887,14 @@ with tab3:
         if "model_output1" not in st.session_state:
             st.session_state.model_output1 = ""
 
-        st.subheader("Ask a Question About Your Data!")
-        st.write("Ask a question about your data in plain English. The AI will generate and execute Python code to answer your question and display results and plots below.")
-        agent_question = st.text_area("Ask a question about your data:", "")
+        st.markdown("<h3 style='color: #1976D2; margin-top: 20px;'>Ask a Question About Your Data!</h3>", unsafe_allow_html=True)
+        agent_question = st.text_area(
+            "Type your question in plain English:",
+            placeholder="Example: Create a boxplot comparing blood glucose levels between diabetic and non-diabetic patients",
+            height=100
+        )
 
-        if st.button("Submit Question"):
+        if st.button("🚀 Analyze My Data", use_container_width=True):
             import re
             import io
             import sys
