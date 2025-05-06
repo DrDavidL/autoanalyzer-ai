@@ -1725,9 +1725,17 @@ def run_simple_linear_regression(df, x_col, y_col):
         y = df[y_col].values
         model = linear_model.LinearRegression()
         model.fit(x, y)
+        
+        # Get the equation components
+        intercept = model.intercept_
+        slope = model.coef_[0]
+        equation = f"{y_col} = {intercept:.3f} + {slope:.3f} × {x_col}"
+        
         st.write(f"Simple linear regression: {y_col} ~ {x_col}")
-        st.write(f"Intercept: {model.intercept_:.3f}")
-        st.write(f"Slope: {model.coef_[0]:.3f}")
+        st.write(f"Intercept: {intercept:.3f}")
+        st.write(f"Slope: {slope:.3f}")
+        st.info(f"**Equation**: {equation}")
+        
         fig, ax = plt.subplots()
         ax.scatter(df[x_col], df[y_col], label="Data")
         ax.plot(df[x_col], model.predict(x), color="red", label="Fit")
