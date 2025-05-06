@@ -1221,10 +1221,9 @@ def display_metrics(y_true, y_pred, y_scores, set_name="Test"):
 """
         )
     # st.write(f"Accuracy: {accuracy}")
-    with st.expander("Show confusion matrix"):
-        st.write(plot_confusion_matrix(y_true, y_pred))
-        with st.expander("What is a confusion matrix?"):
-            st.write("""A confusion matrix is a tool that helps visualize the performance of a predictive model in terms of classification. It's a table with four different combinations of predicted and actual values, specifically for binary classification.
+    st.write(plot_confusion_matrix(y_true, y_pred))
+    with st.expander("What is a confusion matrix?"):
+        st.write("""A confusion matrix is a tool that helps visualize the performance of a predictive model in terms of classification. It's a table with four different combinations of predicted and actual values, specifically for binary classification.
 
 The four combinations are:
 
