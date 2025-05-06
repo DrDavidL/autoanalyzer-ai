@@ -1,6 +1,7 @@
 import numpy as np
 
 import pandas as pd
+from scipy import stats
 import io
 import missingno as msno
 import streamlit as st
@@ -1674,6 +1675,135 @@ def plot_corr(df):
         st.warning(f"Could not plot correlation heatmap: {e}")
         return None
 
+# --- New Statistical Test Functions ---
+
+def run_ttest(df, numeric_col, group_col):
+    try:
+        groups = df[group_col].dropna().unique()
+        if len(groups) != 2:
+            st.warning("T-test requires exactly 2 groups.")
+            return None
+        group1 = df[df[group_col] == groups[0]][numeric_col].dropna()
+        group2 = df[df[group_col] == groups[1]][numeric_col].dropna()
+        t_stat, p_val = stats.ttest_ind(group1, group2)
+        st.write(f"T-test between {groups[0]} and {groups[1]} for {numeric_col}:")
+        st.write(f"t-statistic = {t_stat:.3f}, p-value = {p_val:.3g}")
+        return t_stat, p_val
+    except Exception as e:
+        st.warning(f"Could not run t-test: {e}")
+        return None
+
+def run_anova(df, numeric_col, group_col):
+    try:
+        groups = [df[df[group_col] == g][numeric_col].dropna() for g in df[group_col].dropna().unique()]
+        if len(groups) < 2:
+            st.warning("ANOVA requires at least 2 groups.")
+            return None
+        f_stat, p_val = stats.f_oneway(*groups)
+        st.write(f"ANOVA for {numeric_col} by {group_col}:")
+        st.write(f"F-statistic = {f_stat:.3f}, p-value = {p_val:.3g}")
+        return f_stat, p_val
+    except Exception as e:
+        st.warning(f"Could not run ANOVA: {e}")
+        return None
+
+def run_mannwhitney(df, numeric_col, group_col):
+    try:
+        groups = df[group_col].dropna().unique()
+        if len(groups) != 2:
+            st.warning("Mann-Whitney U test requires exactly 2 groups.")
+            return None
+        group1 = df[df[group_col] == groups[0]][numeric_col].dropna()
+        group2 = df[df[group_col] == groups[1]][numeric_col].dropna()
+        u_stat, p_val = stats.mannwhitneyu(group1, group2, alternative="two-sided")
+        st.write(f"Mann-Whitney U test between {groups[0]} and {groups[1]} for {numeric_col}:")
+        st.write(f"U-statistic = {u_stat:.3f}, p-value = {p_val:.3g}")
+        return u_stat, p_val
+    except Exception as e:
+        st.warning(f"Could not run Mann-Whitney U test: {e}")
+        return None
+
+def run_kruskal(df, numeric_col, group_col):
+    try:
+        groups = [df[df[group_col] == g][numeric_col].dropna() for g in df[group_col].dropna().unique()]
+        if len(groups) < 2:
+            st.warning("Kruskal-Wallis test requires at least 2 groups.")
+            return None
+        h_stat, p_val = stats.kruskal(*groups)
+        st.write(f"Kruskal-Wallis test for {numeric_col} by {group_col}:")
+        st.write(f"H-statistic = {h_stat:.3f}, p-value = {p_val:.3g}")
+        return h_stat, p_val
+    except Exception as e:
+        st.warning(f"Could not run Kruskal-Wallis test: {e}")
+        return None
+
+def run_chi2(df, col1, col2):
+    try:
+        table = pd.crosstab(df[col1], df[col2])
+        chi2, p, dof, expected = stats.chi2_contingency(table)
+        st.write(f"Chi-square test for {col1} vs {col2}:")
+        st.write(f"Chi2 = {chi2:.3f}, p-value = {p:.3g}, dof = {dof}")
+        st.write("Contingency Table:")
+        st.write(table)
+        return chi2, p, dof, expected
+    except Exception as e:
+        st.warning(f"Could not run Chi-square test: {e}")
+        return None
+
+def run_simple_linear_regression(df, x_col, y_col):
+    try:
+        x = df[x_col].values.reshape(-1, 1)
+        y = df[y_col].values
+        model = linear_model.LinearRegression()
+        model.fit(x, y)
+        st.write(f"Simple linear regression: {y_col} ~ {x_col}")
+        st.write(f"Intercept: {model.intercept_:.3f}")
+        st.write(f"Slope: {model.coef_[0]:.3f}")
+        fig, ax = plt.subplots()
+        ax.scatter(df[x_col], df[y_col], label="Data")
+        ax.plot(df[x_col], model.predict(x), color="red", label="Fit")
+        ax.set_xlabel(x_col)
+        ax.set_ylabel(y_col)
+        ax.set_title(f"{y_col} vs {x_col}")
+        ax.legend()
+        st.pyplot(fig)
+        return model
+    except Exception as e:
+        st.warning(f"Could not run simple linear regression: {e}")
+        return None
+
+def run_crosstab(df, col1, col2):
+    try:
+        table = pd.crosstab(df[col1], df[col2])
+        st.write(f"Crosstabulation of {col1} and {col2}:")
+        st.write(table)
+        return table
+    except Exception as e:
+        st.warning(f"Could not create crosstab: {e}")
+        return None
+
+def plot_time_series(df, time_col, value_col):
+    try:
+        fig, ax = plt.subplots()
+        ax.plot(df[time_col], df[value_col], marker="o")
+        ax.set_xlabel(time_col)
+        ax.set_ylabel(value_col)
+        ax.set_title(f"Time Series: {value_col} over {time_col}")
+        st.pyplot(fig)
+        return fig
+    except Exception as e:
+        st.warning(f"Could not plot time series: {e}")
+        return None
+
+def plot_missing_data(df):
+    try:
+        fig = msno.matrix(df)
+        st.pyplot(fig.figure)
+        return fig
+    except Exception as e:
+        st.warning(f"Could not plot missing data: {e}")
+        return None
+
 
 
 def plot_enhanced_association_heatmap(df, title="Enhanced Association Heatmap"):
@@ -1941,6 +2071,15 @@ with tab1:
                 "Categorical outcome analysis (Cohort or case-control datasets)",
                 key="binary categ analysis",
             )
+            ttest = st.checkbox("T-test (2 groups)", key="ttest")
+            anova = st.checkbox("ANOVA (3+ groups)", key="anova")
+            mannwhitney = st.checkbox("Mann-Whitney U test (2 groups, nonparametric)", key="mannwhitney")
+            kruskal = st.checkbox("Kruskal-Wallis test (3+ groups, nonparametric)", key="kruskal")
+            chi2 = st.checkbox("Chi-square test (categorical)", key="chi2")
+            crosstab = st.checkbox("Crosstab/Frequency Table", key="crosstab")
+            simple_linreg = st.checkbox("Simple linear regression", key="simple_linreg")
+            time_series = st.checkbox("Time series plot", key="time_series")
+            missing_data_vis = st.checkbox("Visualize missing data", key="missing_data_vis")
             # activate_chatbot = st.checkbox("**Activate GPT Analyzer!**", key = "activate chatbot")
             full_analysis = st.checkbox(
                 "*(Takes 1-2 minutes*) **Download a Full Analysis** (*Check **Alerts** with key findings.*)",
@@ -1972,6 +2111,155 @@ with tab1:
             "Switch to Modified Dataframe (top left) to see the filtered data below and use in analysis tools."
         )
         st.session_state.modified_df
+
+    if ttest:
+        st.subheader("T-test (2 groups)")
+        numeric_cols, categorical_cols = get_categorical_and_numerical_cols(st.session_state.df)
+        ttest_num = st.selectbox("Select a numerical column:", numeric_cols, key="ttest_num")
+        ttest_cat = st.selectbox("Select a grouping (categorical) column:", categorical_cols, key="ttest_cat")
+        if st.button("Run T-test"):
+            run_ttest(st.session_state.df, ttest_num, ttest_cat)
+        with st.expander("Show code for t-test"):
+            st.code(
+                f'''from scipy import stats
+
+group1 = df[df["{ttest_cat}"] == df["{ttest_cat}"].unique()[0]]["{ttest_num}"].dropna()
+group2 = df[df["{ttest_cat}"] == df["{ttest_cat}"].unique()[1]]["{ttest_num}"].dropna()
+t_stat, p_val = stats.ttest_ind(group1, group2)
+print("t-statistic:", t_stat, "p-value:", p_val)
+''', language="python")
+
+    if anova:
+        st.subheader("ANOVA (3+ groups)")
+        numeric_cols, categorical_cols = get_categorical_and_numerical_cols(st.session_state.df)
+        anova_num = st.selectbox("Select a numerical column:", numeric_cols, key="anova_num")
+        anova_cat = st.selectbox("Select a grouping (categorical) column:", categorical_cols, key="anova_cat")
+        if st.button("Run ANOVA"):
+            run_anova(st.session_state.df, anova_num, anova_cat)
+        with st.expander("Show code for ANOVA"):
+            st.code(
+                f'''from scipy import stats
+
+groups = [df[df["{anova_cat}"] == g]["{anova_num}"].dropna() for g in df["{anova_cat}"].unique()]
+f_stat, p_val = stats.f_oneway(*groups)
+print("F-statistic:", f_stat, "p-value:", p_val)
+''', language="python")
+
+    if mannwhitney:
+        st.subheader("Mann-Whitney U test (2 groups, nonparametric)")
+        numeric_cols, categorical_cols = get_categorical_and_numerical_cols(st.session_state.df)
+        mw_num = st.selectbox("Select a numerical column:", numeric_cols, key="mw_num")
+        mw_cat = st.selectbox("Select a grouping (categorical) column:", categorical_cols, key="mw_cat")
+        if st.button("Run Mann-Whitney U test"):
+            run_mannwhitney(st.session_state.df, mw_num, mw_cat)
+        with st.expander("Show code for Mann-Whitney U test"):
+            st.code(
+                f'''from scipy import stats
+
+group1 = df[df["{mw_cat}"] == df["{mw_cat}"].unique()[0]]["{mw_num}"].dropna()
+group2 = df[df["{mw_cat}"] == df["{mw_cat}"].unique()[1]]["{mw_num}"].dropna()
+u_stat, p_val = stats.mannwhitneyu(group1, group2)
+print("U-statistic:", u_stat, "p-value:", p_val)
+''', language="python")
+
+    if kruskal:
+        st.subheader("Kruskal-Wallis test (3+ groups, nonparametric)")
+        numeric_cols, categorical_cols = get_categorical_and_numerical_cols(st.session_state.df)
+        kruskal_num = st.selectbox("Select a numerical column:", numeric_cols, key="kruskal_num")
+        kruskal_cat = st.selectbox("Select a grouping (categorical) column:", categorical_cols, key="kruskal_cat")
+        if st.button("Run Kruskal-Wallis test"):
+            run_kruskal(st.session_state.df, kruskal_num, kruskal_cat)
+        with st.expander("Show code for Kruskal-Wallis test"):
+            st.code(
+                f'''from scipy import stats
+
+groups = [df[df["{kruskal_cat}"] == g]["{kruskal_num}"].dropna() for g in df["{kruskal_cat}"].unique()]
+h_stat, p_val = stats.kruskal(*groups)
+print("H-statistic:", h_stat, "p-value:", p_val)
+''', language="python")
+
+    if chi2:
+        st.subheader("Chi-square test (categorical)")
+        categorical_cols = st.session_state.df.select_dtypes(include=["object", "category"]).columns.tolist()
+        chi2_col1 = st.selectbox("Select first categorical column:", categorical_cols, key="chi2_col1")
+        chi2_col2 = st.selectbox("Select second categorical column:", categorical_cols, key="chi2_col2")
+        if st.button("Run Chi-square test"):
+            run_chi2(st.session_state.df, chi2_col1, chi2_col2)
+        with st.expander("Show code for Chi-square test"):
+            st.code(
+                f'''from scipy import stats
+
+table = pd.crosstab(df["{chi2_col1}"], df["{chi2_col2}"])
+chi2, p, dof, expected = stats.chi2_contingency(table)
+print("Chi2:", chi2, "p-value:", p, "dof:", dof)
+print(table)
+''', language="python")
+
+    if crosstab:
+        st.subheader("Crosstab/Frequency Table")
+        categorical_cols = st.session_state.df.select_dtypes(include=["object", "category"]).columns.tolist()
+        ct_col1 = st.selectbox("Select first categorical column:", categorical_cols, key="ct_col1")
+        ct_col2 = st.selectbox("Select second categorical column:", categorical_cols, key="ct_col2")
+        if st.button("Show Crosstab"):
+            run_crosstab(st.session_state.df, ct_col1, ct_col2)
+        with st.expander("Show code for crosstab"):
+            st.code(
+                f'''table = pd.crosstab(df["{ct_col1}"], df["{ct_col2}"])
+print(table)
+''', language="python")
+
+    if simple_linreg:
+        st.subheader("Simple linear regression")
+        numeric_cols, _ = get_categorical_and_numerical_cols(st.session_state.df)
+        slr_x = st.selectbox("Select X (predictor):", numeric_cols, key="slr_x")
+        slr_y = st.selectbox("Select Y (outcome):", numeric_cols, key="slr_y")
+        if st.button("Run Simple Linear Regression"):
+            run_simple_linear_regression(st.session_state.df, slr_x, slr_y)
+        with st.expander("Show code for simple linear regression"):
+            st.code(
+                f'''from sklearn.linear_model import LinearRegression
+import matplotlib.pyplot as plt
+
+x = df["{slr_x}"].values.reshape(-1, 1)
+y = df["{slr_y}"].values
+model = LinearRegression()
+model.fit(x, y)
+plt.scatter(df["{slr_x}"], df["{slr_y}"])
+plt.plot(df["{slr_x}"], model.predict(x), color="red")
+plt.xlabel("{slr_x}")
+plt.ylabel("{slr_y}")
+plt.title("{slr_y} vs {slr_x}")
+plt.show()
+''', language="python")
+
+    if time_series:
+        st.subheader("Time series plot")
+        cols = st.session_state.df.columns.tolist()
+        time_col = st.selectbox("Select time column:", cols, key="ts_time")
+        value_col = st.selectbox("Select value column:", cols, key="ts_value")
+        if st.button("Plot Time Series"):
+            plot_time_series(st.session_state.df, time_col, value_col)
+        with st.expander("Show code for time series plot"):
+            st.code(
+                f'''import matplotlib.pyplot as plt
+
+plt.plot(df["{time_col}"], df["{value_col}"], marker="o")
+plt.xlabel("{time_col}")
+plt.ylabel("{value_col}")
+plt.title("Time Series: {value_col} over {time_col}")
+plt.show()
+''', language="python")
+
+    if missing_data_vis:
+        st.subheader("Visualize missing data")
+        plot_missing_data(st.session_state.df)
+        with st.expander("Show code for missing data visualization"):
+            st.code(
+                '''import missingno as msno
+
+msno.matrix(df)
+plt.show()
+''', language="python")
 
     if mult_linear_reg:
         st.subheader("Multiple Linear Regression")
@@ -2654,6 +2942,12 @@ plt.show()
 
     if view_full_df:
         st.dataframe(st.session_state.df)
+        st.download_button(
+            label="Download current (filtered/cleaned) data as CSV",
+            data=st.session_state.df.to_csv(index=False),
+            file_name="filtered_data.csv",
+            mime="text/csv",
+        )
 
     if show_table:
         if st.session_state.df.shape[1] > 99:
