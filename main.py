@@ -1245,27 +1245,7 @@ It's worth noting that a good machine learning model not only has a high accurac
 
 Lastly, when interpreting the confusion matrix, it's crucial to consider the cost associated with each type of error (false positives and false negatives) within the specific medical context. Sometimes, it's more crucial to minimize one type of error over the other. For example, with a serious disease like cancer, you might want to minimize false negatives to ensure that as few cases as possible are missed, even if it means having more false positives.
 """)
-    st.write(f"**ROC Curve ({set_name} Set):**")
-    st.write(plot_roc_curve(y_true, y_scores))
-    with st.expander("What is an ROC curve?"):
-        st.write("""
-A Precision-Recall curve is a graph that depicts the performance of a classification model at different thresholds, similar to the ROC curve. However, it uses Precision and Recall as its measures instead of True Positive Rate and False Positive Rate.
-
-In the context of medicine:
-
-- **Recall (or Sensitivity)**: Out of all the actual positive cases (for example, all the patients who really do have a disease), how many did our model correctly identify? It's the ability of the test to find all the positive cases.
- 
-- **Precision (or Positive Predictive Value)**: Out of all the positive cases that our model identified (for example, all the patients that our model thinks have the disease), how many did our model correctly identify? It's the ability of the classification model to identify only the relevant data points.
-
-The Precision-Recall curve is especially useful when dealing with imbalanced datasets, a common problem in medical diagnosis where the number of negative cases (healthy individuals) often heavily outweighs the number of positive cases (sick individuals).
-
-A model with perfect precision (1.0) and recall (1.0) will have a curve that reaches to the top right corner of the plot. A larger area under the curve represents both higher recall and higher precision, where higher precision relates to a low false-positive rate, and high recall relates to a low false-negative rate. High scores for both show that the classifier is returning accurate results (high precision), and returning a majority of all positive results (high recall).
-
-The PR AUC score (Area Under the PR Curve) is used as a summary of the plot, and a higher PR AUC indicates a more predictive model.
-
-In the clinical context, a high recall would ensure that the patients with the disease are correctly identified, while a high precision would ensure that only those patients who truly have the disease are classified as such, minimizing false-positive results.
-
-However, there is usually a trade-off between precision and recall. Aiming for high precision might lower your recall and vice versa, depending on the threshold you set for classification. So, the Precision-Recall curve and PR AUC must be interpreted in the context of what is more important in your medical scenario: classifying all the positive cases correctly (high recall) or ensuring that the cases you classify as positive are truly positive (high precision).""")
+    # ROC curve is now shown only once per set, outside this function.
 
 
 def plot_pr_curve(y_true, y_scores):
@@ -3467,6 +3447,8 @@ with tab2:
 
                 st.subheader("Training Set Performance (for reference only)")
                 display_metrics(y_train, train_predictions, train_y_scores, set_name="Training")
+                st.write("**ROC Curve (Training Set):**")
+                st.pyplot(plot_roc_curve(y_train, train_y_scores))
 
                 # Test set metrics
                 predictions = model.predict(X_test)
@@ -3479,6 +3461,8 @@ with tab2:
 
                 st.subheader("Test Set Performance (most important)")
                 display_metrics(y_test, predictions, y_scores, set_name="Test")
+                st.write("**ROC Curve (Test Set):**")
+                st.pyplot(plot_roc_curve(y_test, y_scores))
 
                 # Show model explanation
                 with st.expander("About this model"):
