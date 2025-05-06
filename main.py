@@ -3628,8 +3628,8 @@ predictions = model.predict(X_test)
                                 
                                 # Skip the regular SHAP plots for KNN
                                 st.info("SHAP force plots are not shown for KNN models due to computational limitations")
-                                # Instead of using break, we'll just return early from this section
-                                return
+                                # Set flag to skip the rest of the analysis
+                                continue_analysis = False
                             else:
                                 # For other models, use KernelExplainer with careful settings
                                 scaler = StandardScaler()
@@ -3651,7 +3651,9 @@ predictions = model.predict(X_test)
 
                             # Skip the rest of the analysis if the flag is False (for KNN)
                             if not continue_analysis:
-                                continue
+                                # Skip to the end of the try block
+                                st.warning("Skipping SHAP analysis for this model type")
+                                raise Exception("Skipping SHAP analysis - not an error")
                                 
                             # For binary classification, select the correct class
                             if isinstance(shap_values, list):
@@ -3743,7 +3745,10 @@ predictions = model.predict(X_test)
                                     st.write(f"First instance shape: {(X_test.iloc[0].shape if hasattr(X_test, 'iloc') else X_test[0].shape)}")
                                     st.write(f"Feature names: {feature_names[:5]}...")  # Show first 5 feature names
                         except Exception as e:
-                            st.warning(f"Could not generate SHAP plots: {e}")
+                            if str(e) == "Skipping SHAP analysis - not an error":
+                                pass  # This is our controlled exit for KNN models
+                            else:
+                                st.warning(f"Could not generate SHAP plots: {e}")
             # End of if model is not None
 
 
