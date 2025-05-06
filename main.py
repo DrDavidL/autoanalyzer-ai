@@ -2060,6 +2060,7 @@ with tab1:
         st.subheader("Step 3: Tools for Analysis")
         # Balanced tool options for sidebar columns
         col1, col2 = st.columns(2)
+        # Re-balance: move three tools from col2_tools to col1_tools for better balance
         col1_tools = [
             "Show header (top 5 rows of data)",
             "Summary (numerical data)",
@@ -2072,11 +2073,11 @@ with tab1:
             "Pie chart (categorical data)",
             "Correlation heatmap",
             "Box plot",
-        ]
-        col2_tools = [
             "Violin plot",
             "T-test (2 groups)",
             "ANOVA (3+ groups)",
+        ]
+        col2_tools = [
             "Mann-Whitney U test (2 groups, nonparametric)",
             "Kruskal-Wallis test (3+ groups, nonparametric)",
             "Chi-square test (categorical)",

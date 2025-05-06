@@ -401,4 +401,8 @@ tool_explanations = {
     "Perform PCA": "Performs Principal Component Analysis for dimensionality reduction and visualization.",
     "Survival curve (need duration column)": "Plots a Kaplan-Meier survival curve for time-to-event data.",
     "Cox Proportional Hazards (need duration column)": "Fits a Cox regression model for survival analysis.",
+    # Add missing explanations for any tools that may be used in the sidebar
+    "Filter data if needed (Switch to Modified Dataframe after filtering)": "Lets you filter your dataset by column values before analysis. Use this to focus on a subset of your data.",
+    "Assess dataset readiness": "Checks your dataset for missing values, inconsistent data types, and other issues that may affect analysis.",
+    "Select if dataset fails readiness": "If your dataset is not ready for analysis, use this to open preprocessing tools (e.g., imputation).",
 }
