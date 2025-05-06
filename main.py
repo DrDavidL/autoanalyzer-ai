@@ -3522,11 +3522,13 @@ predictions = model.predict(X_test)
                 # Show comparison table for metrics
                 st.subheader("Model Performance Metrics")
                 metrics_data = {
-                    "F1 Score": [f1_score(y_test, predictions)],
-                    "Accuracy": [accuracy_score(y_test, predictions)],
-                    "ROC AUC": [roc_auc_score(y_test, y_scores)],
+                    "F1 Score": f1_score(y_test, predictions),
+                    "Accuracy": accuracy_score(y_test, predictions),
+                    "ROC AUC": roc_auc_score(y_test, y_scores),
                 }
-                metrics_df = pd.DataFrame(metrics_data, index=[model.__class__.__name__])
+                metrics_df = pd.DataFrame(
+                    [metrics_data], index=[type(model).__name__]
+                )
                 st.table(metrics_df)
 
                 # Show equation for linear models
