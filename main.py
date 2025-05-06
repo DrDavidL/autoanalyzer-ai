@@ -3629,8 +3629,12 @@ predictions = model.predict(X_test)
                                 else:
                                     instance_features = X_test_scaled[0]
                                 
+                                # Create a temporary file to save the HTML
+                                with tempfile.NamedTemporaryFile(delete=False, suffix='.html') as tmp:
+                                    temp_path = tmp.name
+                                
                                 # Create the force plot with proper error handling
-                                force_plot_html = shap.force_plot(
+                                force_plot = shap.force_plot(
                                     expected_val,
                                     instance_shap_values,
                                     instance_features,
@@ -3638,8 +3642,20 @@ predictions = model.predict(X_test)
                                     matplotlib=False,
                                     show=False
                                 )
-                                html_content = shap.save_html(force_plot_html, force_plot_html)
+                                
+                                # Save the plot to the temporary file
+                                shap.save_html(temp_path, force_plot)
+                                
+                                # Read the HTML content and display it
+                                with open(temp_path, 'r') as f:
+                                    html_content = f.read()
                                 st.components.v1.html(html_content, height=400)
+                                
+                                # Clean up the temporary file
+                                try:
+                                    os.remove(temp_path)
+                                except:
+                                    pass
                             except Exception as e:
                                 st.error(f"Error generating force plot: {str(e)}")
                                 st.write("Debug info:")
