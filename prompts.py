@@ -1,3 +1,40 @@
+ridge_classifier_text = """
+Ridge Classifier is a linear classification model that uses L2 regularization to prevent overfitting. It's particularly useful in medical data analysis where you have many features that might be correlated with each other.
+
+### How Ridge Classifier Works
+
+Ridge Classifier is essentially a linear model that makes predictions by computing a weighted sum of the input features plus a bias term. The key difference from standard linear models is the addition of L2 regularization, which adds a penalty term to the loss function based on the square of the coefficients.
+
+In mathematical terms, Ridge Classifier minimizes:
+
+Loss = Error + α * (sum of squared coefficients)
+
+Where:
+- Error is how well the model fits the training data
+- α (alpha) is the regularization strength parameter
+- The sum of squared coefficients is the L2 penalty
+
+### Benefits in Medical Applications
+
+1. **Handles Multicollinearity**: Medical data often contains correlated features (like different blood tests that measure related things). Ridge handles these correlations well by distributing the importance across related features rather than arbitrarily selecting one.
+
+2. **Prevents Overfitting**: By penalizing large coefficients, Ridge prevents the model from becoming too specialized to the training data, which is important when working with limited patient datasets.
+
+3. **Feature Importance**: The coefficients in Ridge can still be interpreted to understand which medical factors are most important for prediction, though they're typically smaller in magnitude than in non-regularized models.
+
+4. **Numerical Stability**: Ridge is more stable than ordinary linear models when dealing with many features relative to the number of samples, which is common in medical datasets.
+
+### When to Use Ridge Classifier
+
+Ridge Classifier is particularly useful when:
+- You have many features relative to the number of samples
+- Your features are correlated with each other
+- You want a simple, interpretable model
+- You need probabilistic outputs for risk assessment
+
+Ridge Classifier strikes a good balance between model complexity and interpretability, making it a valuable tool in medical data analysis where understanding the model's decisions is often as important as its accuracy.
+"""
+
 csv_prefix_gpt4 = """You are an AI assistant designed to analyze data to answer user questions and show your work. 
 
 Overall process:
