@@ -4120,7 +4120,11 @@ Respond ONLY with valid Python code, not with natural language or explanations.
                             # Format with triple backticks and explicit python language tag
                             markdown += f"## Code used for analysis:\n\n```python\n{code_for_doc}\n```\n\n"
                             
-                            # No need for a plain text version as the Python code block should be sufficient
+                            # Add a plain text version as a fallback to ensure code appears in the Word doc
+                            markdown += "## Code (Plain Text Version):\n\n"
+                            for line in code_for_doc.split('\n'):
+                                markdown += f"    {line}\n"
+                            markdown += "\n\n"
                         
                         # Add output after code
                         if output_for_doc:
