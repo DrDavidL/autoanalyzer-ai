@@ -1975,14 +1975,14 @@ with tab1:
     if demo_or_custom == "🩸 Demo 1 (diabetes)":
         file_path = os.path.join("data", "predictdm.csv")
         st.sidebar.markdown(
-            "[About Demo 1 dataset](https://data.world/informatics-edu/diabetes-prediction)"
+            "[About Demo 1 dataset](https://hbiostat.org/data/repo/diabetes)"
         )
         st.session_state.df = load_data(file_path)
 
     if demo_or_custom == "🔬 Demo 2 (cancer)":
         file_path = os.path.join("data", "breastcancernew.csv")
         st.sidebar.write(
-            "[About Demo 2 dataset](https://data.world/marshalldatasolution/breast-cancer)"
+            "[About Demo 2 dataset](https://archive.ics.uci.edu/dataset/451/breast+cancer+coimbra)"
         )
         st.session_state.df = load_data(file_path)
 
