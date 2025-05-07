@@ -4022,8 +4022,8 @@ Respond ONLY with valid Python code, not with natural language or explanations.
             # Main logic: always use LLM to generate code from English
             code_to_run = get_code_from_llm(agent_question, df)
 
+            # Save the code to session state for both execution and documentation
             st.session_state.gpt_analysis_code = code_to_run
-            st.session_state.gpt_analysis_code_for_doc = code_to_run if code_to_run else ""
 
             output, error, new_images = run_code_and_capture(code_to_run)
             st.session_state.model_output1 = output
@@ -4060,23 +4060,27 @@ Respond ONLY with valid Python code, not with natural language or explanations.
                         markdown = ""
                         if st.session_state.model_output1:
                             markdown += f"## GPT Analysis Output\n\n{st.session_state.model_output1}\n\n"
-                        # Use the new session state variable for code, fallback to gpt_analysis_code if needed
-                        code_for_doc = (
-                            st.session_state.get("gpt_analysis_code_for_doc")
-                            or st.session_state.get("gpt_analysis_code")
-                            or ""
-                        )
-                        if code_for_doc.strip():
+                        
+                        # Make sure we're getting the code
+                        code_for_doc = st.session_state.gpt_analysis_code
+                        
+                        # Add the code to the markdown
+                        if code_for_doc and code_for_doc.strip():
                             markdown += f"## Code Used\n\n```python\n{code_for_doc}\n```\n"
+                        else:
+                            st.warning("No code was found to include in the document.")
                         # Always include code before images for clarity
                         if st.session_state.gpt_analysis_images:
                             markdown += "\n## Generated Plots\n"
                             for img_path in st.session_state.gpt_analysis_images:
                                 markdown += f"\n![]({img_path})\n"
 
+                        # Create the docx file
                         docx_file = markdown_to_docx(
                             "gpt_analysis", markdown
                         )
+                        
+                        # Offer download
                         with open(docx_file, "rb") as file:
                             btn = st.download_button(
                                 label="Download DOCX",
@@ -4084,7 +4088,18 @@ Respond ONLY with valid Python code, not with natural language or explanations.
                                 file_name="gpt_analysis.docx",
                                 mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                             )
+                        
+                        # Clean up all generated files
                         os.remove(docx_file)
+                        
+                        # Remove any HTML files in the outputs directory
+                        for html_file in glob.glob(f"{st.session_state.outputs_path}/*.html"):
+                            try:
+                                os.remove(html_file)
+                            except Exception:
+                                pass
+                                
+                        # Remove image files
                         for img_path in st.session_state.gpt_analysis_images:
                             try:
                                 os.remove(img_path)
