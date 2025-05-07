@@ -4024,9 +4024,23 @@ Respond ONLY with valid Python code, not with natural language or explanations.
 
             # Save the code to session state for both execution and documentation
             st.session_state.gpt_analysis_code = code_to_run
+            
+            # Create a persistent copy for the Word doc
+            if "persistent_gpt_code" not in st.session_state:
+                st.session_state.persistent_gpt_code = {}
+            # Use timestamp as key to store multiple analyses
+            import time
+            timestamp = str(int(time.time()))
+            st.session_state.persistent_gpt_code[timestamp] = code_to_run
+            st.session_state.current_analysis_timestamp = timestamp
 
             output, error, new_images = run_code_and_capture(code_to_run)
             st.session_state.model_output1 = output
+            
+            # Store output in persistent storage
+            if "persistent_gpt_output" not in st.session_state:
+                st.session_state.persistent_gpt_output = {}
+            st.session_state.persistent_gpt_output[timestamp] = output
 
             if error:
                 st.error(f"Error running code: {error}")
@@ -4048,6 +4062,11 @@ Respond ONLY with valid Python code, not with natural language or explanations.
                         shown.add(img_path)
                     except Exception as e:
                         st.warning(f"Could not display image {img_path}: {e}")
+            
+            # Store images in persistent storage
+            if "persistent_gpt_images" not in st.session_state:
+                st.session_state.persistent_gpt_images = {}
+            st.session_state.persistent_gpt_images[timestamp] = list(st.session_state.gpt_analysis_images)
 
         if st.session_state.model_output1 != "":
             # Add some spacing to improve layout
@@ -4058,23 +4077,46 @@ Respond ONLY with valid Python code, not with natural language or explanations.
                     try:
                         import glob  # Import glob here to ensure it's available
                         
-                        # Compose markdown with code and images for docx
+                        # Compose markdown with code and images from persistent storage
                         markdown = ""
-                        if st.session_state.model_output1:
-                            markdown += f"## GPT Analysis Output\n\n{st.session_state.model_output1}\n\n"
                         
-                        # Make sure we're getting the code
-                        code_for_doc = st.session_state.gpt_analysis_code
+                        # Get the current timestamp
+                        timestamp = st.session_state.get("current_analysis_timestamp", "")
+                        
+                        # Get output from persistent storage
+                        output_for_doc = ""
+                        if timestamp and timestamp in st.session_state.persistent_gpt_output:
+                            output_for_doc = st.session_state.persistent_gpt_output[timestamp]
+                        else:
+                            output_for_doc = st.session_state.model_output1
+                            
+                        if output_for_doc:
+                            markdown += f"## GPT Analysis Output\n\n{output_for_doc}\n\n"
+                        
+                        # Get code from persistent storage
+                        code_for_doc = ""
+                        if timestamp and timestamp in st.session_state.persistent_gpt_code:
+                            code_for_doc = st.session_state.persistent_gpt_code[timestamp]
+                        else:
+                            code_for_doc = st.session_state.gpt_analysis_code
                         
                         # Add the code to the markdown
                         if code_for_doc and code_for_doc.strip():
                             markdown += f"## Code Used\n\n```python\n{code_for_doc}\n```\n"
                         else:
                             st.warning("No code was found to include in the document.")
+                            
+                        # Get images from persistent storage
+                        images_for_doc = []
+                        if timestamp and timestamp in st.session_state.persistent_gpt_images:
+                            images_for_doc = st.session_state.persistent_gpt_images[timestamp]
+                        else:
+                            images_for_doc = st.session_state.gpt_analysis_images
+                            
                         # Always include code before images for clarity
-                        if st.session_state.gpt_analysis_images:
+                        if images_for_doc:
                             markdown += "\n## Generated Plots\n"
-                            for img_path in st.session_state.gpt_analysis_images:
+                            for img_path in images_for_doc:
                                 markdown += f"\n![]({img_path})\n"
 
                         # Create the docx file
@@ -4101,8 +4143,22 @@ Respond ONLY with valid Python code, not with natural language or explanations.
                             except Exception:
                                 pass
                                 
-                        # Remove image files
+                        # Don't remove the image files yet - keep them for display
+                        # We'll clean them up when the app restarts or when too many accumulate
+                        # Just make copies for the Word doc
+                        image_paths_to_clean = []
                         for img_path in st.session_state.gpt_analysis_images:
+                            try:
+                                # Make a copy of the image for the Word doc
+                                import shutil
+                                doc_img_path = f"{st.session_state.outputs_path}/doc_{os.path.basename(img_path)}"
+                                shutil.copy2(img_path, doc_img_path)
+                                image_paths_to_clean.append(doc_img_path)
+                            except Exception:
+                                pass
+                                
+                        # Clean up only the copies made for the Word doc
+                        for img_path in image_paths_to_clean:
                             try:
                                 os.remove(img_path)
                             except Exception:
