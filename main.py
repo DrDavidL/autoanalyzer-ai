@@ -4056,6 +4056,8 @@ Respond ONLY with valid Python code, not with natural language or explanations.
             with col2:
                 if st.button("Generate Word Doc from Last GPT Analysis", use_container_width=True):
                     try:
+                        import glob  # Import glob here to ensure it's available
+                        
                         # Compose markdown with code and images for docx
                         markdown = ""
                         if st.session_state.model_output1:
