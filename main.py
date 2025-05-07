@@ -1973,21 +1973,21 @@ with tab1:
                     st.warning(f"Failed to load Excel file: {e}")
 
     if demo_or_custom == "Demo 1 (diabetes)":
-        file_path = "data/predictdm.csv"
+        file_path = os.path.join("data", "predictdm.csv")
         st.sidebar.markdown(
             "[About Demo 1 dataset](https://data.world/informatics-edu/diabetes-prediction)"
         )
         st.session_state.df = load_data(file_path)
 
     if demo_or_custom == "Demo 2 (cancer)":
-        file_path = "data/breastcancernew.csv"
+        file_path = os.path.join("data", "breastcancernew.csv")
         st.sidebar.write(
             "[About Demo 2 dataset](https://data.world/marshalldatasolution/breast-cancer)"
         )
         st.session_state.df = load_data(file_path)
 
     if demo_or_custom == "Demo 3 (missing data example)":
-        file_path = "data/missing_data.csv"
+        file_path = os.path.join("data", "missing_data.csv")
         st.sidebar.markdown(
             "[About Demo 3 dataset](https://www.lshtm.ac.uk/research/centres-projects-groups/missing-data#dia-missing-data)"
         )
@@ -2048,14 +2048,14 @@ with tab1:
                 st.write(st.session_state.df.head())
 
     if demo_or_custom == "Demo 4 (time series -CHF deaths)":
-        file_path = "data/S1Data.csv"
+        file_path = os.path.join("data", "S1Data.csv")
         st.sidebar.markdown(
             "[About Demo 4 dataset](https://plos.figshare.com/articles/dataset/Survival_analysis_of_heart_failure_patients_A_case_study/5227684/1)"
         )
         st.session_state.df = load_data(file_path)
 
     if demo_or_custom == "Demo 5 (stroke)":
-        file_path = "data/healthcare-dataset-stroke-data.csv"
+        file_path = os.path.join("data", "healthcare-dataset-stroke-data.csv")
         st.sidebar.markdown(
             "[About Demo 5 dataset](https://www.kaggle.com/fedesoriano/stroke-prediction-dataset)"
         )
