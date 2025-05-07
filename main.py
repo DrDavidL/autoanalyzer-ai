@@ -123,7 +123,7 @@ def make_sweet_report(df):
 def make_pandas_report(df, title):
     # Suppress deprecation warnings from ydata-profiling's internal use of pkg_resources
     import warnings
-    with warnings.filterwarnings():
+    with warnings.catch_warnings():
         warnings.filterwarnings("ignore", category=DeprecationWarning)
         return ProfileReport(df, title=title)
 
