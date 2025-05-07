@@ -3827,20 +3827,23 @@ predictions = model.predict(X_test)
 
 with tab3:
     if hu_key == "True" or check_password():
-        st.markdown("<h1 style='color: #1E88E5;'>🤖 Analyze with GPT (AutoAnalyzer AI)</h1>", unsafe_allow_html=True)
-        st.markdown("""
-        <div style="background-color: #E3F2FD; padding: 15px; border-radius: 5px; border-left: 5px solid #1E88E5;">
-            <h3 style="margin-top: 0; color: #1976D2;">AI-Powered Data Analysis</h3>
-            <p>Ask any question about your data in plain English. The AI will generate and execute Python code using your dataframe as <code>df</code>. Results and plots will appear below.</p>
-            <p><strong>Example questions:</strong></p>
-            <ul>
-                <li>Show me the relationship between age and blood pressure with a regression line</li>
-                <li>Create a heatmap of correlations between all numerical variables</li>
-                <li>What's the average BMI by gender? Show it as a bar chart</li>
-                <li>Is there a significant difference in cholesterol levels between diabetic and non-diabetic patients?</li>
-            </ul>
-        </div>
-        """, unsafe_allow_html=True)
+        # Use container to ensure proper scrolling
+        container = st.container()
+        with container:
+            st.markdown("<h1 style='color: #1E88E5;'>🤖 Analyze with GPT (AutoAnalyzer AI)</h1>", unsafe_allow_html=True)
+            st.markdown("""
+            <div style="background-color: #E3F2FD; padding: 15px; border-radius: 5px; border-left: 5px solid #1E88E5;">
+                <h3 style="margin-top: 0; color: #1976D2;">AI-Powered Data Analysis</h3>
+                <p>Ask any question about your data in plain English. The AI will generate and execute Python code using your dataframe as <code>df</code>. Results and plots will appear below.</p>
+                <p><strong>Example questions:</strong></p>
+                <ul>
+                    <li>Show me the relationship between age and blood pressure with a regression line</li>
+                    <li>Create a heatmap of correlations between all numerical variables</li>
+                    <li>What's the average BMI by gender? Show it as a bar chart</li>
+                    <li>Is there a significant difference in cholesterol levels between diabetic and non-diabetic patients?</li>
+                </ul>
+            </div>
+            """, unsafe_allow_html=True)
 
         # File uploader
         data_source = st.radio(
@@ -4002,6 +4005,18 @@ Respond ONLY with valid Python code, not with natural language or explanations.
                     all_pngs = sorted(glob.glob(f"{st.session_state.outputs_path}/*.png"), key=os.path.getmtime)
                     if all_pngs:
                         new_images = [all_pngs[-1]]
+                # Limit image size to ensure scrolling works
+                for img_path in new_images:
+                    try:
+                        img = Image.open(img_path)
+                        if img.height > 800:  # Limit height of large images
+                            img_ratio = img.width / img.height
+                            new_height = 800
+                            new_width = int(new_height * img_ratio)
+                            img = img.resize((new_width, new_height), Image.LANCZOS)
+                            img.save(img_path)
+                    except Exception:
+                        pass
                 return output, error, new_images
 
             # Main logic: always use LLM to generate code from English
@@ -4025,48 +4040,55 @@ Respond ONLY with valid Python code, not with natural language or explanations.
             for img_path in new_images:
                 if img_path not in shown:
                     try:
-                        st.image(img_path, caption=f"Generated Plot: {os.path.basename(img_path)}")
+                        # Use use_column_width to ensure images don't break layout
+                        st.image(img_path, 
+                                caption=f"Generated Plot: {os.path.basename(img_path)}", 
+                                use_column_width=True)
                         st.session_state.gpt_analysis_images.append(img_path)
                         shown.add(img_path)
                     except Exception as e:
                         st.warning(f"Could not display image {img_path}: {e}")
 
         if st.session_state.model_output1 != "":
-            if st.button("Generate Word Doc from Last GPT Analysis"):
-                try:
-                    # Compose markdown with code and images for docx
-                    markdown = ""
-                    if st.session_state.model_output1:
-                        markdown += f"## GPT Analysis Output\n\n{st.session_state.model_output1}\n\n"
-                    # Use the new session state variable for code, fallback to gpt_analysis_code if needed
-                    code_for_doc = (
-                        st.session_state.get("gpt_analysis_code_for_doc")
-                        or st.session_state.get("gpt_analysis_code")
-                        or ""
-                    )
-                    if code_for_doc.strip():
-                        markdown += f"## Code Used\n\n```python\n{code_for_doc}\n```\n"
-                    # Always include code before images for clarity
-                    if st.session_state.gpt_analysis_images:
-                        markdown += "\n## Generated Plots\n"
-                        for img_path in st.session_state.gpt_analysis_images:
-                            markdown += f"\n![]({img_path})\n"
-
-                    docx_file = markdown_to_docx(
-                        "gpt_analysis", markdown
-                    )
-                    with open(docx_file, "rb") as file:
-                        btn = st.download_button(
-                            label="Download DOCX",
-                            data=file,
-                            file_name="gpt_analysis.docx",
-                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            # Add some spacing to improve layout
+            st.write("")
+            col1, col2, col3 = st.columns([1, 2, 1])
+            with col2:
+                if st.button("Generate Word Doc from Last GPT Analysis", use_container_width=True):
+                    try:
+                        # Compose markdown with code and images for docx
+                        markdown = ""
+                        if st.session_state.model_output1:
+                            markdown += f"## GPT Analysis Output\n\n{st.session_state.model_output1}\n\n"
+                        # Use the new session state variable for code, fallback to gpt_analysis_code if needed
+                        code_for_doc = (
+                            st.session_state.get("gpt_analysis_code_for_doc")
+                            or st.session_state.get("gpt_analysis_code")
+                            or ""
                         )
-                    os.remove(docx_file)
-                    for img_path in st.session_state.gpt_analysis_images:
-                        try:
-                            os.remove(img_path)
-                        except Exception:
-                            pass
-                except Exception as e:
-                    st.error(f"An error occurred while creating the DOCX file: {str(e)}")
+                        if code_for_doc.strip():
+                            markdown += f"## Code Used\n\n```python\n{code_for_doc}\n```\n"
+                        # Always include code before images for clarity
+                        if st.session_state.gpt_analysis_images:
+                            markdown += "\n## Generated Plots\n"
+                            for img_path in st.session_state.gpt_analysis_images:
+                                markdown += f"\n![]({img_path})\n"
+
+                        docx_file = markdown_to_docx(
+                            "gpt_analysis", markdown
+                        )
+                        with open(docx_file, "rb") as file:
+                            btn = st.download_button(
+                                label="Download DOCX",
+                                data=file,
+                                file_name="gpt_analysis.docx",
+                                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                            )
+                        os.remove(docx_file)
+                        for img_path in st.session_state.gpt_analysis_images:
+                            try:
+                                os.remove(img_path)
+                            except Exception:
+                                pass
+                    except Exception as e:
+                        st.error(f"An error occurred while creating the DOCX file: {str(e)}")
