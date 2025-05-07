@@ -4115,9 +4115,13 @@ Respond ONLY with valid Python code, not with natural language or explanations.
                         else:
                             code_for_doc = st.session_state.gpt_analysis_code
                         
-                        # Add the code to the markdown first
+                        # Add the code to the markdown first with explicit Python language tag
                         if code_for_doc and code_for_doc.strip():
+                            # Format with triple backticks and explicit python language tag
                             markdown += f"## Code Used\n\n```python\n{code_for_doc}\n```\n\n"
+                            
+                            # Also add a plain text version as a fallback
+                            markdown += f"## Code (Plain Text Version)\n\n    {code_for_doc.replace('\n', '\n    ')}\n\n"
                         
                         # Add output after code
                         if output_for_doc:

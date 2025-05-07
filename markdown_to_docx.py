@@ -122,16 +122,23 @@ def do_paragraph(
 
 
 def do_pre_code(line, doc, style_quote_table):
-    table = doc.add_table(rows=1, cols=1, style=style_quote_table)
-    cell = table.cell(0, 0)
-    cell.text = line.text.strip()
-    paragraphs = cell.paragraphs
-    paragraph = paragraphs[0]
-    run_obj = paragraph.runs
-    run = run_obj[0]
-    font = run.font
-    font.size = Pt(10)
-    font.name = "Courier New"
+    # Check if this is a code block with language specification
+    code_block = line.find("code")
+    if code_block and 'class' in code_block.attrs and 'language-' in code_block['class'][0]:
+        # This is a code block with language specification (like ```python)
+        return do_code_block(doc, line.text.strip(), style_quote_table)
+    else:
+        # Regular pre block without language specification
+        table = doc.add_table(rows=1, cols=1, style=style_quote_table)
+        cell = table.cell(0, 0)
+        cell.text = line.text.strip()
+        paragraphs = cell.paragraphs
+        paragraph = paragraphs[0]
+        run_obj = paragraph.runs
+        run = run_obj[0]
+        font = run.font
+        font.size = Pt(10)
+        font.name = "Courier New"
 
 
 def do_horizontal_rule(doc):
@@ -267,9 +274,22 @@ class Markdown2docx:
             elif line.name == "pre":
                 code_block = line.find("code")
                 if code_block:
-                    do_code_block(
-                        self.doc, code_block.get_text(), self.style_code_block
-                    )
+                    # Check if this is a language-specific code block
+                    if 'class' in code_block.attrs and 'language-' in code_block['class'][0]:
+                        language = code_block['class'][0].replace('language-', '')
+                        # Handle Python code blocks specially
+                        if language == 'python':
+                            do_code_block(
+                                self.doc, code_block.get_text(), self.style_code_block
+                            )
+                        else:
+                            do_code_block(
+                                self.doc, code_block.get_text(), self.style_code_block
+                            )
+                    else:
+                        do_code_block(
+                            self.doc, code_block.get_text(), self.style_code_block
+                        )
                 else:
                     do_pre_code(line, self.doc, self.style_quote_table)
             elif line.name == "blockquote":
