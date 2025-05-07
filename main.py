@@ -73,6 +73,9 @@ from markdown_to_docx import markdown_to_docx
 import sweetviz as sv
 import streamlit.components.v1 as components
 from ydata_profiling import ProfileReport
+# Import importlib.resources to replace pkg_resources
+import importlib.resources
+import importlib.metadata
 
 
 st.set_page_config(
@@ -109,12 +112,20 @@ if "df_to_download" not in st.session_state:
 
 @st.cache_resource
 def make_sweet_report(df):
-    return sv.analyze(df)
+    # Suppress deprecation warnings from sweetviz's internal use of pkg_resources
+    import warnings
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=DeprecationWarning)
+        return sv.analyze(df)
 
 
 @st.cache_resource
 def make_pandas_report(df, title):
-    return ProfileReport(df, title=title)
+    # Suppress deprecation warnings from ydata-profiling's internal use of pkg_resources
+    import warnings
+    with warnings.filterwarnings():
+        warnings.filterwarnings("ignore", category=DeprecationWarning)
+        return ProfileReport(df, title=title)
 
 
 def get_output_path():
@@ -2637,55 +2648,61 @@ print(df.head())
 ''', language="python")
 
     if full_analysis:
+        # Suppress all deprecation warnings during full analysis
+        import warnings
+        
         full_analysis_method = st.radio(
             "Choose a method for full analysis", ("Pandas Profiling", "Sweetviz")
         )
 
-        if full_analysis_method == "Sweetviz":
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".html") as temp_file:
-                st.info(
-                    "Full analysis of data using [*Sweetviz*](https://github.com/fbdesignpro/sweetviz)"
-                )
-                report_path = temp_file.name
-                report = make_sweet_report(st.session_state.df)
-                report.show_html(
-                    filepath=report_path,
-                    open_browser=False,
-                    layout="vertical",
-                    scale=1.0,
-                )
-                with open(report_path, "rb") as file:
-                    st.download_button(
-                        label="Download Sweetviz Report",
-                        data=file,
-                        file_name="SWEETVIZ_REPORT.html",
-                        mime="text/html",
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=DeprecationWarning)
+            
+            if full_analysis_method == "Sweetviz":
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".html") as temp_file:
+                    st.info(
+                        "Full analysis of data using [*Sweetviz*](https://github.com/fbdesignpro/sweetviz)"
                     )
-                with open(report_path, "r", encoding="utf-8") as display:
-                    source_code = display.read()
-                components.html(source_code, height=1200, scrolling=True)
+                    report_path = temp_file.name
+                    report = make_sweet_report(st.session_state.df)
+                    report.show_html(
+                        filepath=report_path,
+                        open_browser=False,
+                        layout="vertical",
+                        scale=1.0,
+                    )
+                    with open(report_path, "rb") as file:
+                        st.download_button(
+                            label="Download Sweetviz Report",
+                            data=file,
+                            file_name="SWEETVIZ_REPORT.html",
+                            mime="text/html",
+                        )
+                    with open(report_path, "r", encoding="utf-8") as display:
+                        source_code = display.read()
+                    components.html(source_code, height=1200, scrolling=True)
 
-        if full_analysis_method == "Pandas Profiling":
-            st.info(
-                "Full analysis of data using [*Pandas Profiling*](https://github.com/ydataai/ydata-profiling). Check out *alerts*!"
-            )
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".html") as temp_file:
-                report_path = temp_file.name
-                with st.spinner("Generating the report..."):
-                    report = make_pandas_report(
-                        st.session_state.df, title="Pandas Profiling Report"
-                    )
-                    report.to_file(report_path)
-                with open(report_path, "rb") as file:
-                    st.download_button(
-                        label="Pandas Profiling Report",
-                        data=file,
-                        file_name="Pandas_Profile.html",
-                        mime="text/html",
-                    )
-                with open(report_path, "r", encoding="utf-8") as display:
-                    source_code = display.read()
-                components.html(source_code, height=1200, scrolling=True)
+            if full_analysis_method == "Pandas Profiling":
+                st.info(
+                    "Full analysis of data using [*Pandas Profiling*](https://github.com/ydataai/ydata-profiling). Check out *alerts*!"
+                )
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".html") as temp_file:
+                    report_path = temp_file.name
+                    with st.spinner("Generating the report..."):
+                        report = make_pandas_report(
+                            st.session_state.df, title="Pandas Profiling Report"
+                        )
+                        report.to_file(report_path)
+                    with open(report_path, "rb") as file:
+                        st.download_button(
+                            label="Pandas Profiling Report",
+                            data=file,
+                            file_name="Pandas_Profile.html",
+                            mime="text/html",
+                        )
+                    with open(report_path, "r", encoding="utf-8") as display:
+                        source_code = display.read()
+                    components.html(source_code, height=1200, scrolling=True)
 
     if histogram:
         st.info("Histogram of data")
