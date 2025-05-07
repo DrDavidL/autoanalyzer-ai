@@ -191,4 +191,5 @@ public/build/
 logs/
 *.log
 yarn.lock
- gpt_analysis.html
+gpt_analysis.html
+
