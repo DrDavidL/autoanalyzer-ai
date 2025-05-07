@@ -3914,15 +3914,25 @@ with tab3:
             height=100
         )
 
+        # Import necessary modules at the top level to ensure they're available
+        import re
+        import io
+        import sys
+        import glob
+        import os
+        import traceback
+        import time
+        from contextlib import redirect_stdout
+        
+        # Initialize persistent storage if needed
+        if "persistent_gpt_code" not in st.session_state:
+            st.session_state.persistent_gpt_code = {}
+        if "persistent_gpt_output" not in st.session_state:
+            st.session_state.persistent_gpt_output = {}
+        if "persistent_gpt_images" not in st.session_state:
+            st.session_state.persistent_gpt_images = {}
+            
         if st.button("🚀 Analyze My Data", use_container_width=True):
-            import re
-            import io
-            import sys
-            import glob
-            import os
-            import traceback
-            from contextlib import redirect_stdout
-
             # Remove any prior plot images in the output directory
             image_exts = ["png", "jpg", "jpeg", "svg", "pdf"]
             outputs_path = st.session_state.outputs_path
@@ -4025,11 +4035,7 @@ Respond ONLY with valid Python code, not with natural language or explanations.
             # Save the code to session state for both execution and documentation
             st.session_state.gpt_analysis_code = code_to_run
             
-            # Create a persistent copy for the Word doc
-            if "persistent_gpt_code" not in st.session_state:
-                st.session_state.persistent_gpt_code = {}
             # Use timestamp as key to store multiple analyses
-            import time
             timestamp = str(int(time.time()))
             st.session_state.persistent_gpt_code[timestamp] = code_to_run
             st.session_state.current_analysis_timestamp = timestamp
@@ -4038,8 +4044,6 @@ Respond ONLY with valid Python code, not with natural language or explanations.
             st.session_state.model_output1 = output
             
             # Store output in persistent storage
-            if "persistent_gpt_output" not in st.session_state:
-                st.session_state.persistent_gpt_output = {}
             st.session_state.persistent_gpt_output[timestamp] = output
 
             if error:
@@ -4064,21 +4068,51 @@ Respond ONLY with valid Python code, not with natural language or explanations.
                         st.warning(f"Could not display image {img_path}: {e}")
             
             # Store images in persistent storage
-            if "persistent_gpt_images" not in st.session_state:
-                st.session_state.persistent_gpt_images = {}
-            st.session_state.persistent_gpt_images[timestamp] = list(st.session_state.gpt_analysis_images)
-
-        if st.session_state.model_output1 != "":
+            st.session_state.persistent_gpt_images[timestamp] = list(new_images)
+            
+        # Display results if they exist in session state
+        if st.session_state.model_output1 or st.session_state.gpt_analysis_code:
+            # Get the current timestamp
+            timestamp = st.session_state.get("current_analysis_timestamp", "")
+            
+            # Display output if available
+            if st.session_state.model_output1:
+                st.write("**Output:**")
+                st.code(st.session_state.model_output1)
+                
+            # Display code if available
+            if st.session_state.gpt_analysis_code:
+                with st.expander("Show code used for this analysis", expanded=False):
+                    st.code(st.session_state.gpt_analysis_code, language="python")
+            
+            # Display images if available
+            shown = set()
+            images_to_show = []
+            
+            # First try to get images from persistent storage
+            if timestamp and timestamp in st.session_state.persistent_gpt_images:
+                images_to_show = st.session_state.persistent_gpt_images[timestamp]
+            # Fallback to session state images
+            elif st.session_state.gpt_analysis_images:
+                images_to_show = st.session_state.gpt_analysis_images
+                
+            for img_path in images_to_show:
+                if img_path not in shown and os.path.exists(img_path):
+                    try:
+                        st.image(img_path, 
+                                caption=f"Generated Plot: {os.path.basename(img_path)}", 
+                                use_column_width=True)
+                        shown.add(img_path)
+                    except Exception as e:
+                        st.warning(f"Could not display image {img_path}: {e}")
             # Add some spacing to improve layout
             st.write("")
             col1, col2, col3 = st.columns([1, 2, 1])
             with col2:
                 if st.button("Generate Word Doc from Last GPT Analysis", use_container_width=True):
                     try:
-                        import glob  # Import glob here to ensure it's available
-                        
                         # Compose markdown with code and images from persistent storage
-                        markdown = ""
+                        markdown = "# GPT Analysis Report\n\n"
                         
                         # Get the current timestamp
                         timestamp = st.session_state.get("current_analysis_timestamp", "")
@@ -4090,9 +4124,6 @@ Respond ONLY with valid Python code, not with natural language or explanations.
                         else:
                             output_for_doc = st.session_state.model_output1
                             
-                        if output_for_doc:
-                            markdown += f"## GPT Analysis Output\n\n{output_for_doc}\n\n"
-                        
                         # Get code from persistent storage
                         code_for_doc = ""
                         if timestamp and timestamp in st.session_state.persistent_gpt_code:
@@ -4100,11 +4131,13 @@ Respond ONLY with valid Python code, not with natural language or explanations.
                         else:
                             code_for_doc = st.session_state.gpt_analysis_code
                         
-                        # Add the code to the markdown
+                        # Add the code to the markdown first
                         if code_for_doc and code_for_doc.strip():
-                            markdown += f"## Code Used\n\n```python\n{code_for_doc}\n```\n"
-                        else:
-                            st.warning("No code was found to include in the document.")
+                            markdown += f"## Code Used\n\n```python\n{code_for_doc}\n```\n\n"
+                        
+                        # Add output after code
+                        if output_for_doc:
+                            markdown += f"## Analysis Output\n\n{output_for_doc}\n\n"
                             
                         # Get images from persistent storage
                         images_for_doc = []
@@ -4113,11 +4146,12 @@ Respond ONLY with valid Python code, not with natural language or explanations.
                         else:
                             images_for_doc = st.session_state.gpt_analysis_images
                             
-                        # Always include code before images for clarity
+                        # Add images last
                         if images_for_doc:
                             markdown += "\n## Generated Plots\n"
                             for img_path in images_for_doc:
-                                markdown += f"\n![]({img_path})\n"
+                                if os.path.exists(img_path):
+                                    markdown += f"\n![]({img_path})\n"
 
                         # Create the docx file
                         docx_file = markdown_to_docx(
