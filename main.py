@@ -1999,7 +1999,7 @@ with tab1:
             st.sidebar.warning("No saved dataframe; using demo dataset 1.")
             file_path = "data/predictdm.csv"
             st.sidebar.markdown(
-                "[About Demo 1 dataset](https://data.world/informatics-edu/diabetes-prediction)"
+                "[About Demo 1 dataset](https://hbiostat.org/data/repo/diabetes))"
             )
             st.session_state.df = load_data(file_path)
 
