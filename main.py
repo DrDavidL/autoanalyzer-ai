@@ -4048,27 +4048,11 @@ Respond ONLY with valid Python code, not with natural language or explanations.
 
             if error:
                 st.error(f"Error running code: {error}")
-            if output.strip():
-                st.write("**Output:**")
-                st.code(output)
-            if code_to_run.strip():
-                with st.expander("Show code used for this analysis", expanded=False):
-                    st.code(code_to_run, language="python")
-            shown = set()
-            for img_path in new_images:
-                if img_path not in shown:
-                    try:
-                        # Use use_column_width to ensure images don't break layout
-                        st.image(img_path, 
-                                caption=f"Generated Plot: {os.path.basename(img_path)}", 
-                                use_column_width=True)
-                        st.session_state.gpt_analysis_images.append(img_path)
-                        shown.add(img_path)
-                    except Exception as e:
-                        st.warning(f"Could not display image {img_path}: {e}")
             
-            # Store images in persistent storage
-            st.session_state.persistent_gpt_images[timestamp] = list(new_images)
+            # Save images to session state for later display
+            for img_path in new_images:
+                if img_path not in st.session_state.gpt_analysis_images:
+                    st.session_state.gpt_analysis_images.append(img_path)
             
         # Display results if they exist in session state
         if st.session_state.model_output1 or st.session_state.gpt_analysis_code:
