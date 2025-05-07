@@ -4121,7 +4121,10 @@ Respond ONLY with valid Python code, not with natural language or explanations.
                             markdown += f"## Code Used\n\n```python\n{code_for_doc}\n```\n\n"
                             
                             # Also add a plain text version as a fallback
-                            markdown += f"## Code (Plain Text Version)\n\n    {code_for_doc.replace('\n', '\n    ')}\n\n"
+                            markdown += "## Code (Plain Text Version)\n\n"
+                            for line in code_for_doc.split('\n'):
+                                markdown += f"    {line}\n"
+                            markdown += "\n"
                         
                         # Add output after code
                         if output_for_doc:
