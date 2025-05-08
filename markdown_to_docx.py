@@ -164,7 +164,35 @@ def generate_gpt_analysis_docx(
         for line in code.strip().split("\n"):
             p = doc.add_paragraph(line, style=code_block_style)
 
-    # Output (with table parsing)
+    # Helper: parse markdown-style bold/italic in a string and add to a paragraph
+    def add_markdown_text(paragraph, text):
+        """
+        Add text to a docx paragraph, parsing *italic*, **bold**, and ***bolditalic***.
+        """
+        import re
+        pos = 0
+        # Pattern for ***bolditalic***, **bold**, *italic*
+        pattern = re.compile(r"(\*\*\*.+?\*\*\*|\*\*.+?\*\*|\*.+?\*)")
+        for match in pattern.finditer(text):
+            start, end = match.span()
+            if start > pos:
+                paragraph.add_run(text[pos:start])
+            token = match.group()
+            if token.startswith("***") and token.endswith("***"):
+                run = paragraph.add_run(token[3:-3])
+                run.bold = True
+                run.italic = True
+            elif token.startswith("**") and token.endswith("**"):
+                run = paragraph.add_run(token[2:-2])
+                run.bold = True
+            elif token.startswith("*") and token.endswith("*"):
+                run = paragraph.add_run(token[1:-1])
+                run.italic = True
+            pos = end
+        if pos < len(text):
+            paragraph.add_run(text[pos:])
+
+    # Output (with table parsing and markdown-style formatting)
     if output:
         doc.add_heading("Analysis Output", level=1)
         # Try to parse tables from output, otherwise add as preformatted text
@@ -181,10 +209,11 @@ def generate_gpt_analysis_docx(
             else:
                 other_blocks.append(block)
 
-        # Add non-table blocks as paragraphs
+        # Add non-table blocks as paragraphs, parsing markdown-style bold/italic
         for block in other_blocks:
             if block.strip():
-                doc.add_paragraph(block.strip())
+                p = doc.add_paragraph()
+                add_markdown_text(p, block.strip())
 
         # Add tables
         for table_block in table_blocks:
