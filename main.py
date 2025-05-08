@@ -3917,13 +3917,16 @@ with tab3:
                 else:
                     st.session_state.df = pd.read_excel(uploaded_file_gpt)
 
-        df = st.session_state.df
-        n_rows, n_cols = df.shape
+        # Display the current dataframe being used for analysis
+        # This could be the initially loaded df or the gpt_working_df from a previous run
+        current_analysis_df = st.session_state.get("gpt_working_df", st.session_state.df)
+        
+        n_rows, n_cols = current_analysis_df.shape
         st.write(f"Current DataFrame shape: {n_rows} rows × {n_cols} columns")
 
         with st.expander("View the current dataframe", expanded=True):
             st.write("### Current Data Frame")
-            st.dataframe(df, height=200)
+            st.dataframe(current_analysis_df, height=200)
 
         import matplotlib
         matplotlib.use("Agg")  # Ensure non-GUI backend for matplotlib
@@ -4166,6 +4169,16 @@ def map_with_tracking(self, arg, *args, **kwargs):
         track_categorical_mapping(self.name, arg)
     return original_map_inner(self, arg, *args, **kwargs)
 pd.Series.map = map_with_tracking
+
+# Print unique values for categorical columns for LLM reference
+print("\\n--- Unique Categorical Values ---")
+for col in df.select_dtypes(include=['object', 'category']).columns:
+    try:
+        unique_vals = df[col].unique().tolist()
+        print(f"Column '{col}': {unique_vals}")
+    except Exception as e:
+        print(f"Could not get unique values for column '{col}': {e}")
+print("---------------------------------")
 """
                 
                 # Prepend the tracking code to the user's code
