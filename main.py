@@ -3949,10 +3949,6 @@ with tab3:
             },
         )
 
-        # Set up the REPL for code execution
-        repl = PythonREPL()
-        repl.globals['df'] = df.copy()
-
         # Session state for code, images, and output
         if "gpt_analysis_code" not in st.session_state:
             st.session_state.gpt_analysis_code = ""
@@ -3992,6 +3988,25 @@ with tab3:
             st.session_state.last_agent_question = ""
             
         if st.button("🚀 Analyze My Data", use_container_width=True):
+            # Ensure a dataframe is loaded before proceeding
+            if st.session_state.df.empty:
+                st.warning("Please load a dataframe first.")
+                return # Stop execution if no dataframe is loaded
+
+            # Set up the REPL for code execution *inside* the button click
+            repl = PythonREPL()
+            # Initialize REPL globals with the current dataframe and common libraries
+            repl.globals.update({
+                "df": st.session_state.df.copy(), # Use a copy of the loaded df as the initial working df
+                "original_df": st.session_state.df, # Keep a reference to the original df
+                "plt": plt,
+                "sns": sns,
+                "np": np,
+                "pd": pd,
+            })
+            # Store the initial working df in session state
+            st.session_state.gpt_working_df = repl.globals['df'].copy()
+
             # Store the current question in session state
             st.session_state.last_agent_question = agent_question
             
@@ -4135,15 +4150,12 @@ Respond ONLY with valid Python code, not with natural language or explanations.
                 if "gpt_working_df" not in st.session_state:
                     st.session_state.gpt_working_df = df.copy()
 
-                # Always ensure the most common imports and the current working df are available in the exec environment
+                # Ensure the REPL globals are updated with the current working df state
+                # This is crucial for subsequent iterations
                 repl.globals.update({
-                    "plt": plt,
-                    "sns": sns,
-                    "df": st.session_state.gpt_working_df,  # Use the current working copy
-                    "np": np,
-                    "pd": pd,
-                    "df": st.session_state.gpt_working_df,  # Use the working copy
-                    "original_df": df,  # Also provide access to the original dataframe
+                    "df": st.session_state.gpt_working_df,
+                    "original_df": st.session_state.df, # Ensure original_df is always the initial df
+                    # Other globals (plt, sns, np, pd) are already set during repl initialization
                 })
                 
                 # Initialize a dictionary to store categorical variable mappings
@@ -4153,7 +4165,7 @@ Respond ONLY with valid Python code, not with natural language or explanations.
                 # Store the original map method at function scope
                 original_map = pd.Series.map
                 
-                # Add code to track categorical variable mappings
+                # Add code to track categorical variable mappings and print unique values
                 tracking_code = """
 # Track categorical variable mappings
 categorical_mappings = {}
