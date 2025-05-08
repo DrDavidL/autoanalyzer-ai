@@ -4287,6 +4287,34 @@ Does this completely and correctly answer the user's question? Answer with ONLY 
                         st.warning(f"Using results from iteration {i+1} because the final iteration had errors.")
                         break
             
+            # Generate a summary of the findings for busy researchers
+            with st.spinner("Generating research summary..."):
+                # Create a prompt for the summary
+                summary_prompt = f"""
+You are an expert data analyst summarizing findings for a busy researcher. The user asked the following question:
+
+{agent_question}
+
+The analysis produced this output:
+```
+{final_output}
+```
+
+The analysis also generated {len(final_images)} visualizations.
+
+Please provide:
+1. A clear, concise summary of the key findings (3-5 bullet points)
+2. A brief explanation of what the visualizations show and how they can be utilized
+3. Any important limitations or caveats to consider
+
+Your summary should be written in professional academic language suitable for a busy researcher.
+"""
+                summary_response = llm.invoke(summary_prompt)
+                research_summary = summary_response.content if hasattr(summary_response, "content") else str(summary_response)
+                
+                # Store the summary in session state
+                st.session_state.research_summary = research_summary
+            
             # Save the final results to session state
             st.session_state.gpt_analysis_code = final_code
             st.session_state.model_output1 = final_output
@@ -4296,6 +4324,7 @@ Does this completely and correctly answer the user's question? Answer with ONLY 
             st.session_state.persistent_gpt_code[timestamp] = final_code
             st.session_state.persistent_gpt_output[timestamp] = final_output
             st.session_state.persistent_gpt_images[timestamp] = final_images
+            st.session_state.persistent_research_summary = research_summary
 
             if final_error:
                 st.error(f"Error in final code: {final_error}")
@@ -4305,10 +4334,16 @@ Does this completely and correctly answer the user's question? Answer with ONLY 
         if st.session_state.model_output1 or st.session_state.gpt_analysis_code:
             # Get the current timestamp
             timestamp = st.session_state.get("current_analysis_timestamp", "")
+            
+            # Display research summary if available
+            if hasattr(st.session_state, 'research_summary') and st.session_state.research_summary:
+                st.markdown("## 📋 Research Summary")
+                st.markdown(st.session_state.research_summary)
+                st.markdown("---")
                 
             # Display output if available
             if st.session_state.model_output1:
-                st.write("**Output:**")
+                st.write("**Detailed Output:**")
                 st.code(st.session_state.model_output1)
                 
             # Check if the working dataframe was modified and is different from the original
@@ -4395,6 +4430,12 @@ Does this completely and correctly answer the user's question? Answer with ONLY 
                         
                         # Add the user's original question at the top
                         markdown += f"## Original Question\n\n{agent_question}\n\n"
+                        
+                        # Add the research summary if available
+                        if hasattr(st.session_state, 'persistent_research_summary'):
+                            markdown += f"## Research Summary\n\n{st.session_state.persistent_research_summary}\n\n"
+                        elif hasattr(st.session_state, 'research_summary'):
+                            markdown += f"## Research Summary\n\n{st.session_state.research_summary}\n\n"
                         
                         # Get the current timestamp
                         timestamp = st.session_state.get("current_analysis_timestamp", "")
