@@ -4407,6 +4407,12 @@ Your summary should be written in professional academic language suitable for a 
             # Get the current timestamp
             timestamp = st.session_state.get("current_analysis_timestamp", "")
             
+            # Display the user's question
+            if st.session_state.last_agent_question:
+                st.markdown(f"## Your Question:")
+                st.write(st.session_state.last_agent_question)
+                st.markdown("---")
+
             # Display research summary if available
             if hasattr(st.session_state, 'research_summary') and st.session_state.research_summary:
                 st.markdown("## 📋 Research Summary")
