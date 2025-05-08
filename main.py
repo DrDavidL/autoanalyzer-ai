@@ -4465,9 +4465,52 @@ Your summary should be written in professional academic language suitable for a 
                                 markdown += f"    {line}\n"
                             markdown += "\n\n"
                         
-                        # Add output after code
+                        # Add output after code with improved table formatting
                         if output_for_doc:
-                            markdown += f"## Analysis Output\n\n{output_for_doc}\n\n"
+                            markdown += f"## Analysis Output\n\n"
+                            
+                            # Process the output to format tables better
+                            import re
+                            
+                            # Function to convert pandas-style text tables to markdown tables
+                            def format_text_table_to_markdown(text_block):
+                                lines = text_block.strip().split('\n')
+                                if len(lines) < 2:
+                                    return text_block
+                                
+                                # Check if this looks like a pandas DataFrame output
+                                # Look for patterns like spaces with column headers and numeric data
+                                if re.match(r'\s*\w+\s+\w+', lines[0]) and len(lines) > 3:
+                                    # Extract headers - split by whitespace but preserve multi-word headers
+                                    headers = re.findall(r'\S+\s*\S*', lines[0].strip())
+                                    
+                                    # Start building markdown table
+                                    md_table = "| " + " | ".join(headers) + " |\n"
+                                    md_table += "| " + " | ".join(["---" for _ in headers]) + " |\n"
+                                    
+                                    # Add data rows
+                                    for line in lines[1:]:
+                                        if line.strip():  # Skip empty lines
+                                            # Split line by whitespace, preserving structure
+                                            values = re.findall(r'\S+\s*\S*', line.strip())
+                                            if len(values) == len(headers):
+                                                md_table += "| " + " | ".join(values) + " |\n"
+                                    
+                                    return md_table
+                                return text_block
+                            
+                            # Split the output by double newlines to identify potential table blocks
+                            output_blocks = re.split(r'\n\s*\n', output_for_doc)
+                            formatted_output = ""
+                            
+                            for block in output_blocks:
+                                # If block looks like a table, format it
+                                if re.search(r'\n\s*\w+\s+\w+\s+\w+', block):
+                                    formatted_output += format_text_table_to_markdown(block) + "\n\n"
+                                else:
+                                    formatted_output += block + "\n\n"
+                            
+                            markdown += formatted_output
                         
                         # Add categorical mappings section if available
                         if hasattr(st.session_state, 'categorical_mappings') and st.session_state.categorical_mappings:
