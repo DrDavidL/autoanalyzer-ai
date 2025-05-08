@@ -69,7 +69,16 @@ import asyncio
 from langchain.callbacks.base import AsyncCallbackHandler
 from langchain_core.outputs import LLMResult
 from typing import Any
-from markdown_to_docx import markdown_to_docx
+# Import functions directly from markdown_to_docx.py
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+# We'll use the html2docx library directly instead
+import html2docx
+import docx
+import markdown
+import tempfile
+from bs4 import BeautifulSoup
 import sweetviz as sv
 import streamlit.components.v1 as components
 from ydata_profiling import ProfileReport
@@ -134,18 +143,34 @@ def get_output_path():
 
 
 def convert_markdown_to_docx(markdown_text, file_name):
-    # Convert markdown to docx and return the file path
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".md") as temp_markdown:
-        temp_markdown.write(markdown_text.encode("utf-8"))
-        temp_markdown_path = temp_markdown.name
-
-    project = markdown_to_docx(temp_markdown_path[:-3])  # Remove the ".md" extension
-    project.eat_soup()
-    docx_file_path = file_name + ".docx"
-    project.save()
-    os.rename(temp_markdown_path[:-3] + ".docx", docx_file_path)
-    os.remove(temp_markdown_path)
-    return docx_file_path
+    """Convert markdown text directly to docx using html2docx"""
+    try:
+        # Convert markdown to HTML
+        html_content = markdown.markdown(
+            markdown_text,
+            extensions=[
+                'markdown.extensions.tables',
+                'markdown.extensions.fenced_code',
+                'markdown.extensions.codehilite',
+                'markdown.extensions.toc',
+                'markdown.extensions.nl2br',
+            ]
+        )
+        
+        # Create a new document
+        doc = docx.Document()
+        
+        # Convert HTML to DOCX
+        html2docx.convert(html_content, doc)
+        
+        # Save the document
+        docx_file_path = file_name + ".docx"
+        doc.save(docx_file_path)
+        
+        return docx_file_path
+    except Exception as e:
+        print(f"Could not convert markdown to docx: {e}")
+        return None
 
 
 if "outputs_path" not in st.session_state:
@@ -4594,8 +4619,8 @@ Your summary should be written in professional academic language suitable for a 
 
                         # Create the docx file with a progress indicator
                         with st.spinner("Creating Word document..."):
-                            docx_file = markdown_to_docx(
-                                "gpt_analysis", markdown
+                            docx_file = convert_markdown_to_docx(
+                                markdown, "gpt_analysis"
                             )
                         
                         # Offer download
