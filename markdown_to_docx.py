@@ -399,140 +399,19 @@ def generate_gpt_analysis_docx(
             paragraph.add_run(text)
 
 
-    # Output (with table parsing and markdown-style formatting)
+    # Output (formatted as a code block)
     if output:
         doc.add_heading("Analysis Output", level=1)
-        # The original code split output into table_blocks and other_blocks.
-        # other_blocks were processed by `add_html_to_doc`.
-        # table_blocks had custom table creation logic.
-        # This structure is maintained. If `add_markdown_text` is intended for `other_blocks`,
-        # then the call to `add_html_to_doc` should be replaced.
-        # For now, I'm only changing the definition of `add_markdown_text`.
-
-        table_blocks = []
-        other_blocks = []
-        
-        # Split output into blocks by double newlines (or more robustly if needed)
-        # This regex splits by one or more blank lines.
-        blocks = re.split(r"(\r\n|\r|\n)\s*(\r\n|\r|\n)+", output)
-        # Filter out None and whitespace-only strings resulting from split
-        blocks = [b.strip() for b in blocks if b and b.strip()]
-
-        for block_text in blocks:
-            # Heuristic: if block looks like a table (multiple lines, columns separated by spaces/tabs, often has | or ---)
-            # This heuristic can be improved. For now, a simple line count and presence of multiple words per line.
-            lines_in_block = block_text.splitlines()
-            if len(lines_in_block) > 1 and all(len(re.findall(r'\S+', line)) > 1 for line in lines_in_block[:2]): # Check first 2 lines
-                 # A more specific check for markdown tables:
-                if any(re.match(r'\|.*\|', line) for line in lines_in_block) or \
-                   any(re.match(r':?-+:?\s*\|', line) for line in lines_in_block):
-                    table_blocks.append(block_text)
-                else: # Could be pre-formatted text that isn't a markdown table
-                    other_blocks.append(block_text)
-            else:
-                other_blocks.append(block_text)
-
-        # Add non-table blocks as paragraphs, attempting to preserve code block formatting
         code_block_style = create_code_block_style(doc) # Ensure style is available
         
-        for block_content in other_blocks:
-            if not block_content.strip():
-                # Add an empty paragraph for spacing if the block was just whitespace
+        # Add the entire output as paragraphs with the code block style
+        # Split the output by lines and add each line as a paragraph
+        for line in output.strip().split("\n"):
+             # Add an empty paragraph for blank lines to preserve spacing
+            if not line.strip():
                 doc.add_paragraph()
-                continue
-                
-            lines = block_content.strip().splitlines()
-            
-            in_code_block = False
-            current_code_block_lines = []
-            
-            for line in lines:
-                # Detect lines that look like code (start with space/tab or within ```)
-                # This is a simple heuristic; more robust parsing might be needed for complex cases
-                is_code_line = line.startswith(' ') or line.startswith('\t') or line.strip().startswith('```')
-                
-                if line.strip().startswith('```'):
-                    if in_code_block: # End of a fenced code block
-                        in_code_block = False
-                        # Add the accumulated code block lines
-                        if current_code_block_lines:
-                            doc.add_paragraph('\n'.join(current_code_block_lines), style=code_block_style)
-                            current_code_block_lines = []
-                    else: # Start of a fenced code block
-                        in_code_block = True
-                        # Skip the ``` line itself
-                    continue # Process next line
-                
-                if in_code_block:
-                    current_code_block_lines.append(line)
-                elif is_code_line:
-                    # If not already in a fenced block but line is indented, treat as code
-                    doc.add_paragraph(line, style=code_block_style)
-                else:
-                    # Regular paragraph line
-                    # We could potentially run markdown on this line for inline formatting,
-                    # but for raw console output, plain text is often better.
-                    # Let's add as plain text paragraph for now.
-                    doc.add_paragraph(line)
-            
-            # Add any remaining lines if the block ended inside a fenced code block
-            if current_code_block_lines:
-                 doc.add_paragraph('\n'.join(current_code_block_lines), style=code_block_style)
-
-
-        # Add tables (using markdown library's table extension and then parsing HTML table)
-        # This section remains largely the same for markdown tables
-        for table_markdown_block in table_blocks:
-            html_table = markdown.markdown(table_markdown_block, extensions=['tables'])
-            soup_table = BeautifulSoup(html_table, 'html.parser').find('table')
-            if soup_table:
-                try:
-                    # Count columns from header or first row
-                    header_cells_html = soup_table.find_all(['th', 'td'], recursive=False) # Direct children if <tr> is missing
-                    if not header_cells_html: # Standard case: find <tr> then <th> or <td>
-                        first_tr = soup_table.find('tr')
-                        if first_tr:
-                            header_cells_html = first_tr.find_all(['th', 'td'])
-
-                    if not header_cells_html: # Still no cells, skip
-                        doc.add_paragraph(f"[Could not parse table structure from:]\n{table_markdown_block}")
-                        continue
-
-                    num_cols = len(header_cells_html)
-                    if num_cols == 0:
-                         doc.add_paragraph(f"[Empty table found:]\n{table_markdown_block}")
-                         continue
-
-                    docx_table = doc.add_table(rows=0, cols=num_cols)
-                    docx_table.style = "Table Grid"
-                    
-                    html_rows = soup_table.find_all('tr')
-                    for html_row in html_rows:
-                        html_cells = html_row.find_all(['th', 'td'])
-                        if len(html_cells) == num_cols: # Ensure consistent column count
-                            row_cells_docx = docx_table.add_row().cells
-                            for i, html_cell in enumerate(html_cells):
-                                cell_text = html_cell.get_text(strip=True)
-                                # Basic handling for cell content - could use add_markdown_text for each cell
-                                p_cell = row_cells_docx[i].paragraphs[0]
-                                # Clear existing run if any (tables usually start with an empty para)
-                                if p_cell.runs:
-                                    p_cell.text = "" # Clear content
-                                p_cell.add_run(cell_text)
-                                # If it's a header cell (th or in thead/first row), make bold
-                                if html_cell.name == 'th' or (html_row.parent.name == 'thead') or (html_rows.index(html_row) == 0 and not soup_table.find('thead')):
-                                    for run in p_cell.runs:
-                                        run.bold = True
-                        else:
-                            # Log or handle inconsistent row length
-                            print(f"Skipping table row with inconsistent column count: {len(html_cells)} vs {num_cols}")
-                except Exception as e_table:
-                    doc.add_paragraph(f"[Error parsing table: {e_table}]\n{table_markdown_block}")
-            else: # Not parsed as a table by markdown lib, add as preformatted text
-                # If it wasn't a markdown table, it might be a console-printed table.
-                # The 'other_blocks' processing above should handle this as code/plain text.
-                # We can add a note here if desired, but the content is already added.
-                pass # Content already handled by other_blocks processing
+            else:
+                doc.add_paragraph(line, style=code_block_style)
 
     # Categorical mappings
     if categorical_mappings:
