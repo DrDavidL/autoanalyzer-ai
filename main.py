@@ -4124,17 +4124,15 @@ Respond ONLY with valid Python code, not with natural language or explanations.
                 f = io.StringIO()
                 images_before = set(glob.glob(f"{st.session_state.outputs_path}/*.png"))
                 
-                # Create a working copy of the dataframe for the model to modify
+                # Ensure the working copy of the dataframe exists and is used
                 if "gpt_working_df" not in st.session_state:
                     st.session_state.gpt_working_df = df.copy()
-                else:
-                    # Reset the working dataframe for each new code execution
-                    st.session_state.gpt_working_df = df.copy()
-                
-                # Always ensure the most common imports are available in the exec environment
+
+                # Always ensure the most common imports and the current working df are available in the exec environment
                 repl.globals.update({
                     "plt": plt,
                     "sns": sns,
+                    "df": st.session_state.gpt_working_df,  # Use the current working copy
                     "np": np,
                     "pd": pd,
                     "df": st.session_state.gpt_working_df,  # Use the working copy
@@ -4178,31 +4176,37 @@ pd.Series.map = map_with_tracking
                         exec(full_code, repl.globals)
                     output = f.getvalue()
                     error = None
-                    
+
+                    # Update the working dataframe with the state after execution
+                    # Only update if execution was successful
+                    st.session_state.gpt_working_df = repl.globals['df'].copy()
+
                     # Capture any categorical mappings that were created
                     if 'categorical_mappings' in repl.globals:
                         mappings = repl.globals['categorical_mappings']
                         if mappings:
                             # Store mappings in session state
                             st.session_state.categorical_mappings.update(mappings)
-                            
+
                             # Add mapping information to the output
                             mapping_output = "\n\n--- Categorical Variable Encodings ---\n"
                             for col, mapping in mappings.items():
                                 mapping_output += f"\nColumn '{col}' encoded as:\n"
                                 for original, encoded in mapping.items():
                                     mapping_output += f"  {original} → {encoded}\n"
-                            
+
                             output += mapping_output
-                    
+
                     # Restore original map method (using the function-scope variable)
                     pd.Series.map = original_map
-                    
+
                 except Exception as e:
                     output = f.getvalue() + "\n" + traceback.format_exc()
                     error = str(e)
                     # Restore original map method in case of error
                     pd.Series.map = original_map
+                    # Do NOT update st.session_state.gpt_working_df if there was an error
+                    # This preserves the state from the last successful iteration
                 
                 images_after = set(glob.glob(f"{st.session_state.outputs_path}/*.png"))
                 new_images = list(images_after - images_before)
