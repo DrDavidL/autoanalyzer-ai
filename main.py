@@ -4008,7 +4008,7 @@ with tab3:
                     "pd": pd,
                 })
                 # Store the initial working df in session state
-                st.session_state.gpt_working_df = repl.globals['df'].copy()
+                st.session_state.gpt_working_df = st.session_state.df.copy()
 
                 # Store the current question in session state
                 st.session_state.last_agent_question = agent_question
