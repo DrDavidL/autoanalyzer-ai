@@ -358,5 +358,13 @@ if __name__ == "__main__":
     |----------|----------|
     | Cell 1   | Cell 2   |
     """
-    output_file = markdown_to_docx(project_name, markdown_content)
+    output_file = generate_gpt_analysis_docx(
+        project_name,
+        "Example question?",
+        "This is a research summary.",
+        "def hello_world():\n    print('Hello, World!')",
+        "Sample output text.",
+        image_paths=None,
+        categorical_mappings=None,
+    )
     print(f"Docx file created: {output_file}")
