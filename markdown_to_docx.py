@@ -207,10 +207,8 @@ def generate_gpt_analysis_docx(
                         current_paragraph = p # Set current paragraph to the one just created
                     else:
                         # If there is a current paragraph (e.g., inside an <li>),
-                        # add a newline and then process children into the current paragraph.
-                        # Add newline only if the current paragraph is not empty
-                        if current_paragraph.text.strip() or current_paragraph.runs:
-                             current_paragraph.add_run('\n')
+                        # process children into the current paragraph without adding a newline.
+                        # This prevents extra space for <p> tags within list items.
                         for child in node.contents:
                             _process_node_recursive(child, current_paragraph, doc_obj, new_bold, new_italic)
                         # current_paragraph remains the same
