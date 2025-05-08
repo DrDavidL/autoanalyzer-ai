@@ -3827,6 +3827,17 @@ predictions = model.predict(X_test)
 
 with tab3:
     if hu_key == "True" or check_password():
+        # Add max iterations slider to sidebar
+        with st.sidebar:
+            st.markdown("<div class='step-header'>GPT Analysis Settings</div>", unsafe_allow_html=True)
+            max_iterations = st.slider(
+                "Maximum iterations for GPT analysis", 
+                min_value=1, 
+                max_value=10, 
+                value=5, 
+                help="Maximum number of times GPT will refine its answer to ensure accuracy"
+            )
+        
         # Use container to ensure proper scrolling
         container = st.container()
         with container:
@@ -3835,6 +3846,7 @@ with tab3:
             <div style="background-color: #E3F2FD; padding: 15px; border-radius: 5px; border-left: 5px solid #1E88E5;">
                 <h3 style="margin-top: 0; color: #1976D2;">AI-Powered Data Analysis</h3>
                 <p>Ask any question about your data in plain English. The AI will generate and execute Python code using your dataframe as <code>df</code>. Results and plots will appear below.</p>
+                <p>The AI will iterate up to <strong>""" + str(max_iterations) + """</strong> times to refine its answer if needed.</p>
                 <p><strong>Example questions:</strong></p>
                 <ul>
                     <li>Show me the relationship between age and blood pressure with a regression line</li>
@@ -3931,6 +3943,8 @@ with tab3:
             st.session_state.persistent_gpt_output = {}
         if "persistent_gpt_images" not in st.session_state:
             st.session_state.persistent_gpt_images = {}
+        if "iteration_history" not in st.session_state:
+            st.session_state.iteration_history = {}
             
         if st.button("🚀 Analyze My Data", use_container_width=True):
             # Remove any prior plot images in the output directory
@@ -3946,11 +3960,18 @@ with tab3:
             st.session_state.gpt_analysis_code = ""
             st.session_state.gpt_analysis_images = []
             st.session_state.model_output1 = ""
+            
+            # Create a progress bar for iterations
+            progress_bar = st.progress(0)
+            iteration_status = st.empty()
 
             # Only allow English language questions, not direct Python code
-            def get_code_from_llm(question, df):
+            def get_code_from_llm(question, df, iteration=1, previous_code="", previous_output="", previous_error=None):
                 col_list = list(df.columns)
-                prompt = f"""
+                
+                # Base prompt for first iteration
+                if iteration == 1:
+                    prompt = f"""
 You are an expert Python data analyst. The user has provided a pandas dataframe called `df` and asked the following question:
 
 {question}
@@ -3971,7 +3992,7 @@ import numpy as np
 import pandas as pd
 
 Write Python code to answer the question. 
-- If a plot is needed, save it to '{st.session_state.outputs_path}/gpt_plot.png' using plt.savefig and then call plt.close().
+- If a plot is needed, save it to '{st.session_state.outputs_path}/gpt_plot_{iteration}.png' using plt.savefig and then call plt.close().
 - Do not use plt.show().
 - Do not print explanations, only print results or tables.
 - Do not return any text or explanation, only the code.
@@ -3980,7 +4001,53 @@ Write Python code to answer the question.
 Return only the code, nothing else.
 Respond ONLY with valid Python code, not with natural language or explanations.
 """
-                with st.spinner("Generating code..."):
+                # Refinement prompt for subsequent iterations
+                else:
+                    error_info = f"\nThe previous code generated this error: {previous_error}" if previous_error else ""
+                    
+                    prompt = f"""
+You are an expert Python data analyst. The user has provided a pandas dataframe called `df` and asked the following question:
+
+{question}
+
+The dataframe columns are: {col_list}
+
+This is iteration {iteration} of your analysis. You previously wrote this code:
+
+```python
+{previous_code}
+```
+
+When executed, it produced this output:
+```
+{previous_output}
+```
+{error_info}
+
+Your task is to improve the code to better answer the user's question. Consider:
+1. Is the output correct and complete?
+2. Does it fully answer the user's question?
+3. Are there any errors or issues to fix?
+4. Could the visualization be improved?
+5. Is there additional analysis that would help answer the question?
+
+At the top of your code, always include:
+import matplotlib.pyplot as plt
+import seaborn as sns
+import numpy as np
+import pandas as pd
+
+Write improved Python code to better answer the question. 
+- If a plot is needed, save it to '{st.session_state.outputs_path}/gpt_plot_{iteration}.png' using plt.savefig and then call plt.close().
+- Do not use plt.show().
+- Do not print explanations, only print results or tables.
+- If the question is not answerable, raise an Exception with a helpful message.
+
+Return only the improved code, nothing else.
+Respond ONLY with valid Python code, not with natural language or explanations.
+"""
+
+                with st.spinner(f"Generating code (iteration {iteration}/{max_iterations})..."):
                     response = llm.invoke(prompt)
                 code = response.content if hasattr(response, "content") else str(response)
                 code = re.sub(r"^```python|^```|```$", "", code, flags=re.MULTILINE).strip()
@@ -4029,30 +4096,106 @@ Respond ONLY with valid Python code, not with natural language or explanations.
                         pass
                 return output, error, new_images
 
-            # Main logic: always use LLM to generate code from English
-            code_to_run = get_code_from_llm(agent_question, df)
-
-            # Save the code to session state for both execution and documentation
-            st.session_state.gpt_analysis_code = code_to_run
-            
-            # Use timestamp as key to store multiple analyses
+            # Iterative analysis process
             timestamp = str(int(time.time()))
-            st.session_state.persistent_gpt_code[timestamp] = code_to_run
             st.session_state.current_analysis_timestamp = timestamp
-
-            output, error, new_images = run_code_and_capture(code_to_run)
-            st.session_state.model_output1 = output
+            st.session_state.iteration_history[timestamp] = []
             
-            # Store output in persistent storage
-            st.session_state.persistent_gpt_output[timestamp] = output
-
-            if error:
-                st.error(f"Error running code: {error}")
+            final_code = ""
+            final_output = ""
+            final_error = None
+            final_images = []
             
-            # Save images to session state for later display
-            for img_path in new_images:
-                if img_path not in st.session_state.gpt_analysis_images:
-                    st.session_state.gpt_analysis_images.append(img_path)
+            # Initialize variables for the iterative process
+            code_to_run = ""
+            output = ""
+            error = None
+            new_images = []
+            
+            # Run up to max_iterations
+            for iteration in range(1, max_iterations + 1):
+                # Update progress bar
+                progress_bar.progress(iteration / (max_iterations + 1))
+                iteration_status.info(f"Running iteration {iteration}/{max_iterations}...")
+                
+                # Generate code based on previous results
+                if iteration == 1:
+                    code_to_run = get_code_from_llm(agent_question, df, iteration)
+                else:
+                    code_to_run = get_code_from_llm(agent_question, df, iteration, 
+                                                   previous_code=final_code, 
+                                                   previous_output=final_output,
+                                                   previous_error=final_error)
+                
+                # Run the code
+                output, error, new_images = run_code_and_capture(code_to_run)
+                
+                # Store this iteration's results
+                iteration_result = {
+                    "iteration": iteration,
+                    "code": code_to_run,
+                    "output": output,
+                    "error": error,
+                    "images": new_images.copy()
+                }
+                st.session_state.iteration_history[timestamp].append(iteration_result)
+                
+                # Update final results
+                final_code = code_to_run
+                final_output = output
+                final_error = error
+                final_images = new_images
+                
+                # If there's no error and we've reached max iterations, or if we're at the last iteration, break
+                if not error and iteration < max_iterations:
+                    # Ask LLM if the answer is complete
+                    completion_check_prompt = f"""
+You are an expert data analyst evaluating code execution results. 
+The user asked: "{agent_question}"
+
+The code:
+```python
+{code_to_run}
+```
+
+Produced this output:
+```
+{output}
+```
+
+Does this completely and correctly answer the user's question? Answer with ONLY "YES" if the answer is complete and correct, or "NO" if further iterations could improve the answer.
+"""
+                    with st.spinner(f"Evaluating completeness of answer (iteration {iteration}/{max_iterations})..."):
+                        completion_response = llm.invoke(completion_check_prompt)
+                    completion_answer = completion_response.content if hasattr(completion_response, "content") else str(completion_response)
+                    
+                    # If the answer is complete, break the loop
+                    if "YES" in completion_answer.upper() and not "NO" in completion_answer.upper():
+                        iteration_status.success(f"Answer complete after {iteration} iterations!")
+                        break
+                
+                # If this is the last iteration or there was an error, just use what we have
+                if iteration == max_iterations or error:
+                    if error:
+                        iteration_status.warning(f"Completed with errors after {iteration} iterations")
+                    else:
+                        iteration_status.info(f"Completed all {iteration} iterations")
+            
+            # Complete the progress bar
+            progress_bar.progress(1.0)
+            
+            # Save the final results to session state
+            st.session_state.gpt_analysis_code = final_code
+            st.session_state.model_output1 = final_output
+            st.session_state.gpt_analysis_images = final_images
+            
+            # Store in persistent storage
+            st.session_state.persistent_gpt_code[timestamp] = final_code
+            st.session_state.persistent_gpt_output[timestamp] = final_output
+            st.session_state.persistent_gpt_images[timestamp] = final_images
+
+            if final_error:
+                st.error(f"Error in final code: {final_error}")
             
         # Display results if they exist in session state
         if st.session_state.model_output1 or st.session_state.gpt_analysis_code:
@@ -4068,6 +4211,38 @@ Respond ONLY with valid Python code, not with natural language or explanations.
             if st.session_state.gpt_analysis_code:
                 with st.expander("Show code used for this analysis", expanded=False):
                     st.code(st.session_state.gpt_analysis_code, language="python")
+            
+            # Show iteration history if available
+            if timestamp in st.session_state.iteration_history and len(st.session_state.iteration_history[timestamp]) > 1:
+                with st.expander("Show iteration history", expanded=False):
+                    for i, iteration in enumerate(st.session_state.iteration_history[timestamp]):
+                        st.subheader(f"Iteration {i+1}")
+                        
+                        # Show if there was an error
+                        if iteration["error"]:
+                            st.error(f"Error: {iteration['error']}")
+                        
+                        # Show code
+                        st.write("Code:")
+                        st.code(iteration["code"], language="python")
+                        
+                        # Show output
+                        st.write("Output:")
+                        st.code(iteration["output"])
+                        
+                        # Show images if any
+                        if iteration["images"]:
+                            st.write("Generated images:")
+                            for img_path in iteration["images"]:
+                                if os.path.exists(img_path):
+                                    try:
+                                        st.image(img_path, 
+                                                caption=f"Iteration {i+1}: {os.path.basename(img_path)}", 
+                                                use_column_width=True)
+                                    except Exception as e:
+                                        st.warning(f"Could not display image {img_path}: {e}")
+                        
+                        st.markdown("---")
             
             # Display images if available
             shown = set()
