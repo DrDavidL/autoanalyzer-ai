@@ -131,72 +131,113 @@ def enhance_html_for_docx(html_content):
     return str(soup)
 
 
-def markdown_to_docx(project_name, markdown_content):
-    """Convert markdown to DOCX using html2docx for better fidelity"""
-    try:
-        # Create a temporary directory for intermediate files
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # Convert markdown to HTML with extensions
-            # The markdown module has a function called markdown, not a method on the module
-            import markdown as md
-            html_content = md.markdown(
-                markdown_content,
-                extensions=[
-                    'markdown.extensions.tables',
-                    'markdown.extensions.fenced_code',
-                    'markdown.extensions.codehilite',
-                    'markdown.extensions.toc',
-                    'markdown.extensions.nl2br',
-                ]
-            )
-            
-            # Enhance HTML for better DOCX conversion
-            enhanced_html = enhance_html_for_docx(html_content)
-            
-            # Write HTML to a temporary file
-            html_path = os.path.join(temp_dir, f"{project_name}.html")
-            write_out_html(html_path, enhanced_html)
-            
-            # Convert HTML to DOCX using html2docx
-            docx_path = f"{project_name}.docx"
-            
-            # Create a new document
-            doc = docx.Document()
-            
-            # Create code block style
-            code_style = create_code_block_style(doc)
-            
-            # Convert HTML to DOCX using html2docx
-            # html2docx does not have HTML2DOCX class, use the convert() function
-            html2docx.convert(enhanced_html, doc)
-            
-            # Post-process the document to improve formatting
-            for paragraph in doc.paragraphs:
-                # Fix code blocks
-                if paragraph.text.strip().startswith('```') or paragraph.text.strip().endswith('```'):
-                    paragraph.style = code_style
-                    # Remove the backticks
-                    for run in paragraph.runs:
-                        run.text = run.text.replace('```', '')
-                
-                # Fix heading styles
-                if paragraph.style.name.startswith('Heading'):
-                    # Ensure consistent heading formatting
-                    for run in paragraph.runs:
-                        run.font.color.rgb = RGBColor(0, 0, 139)  # Dark blue
-            
-            # Save the document
-            doc.save(docx_path)
-            return docx_path
-    except Exception as e:
-        print(f"Could not convert markdown to docx: {e}")
-        try:
-            # Fallback to the original implementation if html2docx fails
-            return fallback_markdown_to_docx(project_name, markdown_content)
-        except Exception as fallback_error:
-            print(f"Fallback conversion also failed: {fallback_error}")
-            # Return a default path that will be checked for existence
-            return f"{project_name}.docx"
+def generate_gpt_analysis_docx(
+    file_name,
+    question,
+    research_summary,
+    code,
+    output,
+    image_paths=None,
+    categorical_mappings=None,
+):
+    """
+    Generate a DOCX file for GPT analysis, with sections for question, summary, code, output, images, and categorical mappings.
+    """
+    doc = docx.Document()
+
+    # Title
+    doc.add_heading("GPT Analysis Report", 0)
+
+    # Question
+    doc.add_heading("Original Question", level=1)
+    doc.add_paragraph(question)
+
+    # Research Summary
+    if research_summary:
+        doc.add_heading("Research Summary", level=1)
+        doc.add_paragraph(research_summary)
+
+    # Code
+    if code:
+        doc.add_heading("Code used for analysis", level=1)
+        code_block_style = create_code_block_style(doc)
+        for line in code.strip().split("\n"):
+            p = doc.add_paragraph(line, style=code_block_style)
+
+    # Output (with table parsing)
+    if output:
+        doc.add_heading("Analysis Output", level=1)
+        # Try to parse tables from output, otherwise add as preformatted text
+        table_blocks = []
+        other_blocks = []
+        import re
+
+        # Split output into blocks by double newlines
+        blocks = re.split(r"\n\s*\n", output)
+        for block in blocks:
+            # Heuristic: if block looks like a table (multiple lines, columns separated by spaces)
+            if re.search(r"\n\s*\w+\s+\w+\s+\w+", block):
+                table_blocks.append(block)
+            else:
+                other_blocks.append(block)
+
+        # Add non-table blocks as paragraphs
+        for block in other_blocks:
+            if block.strip():
+                doc.add_paragraph(block.strip())
+
+        # Add tables
+        for table_block in table_blocks:
+            lines = [l for l in table_block.strip().split("\n") if l.strip()]
+            if len(lines) < 2:
+                doc.add_paragraph(table_block)
+                continue
+            # Try to parse header and rows
+            header = re.split(r"\s{2,}", lines[0].strip())
+            rows = [re.split(r"\s{2,}", l.strip()) for l in lines[1:]]
+            # Remove any rows that don't match header length
+            rows = [r for r in rows if len(r) == len(header)]
+            if not rows:
+                doc.add_paragraph(table_block)
+                continue
+            table = doc.add_table(rows=1, cols=len(header))
+            table.style = "Table Grid"
+            hdr_cells = table.rows[0].cells
+            for i, h in enumerate(header):
+                hdr_cells[i].text = h
+            for row in rows:
+                row_cells = table.add_row().cells
+                for i, cell in enumerate(row):
+                    row_cells[i].text = cell
+
+    # Categorical mappings
+    if categorical_mappings:
+        doc.add_heading("Categorical Variable Encodings", level=1)
+        for col, mapping in categorical_mappings.items():
+            doc.add_heading(f"Column '{col}'", level=2)
+            table = doc.add_table(rows=1, cols=2)
+            table.style = "Table Grid"
+            table.rows[0].cells[0].text = "Original Value"
+            table.rows[0].cells[1].text = "Encoded Value"
+            for orig, enc in mapping.items():
+                row_cells = table.add_row().cells
+                row_cells[0].text = str(orig)
+                row_cells[1].text = str(enc)
+
+    # Images
+    if image_paths:
+        doc.add_heading("Generated Plots", level=1)
+        for img_path in image_paths:
+            if os.path.exists(img_path):
+                try:
+                    doc.add_picture(img_path, width=Inches(5.5))
+                except Exception:
+                    doc.add_paragraph(f"[Image could not be loaded: {img_path}]")
+
+    # Save the document
+    docx_file_path = file_name + ".docx"
+    doc.save(docx_file_path)
+    return docx_file_path
 
 
 def fallback_markdown_to_docx(project_name, markdown_content):

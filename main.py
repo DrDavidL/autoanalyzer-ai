@@ -142,36 +142,7 @@ def get_output_path():
     return tmpdirname
 
 
-def convert_markdown_to_docx(markdown_text, file_name):
-    """Convert markdown text directly to docx using html2docx"""
-    try:
-        # Convert markdown to HTML
-        html_content = md.markdown(
-            markdown_text,
-            extensions=[
-                'markdown.extensions.tables',
-                'markdown.extensions.fenced_code',
-                'markdown.extensions.codehilite',
-                'markdown.extensions.toc',
-                'markdown.extensions.nl2br',
-            ]
-        )
-        
-        # Create a new document
-        doc = docx.Document()
-        
-        # Convert HTML to DOCX
-        converter = html2docx.HTML2DOCX()
-        converter.add_html_to_document(html_content, doc)
-        
-        # Save the document
-        docx_file_path = file_name + ".docx"
-        doc.save(docx_file_path)
-        
-        return docx_file_path
-    except Exception as e:
-        print(f"Could not convert markdown to docx: {e}")
-        return None
+from markdown_to_docx import generate_gpt_analysis_docx
 
 
 if "outputs_path" not in st.session_state:
@@ -4457,174 +4428,46 @@ Your summary should be written in professional academic language suitable for a 
             with col2:
                 if st.button("Generate Word Doc from Last GPT Analysis", use_container_width=True):
                     try:
-                        # Compose markdown with code and images from persistent storage
-                        markdown = "# GPT Analysis Report\n\n"
-                        
-                        # Add the user's original question at the top
-                        markdown += f"## Original Question\n\n{agent_question}\n\n"
-                        
-                        # Add the research summary if available
-                        if hasattr(st.session_state, 'persistent_research_summary'):
-                            markdown += f"## Research Summary\n\n{st.session_state.persistent_research_summary}\n\n"
-                        elif hasattr(st.session_state, 'research_summary'):
-                            markdown += f"## Research Summary\n\n{st.session_state.research_summary}\n\n"
-                        
-                        # Get the current timestamp
+                        # Gather all relevant content for the docx
                         timestamp = st.session_state.get("current_analysis_timestamp", "")
-                        
-                        # Get output from persistent storage
-                        output_for_doc = ""
+                        # Question
+                        question_for_doc = agent_question
+                        # Research summary
+                        if hasattr(st.session_state, 'persistent_research_summary'):
+                            research_summary = st.session_state.persistent_research_summary
+                        elif hasattr(st.session_state, 'research_summary'):
+                            research_summary = st.session_state.research_summary
+                        else:
+                            research_summary = ""
+                        # Output
                         if timestamp and timestamp in st.session_state.persistent_gpt_output:
                             output_for_doc = st.session_state.persistent_gpt_output[timestamp]
                         else:
                             output_for_doc = st.session_state.model_output1
-                            
-                        # Get code from persistent storage
-                        code_for_doc = ""
+                        # Code
                         if timestamp and timestamp in st.session_state.persistent_gpt_code:
                             code_for_doc = st.session_state.persistent_gpt_code[timestamp]
                         else:
                             code_for_doc = st.session_state.gpt_analysis_code
-                        
-                        # Add the code to the markdown first with explicit Python language tag
-                        if code_for_doc and code_for_doc.strip():
-                            # Format with triple backticks and explicit python language tag
-                            markdown += f"## Code used for analysis:\n\n```python\n{code_for_doc}\n```\n\n"
-                            
-                            # Add a plain text version as a fallback to ensure code appears in the Word doc
-                            markdown += "## Code (Plain Text Version):\n\n"
-                            for line in code_for_doc.split('\n'):
-                                markdown += f"    {line}\n"
-                            markdown += "\n\n"
-                        
-                        # Add output after code with improved table formatting
-                        if output_for_doc:
-                            markdown += f"## Analysis Output\n\n"
-                            
-                            # Process the output to format tables better
-                            import re
-                            
-                            # Function to convert pandas-style text tables to markdown tables
-                            def format_text_table_to_markdown(text_block):
-                                lines = text_block.strip().split('\n')
-                                if len(lines) < 2:
-                                    return text_block
-                                
-                                # Check if this looks like a pandas DataFrame output
-                                # Look for patterns like spaces with column headers and numeric data
-                                if re.match(r'\s*\w+\s+\w+', lines[0]) and len(lines) > 3:
-                                    # Parse the table into a structured format
-                                    table_data = []
-                                    
-                                    # First, determine column positions by analyzing the header line
-                                    header_line = lines[0].strip()
-                                    col_positions = []
-                                    
-                                    # Find the starting position of each column header
-                                    for match in re.finditer(r'\S+\s*\S*', header_line):
-                                        col_positions.append(match.start())
-                                    
-                                    # Extract headers based on positions
-                                    headers = []
-                                    for i in range(len(col_positions)):
-                                        start = col_positions[i]
-                                        end = col_positions[i+1] if i < len(col_positions)-1 else len(header_line)
-                                        headers.append(header_line[start:end].strip())
-                                    
-                                    # Add headers as first row in table_data
-                                    table_data.append(headers)
-                                    
-                                    # Process each data row
-                                    for line in lines[1:]:
-                                        if line.strip():  # Skip empty lines
-                                            row_values = []
-                                            for i in range(len(col_positions)):
-                                                start = col_positions[i]
-                                                end = col_positions[i+1] if i < len(col_positions)-1 else len(line)
-                                                if start < len(line):
-                                                    value = line[start:end].strip()
-                                                    row_values.append(value)
-                                                else:
-                                                    row_values.append("")
-                                            
-                                            if len(row_values) == len(headers):
-                                                table_data.append(row_values)
-                                    
-                                    # Generate HTML table with proper structure
-                                    html_table = "<table>\n"
-                                    
-                                    # Add header row with th elements
-                                    html_table += "  <thead>\n    <tr>\n"
-                                    for header in table_data[0]:
-                                        html_table += f"      <th>{header}</th>\n"
-                                    html_table += "    </tr>\n  </thead>\n"
-                                    
-                                    # Add data rows with td elements and coordinates
-                                    html_table += "  <tbody>\n"
-                                    for row_idx, row in enumerate(table_data[1:], 1):
-                                        html_table += "    <tr>\n"
-                                        for col_idx, cell in enumerate(row):
-                                            # Add data attributes for row/column coordinates
-                                            html_table += f'      <td data-row="{row_idx}" data-col="{col_idx}">{cell}</td>\n'
-                                        html_table += "    </tr>\n"
-                                    html_table += "  </tbody>\n"
-                                    html_table += "</table>"
-                                    
-                                    return html_table
-                                return text_block
-                            
-                            # Split the output by double newlines to identify potential table blocks
-                            output_blocks = re.split(r'\n\s*\n', output_for_doc)
-                            formatted_output = ""
-                            
-                            # Track table count for unique IDs
-                            table_count = 0
-                            
-                            for block in output_blocks:
-                                # If block looks like a table, format it
-                                if re.search(r'\n\s*\w+\s+\w+\s+\w+', block):
-                                    table_count += 1
-                                    formatted_table = format_text_table_to_markdown(block)
-                                    
-                                    # Add a table identifier and wrap in div for better handling
-                                    formatted_output += f'<div class="table-container" id="table-{table_count}">\n{formatted_table}\n</div>\n\n'
-                                else:
-                                    formatted_output += block + "\n\n"
-                            
-                            markdown += formatted_output
-                        
-                        # Add categorical mappings section if available
-                        if hasattr(st.session_state, 'categorical_mappings') and st.session_state.categorical_mappings:
-                            markdown += "## Categorical Variable Encodings\n\n"
-                            for col, mapping in st.session_state.categorical_mappings.items():
-                                markdown += f"### Column '{col}'\n\n"
-                                markdown += "| Original Value | Encoded Value |\n"
-                                markdown += "|---------------|---------------|\n"
-                                for original, encoded in mapping.items():
-                                    markdown += f"| {original} | {encoded} |\n"
-                                markdown += "\n"
-                            
-                        # Get images from persistent storage
-                        images_for_doc = []
+                        # Images
                         if timestamp and timestamp in st.session_state.persistent_gpt_images:
                             images_for_doc = st.session_state.persistent_gpt_images[timestamp]
                         else:
                             images_for_doc = st.session_state.gpt_analysis_images
-                            
-                        # Add images last
-                        if images_for_doc:
-                            markdown += "\n## Generated Plots\n"
-                            for img_path in images_for_doc:
-                                if os.path.exists(img_path):
-                                    markdown += f"\n![]({img_path})\n"
+                        # Categorical mappings
+                        categorical_mappings = getattr(st.session_state, "categorical_mappings", None)
 
-                        # Create the docx file with a progress indicator
                         with st.spinner("Creating Word document..."):
-                            docx_file = convert_markdown_to_docx(
-                                markdown, "gpt_analysis"
+                            docx_file = generate_gpt_analysis_docx(
+                                "gpt_analysis",
+                                question_for_doc,
+                                research_summary,
+                                code_for_doc,
+                                output_for_doc,
+                                images_for_doc,
+                                categorical_mappings,
                             )
-                        
-                        # Offer download
+
                         if docx_file and os.path.exists(docx_file):
                             with open(docx_file, "rb") as file:
                                 btn = st.download_button(
@@ -4634,43 +4477,11 @@ Your summary should be written in professional academic language suitable for a 
                                     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                                 )
                             st.success("Word document created successfully!")
-                            
-                            # Clean up the docx file only if it was successfully created
                             try:
                                 os.remove(docx_file)
                             except Exception as e:
                                 st.warning(f"Could not remove temporary file: {e}")
                         else:
                             st.error("Failed to create Word document. Please try again.")
-                        
-                        # Remove any HTML files in the outputs directory
-                        for html_file in glob.glob(f"{st.session_state.outputs_path}/*.html"):
-                            try:
-                                os.remove(html_file)
-                            except Exception:
-                                pass
-                                
-                        # Don't remove the image files yet - keep them for display
-                        # We'll clean them up when the app restarts or when too many accumulate
-                        # Just make copies for the Word doc
-                        image_paths_to_clean = []
-                        for img_path in st.session_state.gpt_analysis_images:
-                            try:
-                                if os.path.exists(img_path):
-                                    # Make a copy of the image for the Word doc
-                                    import shutil
-                                    doc_img_path = f"{st.session_state.outputs_path}/doc_{os.path.basename(img_path)}"
-                                    shutil.copy2(img_path, doc_img_path)
-                                    image_paths_to_clean.append(doc_img_path)
-                            except Exception as e:
-                                st.warning(f"Could not copy image {img_path}: {e}")
-                                
-                        # Clean up only the copies made for the Word doc
-                        for img_path in image_paths_to_clean:
-                            try:
-                                if os.path.exists(img_path):
-                                    os.remove(img_path)
-                            except Exception as e:
-                                st.warning(f"Could not remove temporary image {img_path}: {e}")
                     except Exception as e:
                         st.error(f"An error occurred while creating the DOCX file: {str(e)}")
