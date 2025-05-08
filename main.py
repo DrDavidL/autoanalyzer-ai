@@ -4213,7 +4213,7 @@ print("---------------------------------")
                 safe_mapping_code = """
 # Helper function for safe categorical mapping
 def safe_map_categorical(series, mapping, default=None):
-    """
+    '''
     Safely map categorical values, handling NaN values and unknown categories.
     
     Args:
@@ -4223,7 +4223,7 @@ def safe_map_categorical(series, mapping, default=None):
     
     Returns:
         Mapped pandas Series
-    """
+    '''
     # Create a copy to avoid modifying the original
     result = series.copy()
     
