@@ -166,8 +166,9 @@ def markdown_to_docx(project_name, markdown_content):
             # Create code block style
             code_style = create_code_block_style(doc)
             
-            # Convert HTML to DOCX
-            html2docx.convert(enhanced_html, doc)
+            # Convert HTML to DOCX using html2docx
+            converter = html2docx.HTML2DOCX()
+            converter.add_html_to_document(enhanced_html, doc)
             
             # Post-process the document to improve formatting
             for paragraph in doc.paragraphs:
