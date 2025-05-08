@@ -152,10 +152,47 @@ def generate_gpt_analysis_docx(
     doc.add_heading("Original Question", level=1)
     doc.add_paragraph(question)
 
+    # Helper: add HTML content to a docx paragraph (supports bold, italic, lists, etc)
+    def add_html_to_doc(doc, html):
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(html, "html.parser")
+        def walk(element, parent=None):
+            if element.name == "ul":
+                for li in element.find_all("li", recursive=False):
+                    p = doc.add_paragraph(style="List Bullet")
+                    walk(li, p)
+            elif element.name == "ol":
+                for li in element.find_all("li", recursive=False):
+                    p = doc.add_paragraph(style="List Number")
+                    walk(li, p)
+            elif element.name in ["p", "li"]:
+                p = parent if parent else doc.add_paragraph()
+                for child in element.children:
+                    walk(child, p)
+            elif element.name in ["strong", "b"]:
+                run = parent.add_run(element.get_text())
+                run.bold = True
+            elif element.name in ["em", "i"]:
+                run = parent.add_run(element.get_text())
+                run.italic = True
+            elif element.name == "code":
+                run = parent.add_run(element.get_text())
+                run.font.name = "Courier New"
+            elif element.name == "br":
+                parent.add_run("\n")
+            elif element.name is None:
+                # Plain text node
+                parent.add_run(str(element))
+            # Add more tags as needed (a, blockquote, etc)
+        for elem in soup.contents:
+            walk(elem)
+
     # Research Summary
     if research_summary:
         doc.add_heading("Research Summary", level=1)
-        doc.add_paragraph(research_summary)
+        # Convert markdown to HTML, then add to docx
+        html = markdown.markdown(research_summary)
+        add_html_to_doc(doc, html)
 
     # Code
     if code:
@@ -213,13 +250,13 @@ def generate_gpt_analysis_docx(
             else:
                 other_blocks.append(block)
 
-        # Add non-table blocks as paragraphs, parsing markdown-style bold/italic
+        # Add non-table blocks as paragraphs, parsing markdown with HTML
         for block in other_blocks:
             if block.strip():
-                p = doc.add_paragraph()
-                add_markdown_text(p, block.strip())
+                html = markdown.markdown(block.strip())
+                add_html_to_doc(doc, html)
 
-        # Add tables
+        # Add tables (unchanged)
         for table_block in table_blocks:
             lines = [l for l in table_block.strip().split("\n") if l.strip()]
             if len(lines) < 2:
