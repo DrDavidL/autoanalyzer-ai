@@ -2044,7 +2044,7 @@ with tab1:
             )
             if st.sidebar.button("Generate Data"):
                 # Use a default model if not otherwise set
-                selected_model = "gpt-3.5-turbo"
+                selected_model = "gpt-4o-mini"
                 st.session_state.df, st.session_state.gen_csv = generate_df(
                     user_columns, user_rows, selected_model
                 )
