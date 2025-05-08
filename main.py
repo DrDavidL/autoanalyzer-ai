@@ -2023,9 +2023,12 @@ with tab1:
             mime="text/csv",
         )
 
-    if demo_or_custom == "Generate Data":
-        if hu_key == "True" or check_password():
-            user_input = st.sidebar.text_area(
+    if demo_or_custom == "✨ Generate Data":
+        st.info("Data generation requires authentication (password or HEALTH_UNIVERSE environment variable set to 'True'). Input fields will appear below if authenticated.")
+        
+        # Move input fields and button to main area, but keep the password check
+        if hu_key == "True" or check_password(): # Keep the check
+            user_input = st.text_area( # Use st.text_area for main area
                 "Enter comma or space separated names for columns, e.g., Na, Cr, WBC, A1c, SPB, Diabetes:"
             )
 
@@ -2038,14 +2041,14 @@ with tab1:
 
             # Remove leading/trailing whitespace from each item in the list
             user_columns = [item.strip() for item in user_list]
-            user_rows = st.sidebar.number_input(
+            user_rows = st.number_input( # Use st.number_input for main area
                 "Enter approx number of rows (max 100).",
                 min_value=1,
                 max_value=100,
                 value=10,
                 step=1,
             )
-            if st.sidebar.button("Generate Data"):
+            if st.button("Generate Data"): # Use st.button for main area
                 # Use a default model if not otherwise set
                 selected_model = "gpt-4o-mini"
                 st.session_state.df, st.session_state.gen_csv = generate_df(
@@ -2055,6 +2058,7 @@ with tab1:
                     "Here are the first 5 rows of your generated data. Use the tools in the sidebar to explore your new dataset! And, download and save your new CSV file from the sidebar!"
                 )
                 st.write(st.session_state.df.head())
+        # The check_password() function handles displaying the password input if needed.
 
     if demo_or_custom == "📈 Demo 4 (time series -CHF deaths)":
         file_path = os.path.join("data", "S1Data.csv")
