@@ -85,6 +85,15 @@ from ydata_profiling import ProfileReport
 # Import importlib.resources to replace pkg_resources
 import importlib.resources
 import importlib.metadata
+import warnings # Import the warnings module
+
+# Suppress specific DeprecationWarnings from seaborn
+warnings.filterwarnings(
+    "ignore",
+    message="is_categorical_dtype is deprecated and will be removed in a future version. Use isinstance(dtype, pd.CategoricalDtype) instead",
+    category=DeprecationWarning,
+    module="seaborn._oldcore"
+)
 
 
 st.set_page_config(
