@@ -455,38 +455,42 @@ def calculate_rr_arr_nnt(tn, fp, fn, tp):
 #     return
 
 
-def check_password() -> bool:
+def check_password(widget_key_suffix="") -> bool:
     """
     Check if the entered password is correct and manage login state.
     Also resets the app when a user successfully logs in.
+    
+    Args:
+        widget_key_suffix: A suffix to add to the widget key to avoid duplicate widget IDs
     """
-    # Early return if st.secrets["docker"] == "docker"
-    # if st.secrets["docker"] == "docker":
-    #     st.session_state.password_correct = True
-    #     return True
     # Initialize session state variables
-    if "password" not in st.session_state:
-        st.session_state.password = ""
     if "password_correct" not in st.session_state:
         st.session_state.password_correct = False
     if "login_attempts" not in st.session_state:
         st.session_state.login_attempts = 0
 
+    # If already authenticated, return True
+    if st.session_state.password_correct:
+        return True
+
+    # Create a unique key for this password input
+    password_key_name = f"password_{widget_key_suffix}"
+    
     def password_entered() -> None:
         """Callback function when password is entered."""
-        if st.session_state["password"] == password_key:
-            st.session_state["password_correct"] = True
+        entered_password = st.session_state[password_key_name]
+        if entered_password == password_key:
+            st.session_state.password_correct = True
             st.session_state.login_attempts = 0
-            # Reset the app
-            del st.session_state["password"]
+            # No need to delete the password from session state as we're using unique keys
         else:
-            st.session_state["password_correct"] = False
+            st.session_state.password_correct = False
             st.session_state.login_attempts += 1
 
     # Check if password is correct
-    if not st.session_state["password_correct"]:
+    if not st.session_state.password_correct:
         st.text_input(
-            "Password", type="password", on_change=password_entered, key="password"
+            "Password", type="password", on_change=password_entered, key=password_key_name
         )
 
         if st.session_state.login_attempts > 0:
@@ -2053,7 +2057,7 @@ with tab1:
         # Removed authentication info message as requested
         st.sidebar.markdown("Enter column names on the main page ➡️")
         # Move input fields and button to main area, but keep the password check
-        if hu_key == "True" or check_password(): # Keep the check
+        if hu_key == "True" or check_password("generate_data"): # Add unique suffix
             user_input = st.text_area( # Use st.text_area for main area
                 "Enter comma or space separated names for columns, e.g., Na, Cr, WBC, A1c, SPB, Diabetes:"
             )
@@ -3865,7 +3869,7 @@ predictions = model.predict(X_test)
 
 
 with tab3:
-    if hu_key == "True" or check_password():
+    if hu_key == "True" or check_password("analyze_gpt"):
         # Add max iterations slider to sidebar
         with st.sidebar:
             st.markdown("<div class='step-header'>GPT Analysis Settings</div>", unsafe_allow_html=True)
