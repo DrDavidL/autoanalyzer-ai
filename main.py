@@ -3961,6 +3961,9 @@ with tab3:
             st.session_state.gpt_analysis_images = []
             st.session_state.model_output1 = ""
             
+            # Reset categorical mappings for new analysis
+            st.session_state.categorical_mappings = {}
+            
             # Create a progress bar for iterations
             progress_bar = st.progress(0)
             iteration_status = st.empty()
@@ -3981,7 +3984,7 @@ The dataframe columns are: {col_list}
 If the user refers to a column name in a different case (e.g., 'glucose' instead of 'Glucose'), always match it to the correct column name in the dataframe, ignoring case. For example, if the user says 'glucose', use 'Glucose' if that is the actual column name.
 
 Before performing any analysis that requires numeric data (such as correlation heatmaps, PCA, or regression), always check for categorical columns (object dtype or string values). 
-- If a categorical column has exactly 2 unique values, convert it to numeric by mapping the most common value to 0 and the least common value to 1. Print a message indicating which columns were converted and how.
+- If a categorical column has exactly 2 unique values, convert it to numeric by mapping the most common value to 0 and the least common value to 1. Use the Series.map() method for this conversion and print a message indicating which columns were converted and how.
 - If a categorical column has more than 2 unique values, use one-hot encoding (e.g., `pd.get_dummies(df, columns=[col])`) to create additional columns as needed, and print a message indicating which columns were one-hot encoded.
 Do this as a first step in your code if needed.
 
@@ -4042,6 +4045,7 @@ Write improved Python code to better answer the question.
 - Do not use plt.show().
 - Do not print explanations, only print results or tables.
 - If the question is not answerable, raise an Exception with a helpful message.
+- When converting categorical variables to numeric, use the Series.map() method and clearly document the mapping.
 
 Return only the improved code, nothing else.
 Respond ONLY with valid Python code, not with natural language or explanations.
@@ -4067,14 +4071,68 @@ Respond ONLY with valid Python code, not with natural language or explanations.
                     "np": np,
                     "pd": pd,
                 })
+                
+                # Initialize a dictionary to store categorical variable mappings
+                if "categorical_mappings" not in st.session_state:
+                    st.session_state.categorical_mappings = {}
+                
+                # Add code to track categorical variable mappings
+                tracking_code = """
+# Track categorical variable mappings
+categorical_mappings = {}
+
+# Original DataFrame columns
+original_columns = df.columns.tolist()
+original_dtypes = df.dtypes.to_dict()
+
+def track_categorical_mapping(df_col, mapping):
+    if isinstance(df_col, str):
+        categorical_mappings[df_col] = mapping
+    
+# Monkey patch pandas Series map method to capture mappings
+original_map = pd.Series.map
+def map_with_tracking(self, arg, *args, **kwargs):
+    if isinstance(arg, dict):
+        track_categorical_mapping(self.name, arg)
+    return original_map(self, arg, *args, **kwargs)
+pd.Series.map = map_with_tracking
+"""
+                
+                # Prepend the tracking code to the user's code
+                full_code = tracking_code + "\n" + code
+                
                 try:
                     with redirect_stdout(f):
-                        exec(code, repl.globals)
+                        exec(full_code, repl.globals)
                     output = f.getvalue()
                     error = None
+                    
+                    # Capture any categorical mappings that were created
+                    if 'categorical_mappings' in repl.globals:
+                        mappings = repl.globals['categorical_mappings']
+                        if mappings:
+                            # Store mappings in session state
+                            st.session_state.categorical_mappings.update(mappings)
+                            
+                            # Add mapping information to the output
+                            mapping_output = "\n\n--- Categorical Variable Encodings ---\n"
+                            for col, mapping in mappings.items():
+                                mapping_output += f"\nColumn '{col}' encoded as:\n"
+                                for original, encoded in mapping.items():
+                                    mapping_output += f"  {original} → {encoded}\n"
+                            
+                            output += mapping_output
+                    
+                    # Restore original map method
+                    pd.Series.map = original_map
+                    
                 except Exception as e:
                     output = f.getvalue() + "\n" + traceback.format_exc()
                     error = str(e)
+                    # Restore original map method in case of error
+                    if 'original_map' in locals():
+                        pd.Series.map = original_map
+                
                 images_after = set(glob.glob(f"{st.session_state.outputs_path}/*.png"))
                 new_images = list(images_after - images_before)
                 new_images = sorted(new_images, key=os.path.getmtime)
@@ -4307,6 +4365,17 @@ Does this completely and correctly answer the user's question? Answer with ONLY 
                         # Add output after code
                         if output_for_doc:
                             markdown += f"## Analysis Output\n\n{output_for_doc}\n\n"
+                        
+                        # Add categorical mappings section if available
+                        if hasattr(st.session_state, 'categorical_mappings') and st.session_state.categorical_mappings:
+                            markdown += "## Categorical Variable Encodings\n\n"
+                            for col, mapping in st.session_state.categorical_mappings.items():
+                                markdown += f"### Column '{col}'\n\n"
+                                markdown += "| Original Value | Encoded Value |\n"
+                                markdown += "|---------------|---------------|\n"
+                                for original, encoded in mapping.items():
+                                    markdown += f"| {original} | {encoded} |\n"
+                                markdown += "\n"
                             
                         # Get images from persistent storage
                         images_for_doc = []
