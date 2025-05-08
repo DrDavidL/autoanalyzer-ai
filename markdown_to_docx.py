@@ -303,8 +303,8 @@ def generate_gpt_analysis_docx(
     if research_summary:
         doc.add_heading("Research Summary", level=1)
         # Convert markdown to HTML, then add to docx
-        # Removed 'nl2br' extension to prevent extra newlines in lists
-        html = markdown.markdown(research_summary, extensions=['fenced_code', 'tables', 'sane_lists', 'markdown.extensions.extra'])
+        # Removed 'nl2br' and 'sane_lists' extensions to prevent extra newlines and list formatting
+        html = markdown.markdown(research_summary, extensions=['fenced_code', 'tables', 'markdown.extensions.extra'])
         add_html_to_doc(doc, html) # Uses the helper above
 
     # Code

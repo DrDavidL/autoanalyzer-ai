@@ -3920,7 +3920,8 @@ with tab3:
         agent_question = st.text_area(
             "Type your question in plain English:",
             placeholder="Example: Create a boxplot comparing blood glucose levels between diabetic and non-diabetic patients",
-            height=100
+            height=100,
+            key="agent_question_input" # Add a key to manage state
         )
 
         # Import necessary modules at the top level to ensure they're available
@@ -3942,8 +3943,13 @@ with tab3:
             st.session_state.persistent_gpt_images = {}
         if "iteration_history" not in st.session_state:
             st.session_state.iteration_history = {}
+        if "last_agent_question" not in st.session_state: # Initialize session state for the question
+            st.session_state.last_agent_question = ""
             
         if st.button("🚀 Analyze My Data", use_container_width=True):
+            # Store the current question in session state
+            st.session_state.last_agent_question = agent_question
+            
             # Remove any prior plot images in the output directory
             image_exts = ["png", "jpg", "jpeg", "svg", "pdf"]
             outputs_path = st.session_state.outputs_path
@@ -4430,8 +4436,8 @@ Your summary should be written in professional academic language suitable for a 
                     try:
                         # Gather all relevant content for the docx
                         timestamp = st.session_state.get("current_analysis_timestamp", "")
-                        # Question
-                        question_for_doc = agent_question
+                        # Question - Retrieve from session state
+                        question_for_doc = st.session_state.get("last_agent_question", "")
                         # Research summary
                         if hasattr(st.session_state, 'persistent_research_summary'):
                             research_summary = st.session_state.persistent_research_summary
@@ -4460,7 +4466,7 @@ Your summary should be written in professional academic language suitable for a 
                         with st.spinner("Creating Word document..."):
                             docx_file = generate_gpt_analysis_docx(
                                 "gpt_analysis",
-                                question_for_doc,
+                                question_for_doc, # Use the question from session state
                                 research_summary,
                                 code_for_doc,
                                 output_for_doc,
