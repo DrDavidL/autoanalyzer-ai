@@ -4206,7 +4206,13 @@ pd.Series.map = map_with_tracking
                 final_error = error
                 final_images = new_images
                 
-                # If there's no error and we've reached max iterations, or if we're at the last iteration, break
+                # If there's an error but we haven't reached max iterations, continue to next iteration
+                # to let the model fix the error
+                if error and iteration < max_iterations:
+                    iteration_status.warning(f"Error in iteration {iteration}, attempting to fix in next iteration...")
+                    continue
+                
+                # If there's no error and we've reached max iterations, or if we're at the last iteration
                 if not error and iteration < max_iterations:
                     # Ask LLM if the answer is complete
                     completion_check_prompt = f"""
@@ -4234,15 +4240,28 @@ Does this completely and correctly answer the user's question? Answer with ONLY 
                         iteration_status.success(f"Answer complete after {iteration} iterations!")
                         break
                 
-                # If this is the last iteration or there was an error, just use what we have
-                if iteration == max_iterations or error:
+                # If this is the last iteration, use what we have
+                if iteration == max_iterations:
                     if error:
-                        iteration_status.warning(f"Completed with errors after {iteration} iterations")
+                        iteration_status.warning(f"Completed all {iteration} iterations with errors in the final iteration")
                     else:
                         iteration_status.info(f"Completed all {iteration} iterations")
             
             # Complete the progress bar
             progress_bar.progress(1.0)
+            
+            # If the final result has an error, try to find the last successful iteration
+            if final_error and len(st.session_state.iteration_history[timestamp]) > 1:
+                # Look for the most recent iteration without errors
+                for i in range(len(st.session_state.iteration_history[timestamp])-2, -1, -1):
+                    prev_iteration = st.session_state.iteration_history[timestamp][i]
+                    if not prev_iteration["error"]:
+                        # Use this iteration's results instead
+                        final_code = prev_iteration["code"]
+                        final_output = prev_iteration["output"]
+                        final_images = prev_iteration["images"]
+                        st.warning(f"Using results from iteration {i+1} because the final iteration had errors.")
+                        break
             
             # Save the final results to session state
             st.session_state.gpt_analysis_code = final_code
@@ -4256,6 +4275,7 @@ Does this completely and correctly answer the user's question? Answer with ONLY 
 
             if final_error:
                 st.error(f"Error in final code: {final_error}")
+                st.info("The system has attempted to recover by using the last successful iteration's results. You can view the iteration history to see all attempts.")
             
         # Display results if they exist in session state
         if st.session_state.model_output1 or st.session_state.gpt_analysis_code:
