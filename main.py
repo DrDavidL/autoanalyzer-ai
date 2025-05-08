@@ -991,28 +991,54 @@ def start_plot_gpt4_old2(df):
 
 
 def generate_df(columns, n_rows, selected_model):
+    """
+    Generates a synthetic dataframe based on column names and number of rows using an LLM.
+    """
     from prompts import dataframe_generation_system_prompt
     system_prompt = dataframe_generation_system_prompt
 
-    prompt = f"columns : {columns}, number : {n_rows}"
+    user_prompt = f"columns : {columns}, number : {n_rows}"
+
+    # Instantiate the LLM using the same configuration as the GPT analysis tab
+    llm = AzureChatOpenAI(
+        azure_deployment=st.secrets["azure_deployment"],
+        api_version=st.secrets["api_version"],
+        azure_endpoint=openai_base_url,
+        api_key=openai_api_key,
+        temperature=0.5, # Use a slightly higher temperature for data generation creativity
+        max_tokens=4000,
+        timeout=None,
+        max_retries=2,
+        model_kwargs={
+            "seed": 42,
+        },
+    )
+
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt},
+    ]
 
     try:
-        response = openai.ChatCompletion.create(
-            api_key=openai_api_key,
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": prompt},
-            ],
-            temperature=0.5,
-        )
+        # Invoke the LLM
+        response = llm.invoke(messages)
+        
+        # Extract the content from the response
+        generated_content = response.content if hasattr(response, "content") else str(response)
 
         # Use StringIO to convert the string data into file-like object
-        data = io.StringIO(response.choices[0].message.content)
+        data = io.StringIO(generated_content)
 
-        # Read the data into a DataFrame, skipping the first row
+        # Read the data into a DataFrame, skipping the first row (assuming the LLM output includes headers)
+        # If the LLM output does not include headers, remove skiprows=1 and names=columns
         try:
-            df = pd.read_csv(data, sep=",", skiprows=1, header=None, names=columns)
+            # Attempt to read assuming headers are present and match requested columns
+            df = pd.read_csv(data, sep=",")
+            # Basic check if columns match, otherwise try reading without headers
+            if not all(col in df.columns for col in columns):
+                 data.seek(0) # Reset StringIO position
+                 df = pd.read_csv(data, sep=",", skiprows=1, header=None, names=columns)
+
         except Exception as e:
             st.warning(f"Failed to parse generated data: {e}")
             return pd.DataFrame(), None
@@ -1024,7 +1050,7 @@ def generate_df(columns, n_rows, selected_model):
 
     except Exception as e:
         st.warning(
-            f"WARNING: Please double check your proposed column names for duplicates or invalid characters! Error: {e}"
+            f"WARNING: Could not generate data. Please double check your proposed column names for duplicates or invalid characters, or try again later. Error: {e}"
         )
         return pd.DataFrame(), None
 
