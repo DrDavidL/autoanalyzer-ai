@@ -4069,8 +4069,8 @@ You are an expert Python data analyst. The user has provided a pandas dataframe 
 The dataframe columns are: {col_list}
 
 You have access to two dataframes:
-1. `df` - A working copy that you can modify as needed for your analysis
-2. `original_df` - The original unmodified dataframe (read-only reference)
+1. `df` - This is your working copy of the dataframe. It reflects any modifications made in previous steps of this analysis. You can modify this dataframe as needed (filter, transform, create new columns, etc.).
+2. `original_df` - This is the initial, unmodified dataframe (read-only reference). Use this if you need to start a calculation from the original data state.
 
 This is iteration {iteration} of your analysis. You previously wrote this code:
 
@@ -4097,9 +4097,9 @@ import seaborn as sns
 import numpy as np
 import pandas as pd
 
-Write improved Python code to better answer the question. 
-- Feel free to modify the `df` dataframe as needed (filter, transform, etc.)
-- If you need to reference the original unmodified data, use `original_df`
+Write improved Python code to better answer the question.
+- Feel free to modify the `df` dataframe as needed (filter, transform, etc.). These modifications will persist for subsequent iterations.
+- If you need to reference the original unmodified data, use `original_df`.
 - If a plot is needed, save it to '{st.session_state.outputs_path}/gpt_plot_{iteration}.png' using plt.savefig and then call plt.close().
 - Do not use plt.show().
 - Do not print explanations, only print results or tables.
