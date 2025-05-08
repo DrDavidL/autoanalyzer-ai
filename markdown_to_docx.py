@@ -157,62 +157,147 @@ def generate_gpt_analysis_docx(
     doc.add_heading("Original Question", level=1)
     doc.add_paragraph(question)
 
-    # Helper: add HTML content to a docx paragraph (supports bold, italic, lists, etc)
-    # This function is used for the research_summary
     def add_html_to_doc(doc_obj, html_content_str):
-        # This function needs to be robust for nested styles as well.
-        # For simplicity, I'm focusing on add_markdown_text as per the request.
-        # A similar recursive approach would be needed here if research_summary contains complex HTML.
-        # Using html2docx for this part might be more robust if research_summary is complex.
-        # For now, let's assume research_summary markdown is relatively simple or use a basic conversion.
+        """Add HTML content to a docx document, handling basic formatting and block elements."""
         try:
-            # Create a temporary document to parse the HTML with html2docx
-            # This is a bit of a workaround to reuse html2docx's parsing logic
-            # without directly adding to the main doc from it.
+            # Attempt to use html2docx first (original primary method)
             temp_doc_for_html = docx.Document()
+            # html2docx expects an HTML string and a docx body element
             html2docx.html2docx(html_content_str, temp_doc_for_html.element.body)
-            
+
+            # Append elements from the temporary document body to the main document body
             for element in temp_doc_for_html.element.body:
                 doc_obj.element.body.append(element)
-        except Exception as e:
-            # Fallback or simplified parsing if html2docx fails or is not desired for this part
-            # For now, just add a placeholder if complex HTML fails.
-            # A proper implementation would parse soup and add runs recursively.
-            # This is a simplified version of what add_markdown_text now does.
+
+        except Exception as e_html2docx:
+            # Fallback: Robust parsing using BeautifulSoup and recursive addition
+            print(f"html2docx failed ({e_html2docx}), falling back to BeautifulSoup parsing.")
             soup = BeautifulSoup(html_content_str, "html.parser")
-            def _recursive_add_html_runs(element, paragraph, bold_state=False, italic_state=False):
-                if isinstance(element, NavigableString):
-                    run = paragraph.add_run(str(element))
-                    run.bold = bold_state
-                    run.italic = italic_state
-                elif element.name == 'br':
-                    paragraph.add_run('\n')
-                elif element.name in ['p', 'li', 'ul', 'ol', 'div']: # Treat these as block, but add content inline for now
-                    for child in element.contents:
-                        _recursive_add_html_runs(child, paragraph, bold_state, italic_state)
-                elif element.name in ['strong', 'b']:
-                    for child in element.contents:
-                        _recursive_add_html_runs(child, paragraph, True, italic_state)
-                elif element.name in ['em', 'i']:
-                    for child in element.contents:
-                        _recursive_add_html_runs(child, paragraph, bold_state, True)
-                elif element.name == 'code':
-                    run = paragraph.add_run(element.get_text())
-                    run.font.name = "Courier New"
-                    run.bold = bold_state # Apply outer bold/italic
-                    run.italic = italic_state
-                elif element.name == 'a' and element.has_attr('href'):
-                    # Simplified link handling for this helper
-                    add_hyperlink(paragraph, element['href'], element.get_text())
-                else: # Other tags, just process children
-                    for child in element.contents:
-                        _recursive_add_html_runs(child, paragraph, bold_state, italic_state)
-            
-            # Process elements from soup.body or soup directly
-            target_elements = soup.body.contents if soup.body else soup.contents
-            current_paragraph = doc_obj.add_paragraph() # Add to a new paragraph
-            for elem in target_elements:
-                _recursive_add_html_runs(elem, current_paragraph)
+
+            # Ensure code block style exists for fallback
+            code_style_name = create_code_block_style(doc_obj)
+
+            def _process_node_recursive(node, current_paragraph, doc_obj, is_bold=False, is_italic=False, in_list_style=None):
+                """
+                Recursively processes HTML nodes and adds formatted content to the document.
+                Creates new paragraphs/elements for block tags.
+                """
+                if isinstance(node, NavigableString):
+                    text = str(node)
+                    if current_paragraph:
+                        # Add text to the current paragraph with formatting
+                        run = current_paragraph.add_run(text)
+                        run.bold = is_bold
+                        run.italic = is_italic
+                    elif text.strip(): # If text is directly under body and not just whitespace
+                         # Create a new paragraph for this text
+                        p = doc_obj.add_paragraph()
+                        run = p.add_run(text)
+                        run.bold = is_bold
+                        run.italic = is_italic
+
+                elif node.name: # It's a Tag
+                    new_bold = is_bold or (node.name in ['strong', 'b'])
+                    new_italic = is_italic or (node.name in ['em', 'i'])
+
+                    # Handle block-level elements by creating new DOCX elements
+                    if node.name.startswith('h') and len(node.name) == 2:
+                        try:
+                            level = int(node.name[1])
+                            # Add heading and set current_paragraph to None for subsequent content
+                            doc_obj.add_heading(node.get_text(strip=True), level=level)
+                            current_paragraph = None
+                        except ValueError:
+                            pass # Not h1-h6, treat as inline or process children
+                    elif node.name == 'p':
+                        # Create a new paragraph for <p>
+                        p = doc_obj.add_paragraph()
+                        # Process children into this new paragraph
+                        for child in node.contents:
+                            _process_node_recursive(child, p, doc_obj, new_bold, new_italic)
+                        current_paragraph = p # Set current paragraph to the one just created
+                    elif node.name == 'pre':
+                        # Create a code block paragraph
+                        code_text = node.get_text()
+                        p = doc_obj.add_paragraph(code_text, style=code_style_name)
+                        current_paragraph = p # Set current paragraph
+                    elif node.name == 'code': # Inline code
+                        if current_paragraph is None:
+                             # If no current paragraph, create one for inline code
+                             current_paragraph = doc_obj.add_paragraph()
+                        run = current_paragraph.add_run(node.get_text())
+                        run.font.name = "Courier New"
+                        run.font.size = Pt(10) # Use a standard size
+                        run.bold = new_bold # Apply outer bold/italic
+                        run.italic = new_italic
+                        # Don't recurse into children of <code> as get_text() handles it
+                    elif node.name == 'br':
+                        if current_paragraph:
+                            current_paragraph.add_run('\n') # Add newline to current paragraph
+                        else:
+                            # If no current paragraph, create one and add newline
+                            doc_obj.add_paragraph().add_run('\n')
+                    elif node.name == 'hr':
+                        # Add a simple horizontal rule representation
+                        doc_obj.add_paragraph('─' * 50)
+                        current_paragraph = None # HR is a block
+                    elif node.name == 'a' and node.has_attr('href'):
+                        if current_paragraph is None:
+                             current_paragraph = doc_obj.add_paragraph()
+                        # Add hyperlink - this creates a new run internally
+                        add_hyperlink(current_paragraph, node['href'], node.get_text(strip=True))
+                        # Note: Nested formatting within link text is not handled by add_hyperlink
+                    elif node.name == 'img' and node.has_attr('src'):
+                        try:
+                            # Add image as a block element
+                            doc_obj.add_picture(node['src'], width=Inches(5)) # Use a default width
+                            current_paragraph = None # Image is a block
+                        except Exception as img_e:
+                            # Add placeholder if image fails
+                            p_img_error = doc_obj.add_paragraph()
+                            p_img_error.add_run(f"[Image could not be loaded: {node['src']}. Error: {img_e}]")
+                            current_paragraph = p_img_error # Set current paragraph to the error message one
+                    elif node.name in ['ul', 'ol']:
+                        # Handle lists
+                        list_style = 'List Bullet' if node.name == 'ul' else 'List Number'
+                        for li in node.find_all('li', recursive=False):
+                            # Each li is a new paragraph with list style
+                            p_li = doc_obj.add_paragraph(style=list_style)
+                            # Process children of li into this new paragraph
+                            # Pass the list style down so nested lists could potentially be handled
+                            for child_li in li.contents:
+                                _process_node_recursive(child_li, p_li, doc_obj, new_bold, new_italic, list_style)
+                        current_paragraph = None # After list, subsequent content should be new para
+                    elif node.name == 'table':
+                        # Handle tables - simplified fallback
+                        # This is still complex. Let's just add the text content for now.
+                        # A proper table conversion would be needed for full fidelity.
+                        doc_obj.add_paragraph(f"[Table content placeholder]\n{node.get_text()}")
+                        current_paragraph = None # Table is a block
+                    else:
+                        # For other tags (div, span, etc.), just process their children
+                        # Need to ensure there's a current paragraph context for inline children
+                        if current_paragraph is None:
+                             # If no current paragraph, create one for inline content within this tag
+                             current_paragraph = doc_obj.add_paragraph()
+                        for child_node in node.contents:
+                            # Pass the current paragraph and updated formatting states
+                            _process_node_recursive(child_node, current_paragraph, doc_obj, new_bold, new_italic, in_list_style)
+
+                    # After processing a block element, subsequent content should start a new paragraph
+                    # This is handled by setting current_paragraph = None for block elements.
+                    # For inline elements or containers (like div/span), current_paragraph remains the same.
+
+
+            # Start recursive processing from the body's contents
+            # Pass None as the initial current_paragraph, so block elements create new ones.
+            initial_paragraph = None
+            if soup.body:
+                for element in soup.body.contents:
+                    _process_node_recursive(element, initial_paragraph, doc_obj)
+            else: # If no body tag (e.g. very simple fragment), process children of soup directly
+                for element in soup.contents:
+                    _process_node_recursive(element, initial_paragraph, doc_obj)
 
 
     # Research Summary
