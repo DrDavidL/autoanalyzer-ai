@@ -4481,20 +4481,41 @@ Your summary should be written in professional academic language suitable for a 
                                 # Check if this looks like a pandas DataFrame output
                                 # Look for patterns like spaces with column headers and numeric data
                                 if re.match(r'\s*\w+\s+\w+', lines[0]) and len(lines) > 3:
-                                    # Extract headers - split by whitespace but preserve multi-word headers
-                                    headers = re.findall(r'\S+\s*\S*', lines[0].strip())
+                                    # First, determine column positions by analyzing the header line
+                                    header_line = lines[0].strip()
+                                    col_positions = []
+                                    current_pos = 0
+                                    
+                                    # Find the starting position of each column header
+                                    for match in re.finditer(r'\S+\s*\S*', header_line):
+                                        col_positions.append(match.start())
+                                    
+                                    # Extract headers based on positions
+                                    headers = []
+                                    for i in range(len(col_positions)):
+                                        start = col_positions[i]
+                                        end = col_positions[i+1] if i < len(col_positions)-1 else len(header_line)
+                                        headers.append(header_line[start:end].strip())
                                     
                                     # Start building markdown table
                                     md_table = "| " + " | ".join(headers) + " |\n"
                                     md_table += "| " + " | ".join(["---" for _ in headers]) + " |\n"
                                     
-                                    # Add data rows
+                                    # Add data rows using the same column positions
                                     for line in lines[1:]:
                                         if line.strip():  # Skip empty lines
-                                            # Split line by whitespace, preserving structure
-                                            values = re.findall(r'\S+\s*\S*', line.strip())
-                                            if len(values) == len(headers):
-                                                md_table += "| " + " | ".join(values) + " |\n"
+                                            row_values = []
+                                            for i in range(len(col_positions)):
+                                                start = col_positions[i]
+                                                end = col_positions[i+1] if i < len(col_positions)-1 else len(line)
+                                                if start < len(line):
+                                                    value = line[start:end].strip()
+                                                    row_values.append(value)
+                                                else:
+                                                    row_values.append("")
+                                            
+                                            if len(row_values) == len(headers):
+                                                md_table += "| " + " | ".join(row_values) + " |\n"
                                     
                                     return md_table
                                 return text_block
