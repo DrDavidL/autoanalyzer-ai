@@ -1,18 +1,22 @@
 #!/usr/bin/env python3
+import os
+import tempfile
 import docx
 from docx.shared import Pt, Inches, RGBColor
-from docx.enum.text import WD_LINE_SPACING
+from docx.enum.text import WD_LINE_SPACING, WD_ALIGN_PARAGRAPH
 from docx.enum.style import WD_STYLE_TYPE
-import markdown2
+import markdown
 from bs4 import BeautifulSoup
 from PIL import Image
 from docx.oxml.shared import OxmlElement, qn
-from html.parser import HTMLParser
 from docx.oxml.ns import nsdecls
 from docx.oxml import parse_xml
+import re
+import html2docx
 
 
 def write_out_html(file_name, text_html, encoding="utf8"):
+    """Write HTML content to a file"""
     try:
         with open(file_name, "w", encoding=encoding) as output_fd:
             output_fd.write(text_html)
@@ -20,11 +24,8 @@ def write_out_html(file_name, text_html, encoding="utf8"):
         print(f"Could not write HTML file {file_name}: {e}")
 
 
-def find_page_width(doc):
-    return float(doc.sections[0].page_width / 914400)
-
-
 def do_table_of_contents(document):
+    """Add a table of contents to the document"""
     paragraph = document.add_paragraph()
     run = paragraph.add_run()
     fld_char = OxmlElement("w:fldChar")
@@ -46,134 +47,8 @@ def do_table_of_contents(document):
     r_element.append(fld_char4)
 
 
-def do_table(doc, table_in, style):
-    """
-    Enhanced table handling with support for HTML tables and cell coordinates
-    """
-    try:
-        the_header = table_in.find("thead")
-        the_column_names = the_header.find_all("th") if the_header else []
-        the_data = table_in.find_all("td")
-        n_cols = (
-            len(the_column_names)
-            if the_column_names
-            else len(table_in.find("tr").find_all(["td", "th"]))
-        )
-        n_rows = len(table_in.find_all("tr"))
-        this_table = doc.add_table(rows=n_rows, cols=n_cols, style=style)
-
-        # Process each row with precise positioning
-        for i, row in enumerate(table_in.find_all("tr")):
-            cells = row.find_all(["th", "td"])
-            for j, cell in enumerate(cells):
-                # Get cell coordinates if available
-                row_coord = cell.get('data-row', i)
-                col_coord = cell.get('data-col', j)
-                
-                # Get cell text
-                cell_text = cell.get_text(strip=True)
-                
-                # Apply text to the table cell
-                this_table.cell(i, j).text = cell_text
-                
-                # Apply special formatting for numeric values
-                if cell_text and cell_text.replace('.', '', 1).replace('-', '', 1).isdigit():
-                    for paragraph in this_table.cell(i, j).paragraphs:
-                        paragraph.alignment = docx.enum.text.WD_ALIGN_PARAGRAPH.RIGHT
-
-        # Make the header row bold
-        for cell in this_table.rows[0].cells:
-            for paragraph in cell.paragraphs:
-                for run in paragraph.runs:
-                    run.bold = True
-                    
-        # Apply consistent cell padding and spacing
-        for row in this_table.rows:
-            for cell in row.cells:
-                for paragraph in cell.paragraphs:
-                    paragraph.paragraph_format.space_before = Pt(2)
-                    paragraph.paragraph_format.space_after = Pt(2)
-    except Exception as e:
-        doc.add_paragraph(f"[Table could not be rendered: {e}]")
-
-
-def find_image_size(image_file):
-    try:
-        return Image.open(image_file).size
-    except Exception as e:
-        print(f"Could not open image {image_file}: {e}")
-        return (1, 1)
-
-
-def do_paragraph(
-    line,
-    doc,
-    page_width_inches,
-    style_body,
-    assumed_pixels_per_inch=200,
-    picture_fraction_of_width=0.7,
-):
-    is_image = line.find("img")
-    if is_image is not None:
-        try:
-            image_source = is_image["src"]
-            w, h = find_image_size(image_source)
-            w_in_inches = w / assumed_pixels_per_inch
-            picture_width_inches = page_width_inches * picture_fraction_of_width
-            chosen_width = min(picture_width_inches, w_in_inches)
-            doc.add_picture(image_source, width=docx.shared.Inches(chosen_width))
-        except Exception as e:
-            doc.add_paragraph(f"[Image could not be loaded: {e}]")
-        return
-
-    paragraph = doc.add_paragraph(style=style_body)
-    for child in line.children:
-        try:
-            if child.name == "strong":
-                paragraph.add_run(child.text).bold = True
-            elif child.name == "em":
-                paragraph.add_run(child.text).italic = True
-            elif child.name == "code":
-                run = paragraph.add_run(child.text)
-                run.font.name = "Courier New"
-                run.font.size = Pt(10)
-            elif child.name == "a":
-                add_hyperlink(paragraph, child["href"], child.text)
-            else:
-                paragraph.add_run(child.text)
-        except Exception as e:
-            paragraph.add_run(f"[Error rendering content: {e}]")
-
-
-def do_pre_code(line, doc, style_quote_table):
-    # Check if this is a code block with language specification
-    code_block = line.find("code")
-    if code_block and 'class' in code_block.attrs and 'language-' in code_block['class'][0]:
-        # This is a code block with language specification (like ```python)
-        return do_code_block(doc, line.text.strip(), style_quote_table)
-    else:
-        # Regular pre block without language specification
-        table = doc.add_table(rows=1, cols=1, style=style_quote_table)
-        cell = table.cell(0, 0)
-        cell.text = line.text.strip()
-        paragraphs = cell.paragraphs
-        paragraph = paragraphs[0]
-        run_obj = paragraph.runs
-        run = run_obj[0]
-        font = run.font
-        font.size = Pt(10)
-        font.name = "Courier New"
-
-
-def do_horizontal_rule(doc):
-    paragraph = doc.add_paragraph()
-    paragraph.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
-    run = paragraph.add_run("─" * 50)
-    run.font.size = Pt(6)
-    run.font.color.rgb = RGBColor(192, 192, 192)
-
-
 def add_hyperlink(paragraph, url, text):
+    """Add a hyperlink to a paragraph"""
     part = paragraph.part
     r_id = part.relate_to(
         url, docx.opc.constants.RELATIONSHIP_TYPE.HYPERLINK, is_external=True
@@ -189,86 +64,12 @@ def add_hyperlink(paragraph, url, text):
     return hyperlink
 
 
-def do_code_block(doc, code_text, style_code_block):
-    paragraph = doc.add_paragraph()
-    paragraph.style = style_code_block
-    run = paragraph.add_run(code_text)
-    font = run.font
-    font.name = "Courier New"
-    font.size = Pt(9)
-    paragraph.paragraph_format.space_before = Pt(6)
-    paragraph.paragraph_format.space_after = Pt(6)
-    paragraph.paragraph_format.left_indent = Inches(0.5)
-    paragraph.paragraph_format.right_indent = Inches(0.5)
-    shading_elm = parse_xml(r'<w:shd {} w:fill="F0F0F0"/>'.format(nsdecls("w")))
-    paragraph._p.get_or_add_pPr().append(shading_elm)
-
-
-class HtmlListParser(HTMLParser):
-    list_level = -1
-    lists = ["List Bullet", "List Bullet 2", "List Bullet 3"]
-    ordered_lists = ["List Number", "List Number 2", "List Number 3"]
-    doc = None
-    spacing = "    "
-    spare_list = "○  "
-    current_list_type = None
-
-    def handle_starttag(self, tag, attrs):
-        if tag in ["ol", "ul"]:
-            self.list_level += 1
-            self.current_list_type = "ol" if tag == "ol" else "ul"
-
-    def handle_endtag(self, tag):
-        if tag in ["ol", "ul"]:
-            self.list_level -= 1
-
-    def handle_data(self, data):
-        data = data.strip()
-        if data:
-            if self.list_level in range(len(self.lists)):
-                style = (
-                    self.ordered_lists[self.list_level]
-                    if self.current_list_type == "ol"
-                    else self.lists[self.list_level]
-                )
-                self.doc.add_paragraph(data, style=style)
-            else:
-                self.doc.add_paragraph(
-                    "        " + self.spacing * self.list_level + self.spare_list + data
-                )
-
-
-class Markdown2docx:
-    style_table = "Medium Shading 1 Accent 3"
-    style_quote = "Intense Quote"
-    style_body = "Body Text"
-    style_quote_table = "Table Grid"
-    style_code_block = "Code Block"
-    toc_indicator = "contents"
-
-    def __init__(self, project, markdown_content):
-        self.project = project
-        self.outfile = f"{project}.docx"
-        self.html_out_file = f"{project}.html"
-        self.doc = docx.Document()
-        self.page_width_inches = find_page_width(self.doc)
-        self.markdown = markdown_content
-        self.html = markdown2.markdown(
-            self.markdown,
-            extras=[
-                "fenced-code-blocks",
-                "code-friendly",
-                "wiki-tables",
-                "tables",
-                "break-on-newline",
-            ],
-        )
-        self.soup = BeautifulSoup(self.html, "html.parser")
-        self.create_code_block_style()
-
-    def create_code_block_style(self):
-        styles = self.doc.styles
-        style = styles.add_style(self.style_code_block, WD_STYLE_TYPE.PARAGRAPH)
+def create_code_block_style(doc):
+    """Create a style for code blocks"""
+    styles = doc.styles
+    style_name = "Code Block"
+    if style_name not in styles:
+        style = styles.add_style(style_name, WD_STYLE_TYPE.PARAGRAPH)
         font = style.font
         font.name = "Courier New"
         font.size = Pt(9)
@@ -277,72 +78,203 @@ class Markdown2docx:
         paragraph_format.space_after = Pt(6)
         paragraph_format.left_indent = Inches(0.5)
         paragraph_format.right_indent = Inches(0.5)
+    return style_name
 
-    def eat_soup(self):
-        table_of_contents_done = 0
-        for line in self.soup.children:
-            if isinstance(line, str):
-                continue
-            if (
-                str(line).lower().find(self.toc_indicator) >= 0
-                and table_of_contents_done < 2
-            ):
-                table_of_contents_done += 1
-                if table_of_contents_done == 2:
-                    do_table_of_contents(self.doc)
-            elif line.name in ["h1", "h2", "h3", "h4", "h5", "h6"]:
-                level = int(line.name[1]) - 1
-                self.doc.add_heading(line.text.strip(), level)
-            elif line.name == "p":
-                do_paragraph(line, self.doc, self.page_width_inches, self.style_body)
-            elif line.name == "pre":
-                code_block = line.find("code")
-                if code_block:
-                    # Check if this is a language-specific code block
-                    if 'class' in code_block.attrs and 'language-' in code_block['class'][0]:
-                        language = code_block['class'][0].replace('language-', '')
-                        # Handle Python code blocks specially
-                        if language == 'python':
-                            do_code_block(
-                                self.doc, code_block.get_text(), self.style_code_block
-                            )
-                        else:
-                            do_code_block(
-                                self.doc, code_block.get_text(), self.style_code_block
-                            )
-                    else:
-                        do_code_block(
-                            self.doc, code_block.get_text(), self.style_code_block
-                        )
-                else:
-                    do_pre_code(line, self.doc, self.style_quote_table)
-            elif line.name == "blockquote":
-                self.doc.add_paragraph(line.text.strip(), style=self.style_quote)
-            elif line.name == "hr":
-                do_horizontal_rule(self.doc)
-            elif line.name == "table":
-                do_table(self.doc, line, self.style_table)
-            elif line.name in ["ul", "ol"]:
-                parser = HtmlListParser()
-                parser.doc = self.doc
-                parser.feed(str(line))
 
-    def write_html(self):
-        write_out_html(self.html_out_file, self.html)
-
-    def save(self):
-        self.doc.save(self.outfile)
+def enhance_html_for_docx(html_content):
+    """Enhance HTML content for better DOCX conversion"""
+    soup = BeautifulSoup(html_content, 'html.parser')
+    
+    # Improve code blocks
+    for pre in soup.find_all('pre'):
+        code = pre.find('code')
+        if code:
+            # Add a div with special class for code blocks
+            code_div = soup.new_tag('div')
+            code_div['class'] = 'code-block'
+            code_div['style'] = 'background-color: #f5f5f5; padding: 10px; font-family: Courier New; font-size: 9pt; margin: 10px 0;'
+            code.wrap(code_div)
+    
+    # Improve tables
+    for table in soup.find_all('table'):
+        table['border'] = '1'
+        table['style'] = 'border-collapse: collapse; width: 100%;'
+        
+        # Add thead if not present
+        if not table.find('thead') and table.find('tr'):
+            first_row = table.find('tr')
+            thead = soup.new_tag('thead')
+            table.insert(0, thead)
+            thead.append(first_row)
+            
+            # Convert td to th in the header row
+            for td in first_row.find_all('td'):
+                th = soup.new_tag('th')
+                th.string = td.string
+                th['style'] = 'background-color: #4472C4; color: white; font-weight: bold; text-align: center; padding: 5px;'
+                td.replace_with(th)
+        
+        # Style all cells
+        for td in table.find_all('td'):
+            td['style'] = 'padding: 5px; border: 1px solid #DDDDDD;'
+            
+            # Right-align numeric cells
+            if td.string and td.string.strip().replace('.', '', 1).replace('-', '', 1).isdigit():
+                td['style'] += ' text-align: right;'
+    
+    # Improve images
+    for img in soup.find_all('img'):
+        if 'width' not in img.attrs:
+            img['width'] = '80%'
+        img['style'] = 'display: block; margin: 10px auto;'
+    
+    return str(soup)
 
 
 def markdown_to_docx(project_name, markdown_content):
+    """Convert markdown to DOCX using html2docx for better fidelity"""
     try:
-        project = Markdown2docx(project_name, markdown_content)
-        project.eat_soup()
-        project.write_html()  # optional
-        project.save()
-        return project.outfile
+        # Create a temporary directory for intermediate files
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Convert markdown to HTML with extensions
+            html_content = markdown.markdown(
+                markdown_content,
+                extensions=[
+                    'markdown.extensions.tables',
+                    'markdown.extensions.fenced_code',
+                    'markdown.extensions.codehilite',
+                    'markdown.extensions.toc',
+                    'markdown.extensions.nl2br',
+                ]
+            )
+            
+            # Enhance HTML for better DOCX conversion
+            enhanced_html = enhance_html_for_docx(html_content)
+            
+            # Write HTML to a temporary file
+            html_path = os.path.join(temp_dir, f"{project_name}.html")
+            write_out_html(html_path, enhanced_html)
+            
+            # Convert HTML to DOCX using html2docx
+            docx_path = f"{project_name}.docx"
+            
+            # Create a new document
+            doc = docx.Document()
+            
+            # Create code block style
+            code_style = create_code_block_style(doc)
+            
+            # Convert HTML to DOCX
+            html2docx.convert(enhanced_html, doc)
+            
+            # Post-process the document to improve formatting
+            for paragraph in doc.paragraphs:
+                # Fix code blocks
+                if paragraph.text.strip().startswith('```') or paragraph.text.strip().endswith('```'):
+                    paragraph.style = code_style
+                    # Remove the backticks
+                    for run in paragraph.runs:
+                        run.text = run.text.replace('```', '')
+                
+                # Fix heading styles
+                if paragraph.style.name.startswith('Heading'):
+                    # Ensure consistent heading formatting
+                    for run in paragraph.runs:
+                        run.font.color.rgb = RGBColor(0, 0, 139)  # Dark blue
+            
+            # Save the document
+            doc.save(docx_path)
+            return docx_path
     except Exception as e:
         print(f"Could not convert markdown to docx: {e}")
+        # Fallback to the original implementation if html2docx fails
+        return fallback_markdown_to_docx(project_name, markdown_content)
+
+
+def fallback_markdown_to_docx(project_name, markdown_content):
+    """Fallback method using the original implementation"""
+    try:
+        # Create a new document
+        doc = docx.Document()
+        
+        # Convert markdown to HTML
+        html_content = markdown.markdown(
+            markdown_content,
+            extensions=[
+                'markdown.extensions.tables',
+                'markdown.extensions.fenced_code',
+                'markdown.extensions.codehilite',
+            ]
+        )
+        
+        # Parse HTML
+        soup = BeautifulSoup(html_content, 'html.parser')
+        
+        # Create code block style
+        code_style = create_code_block_style(doc)
+        
+        # Process each element
+        for element in soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'pre', 'table', 'ul', 'ol', 'blockquote', 'hr']):
+            if element.name.startswith('h'):
+                level = int(element.name[1])
+                doc.add_heading(element.get_text(), level)
+            elif element.name == 'p':
+                # Check if paragraph contains an image
+                img = element.find('img')
+                if img and 'src' in img.attrs:
+                    try:
+                        doc.add_picture(img['src'], width=Inches(5))
+                    except Exception:
+                        doc.add_paragraph(f"[Image could not be loaded: {img['src']}]")
+                else:
+                    p = doc.add_paragraph()
+                    for child in element.children:
+                        if child.name == 'strong':
+                            p.add_run(child.get_text()).bold = True
+                        elif child.name == 'em':
+                            p.add_run(child.get_text()).italic = True
+                        elif child.name == 'code':
+                            run = p.add_run(child.get_text())
+                            run.font.name = "Courier New"
+                        elif child.name == 'a' and 'href' in child.attrs:
+                            add_hyperlink(p, child['href'], child.get_text())
+                        else:
+                            p.add_run(child.get_text() if hasattr(child, 'get_text') else str(child))
+            elif element.name == 'pre':
+                code = element.find('code')
+                if code:
+                    p = doc.add_paragraph(style=code_style)
+                    p.add_run(code.get_text())
+            elif element.name == 'table':
+                rows = element.find_all('tr')
+                if rows:
+                    table = doc.add_table(rows=len(rows), cols=len(rows[0].find_all(['td', 'th'])))
+                    table.style = 'Table Grid'
+                    
+                    for i, row in enumerate(rows):
+                        cells = row.find_all(['td', 'th'])
+                        for j, cell in enumerate(cells):
+                            table.cell(i, j).text = cell.get_text()
+                            # Make header row bold
+                            if i == 0 or cell.name == 'th':
+                                for paragraph in table.cell(i, j).paragraphs:
+                                    for run in paragraph.runs:
+                                        run.bold = True
+            elif element.name in ['ul', 'ol']:
+                for li in element.find_all('li'):
+                    style = 'List Bullet' if element.name == 'ul' else 'List Number'
+                    doc.add_paragraph(li.get_text(), style=style)
+            elif element.name == 'blockquote':
+                doc.add_paragraph(element.get_text(), style='Intense Quote')
+            elif element.name == 'hr':
+                doc.add_paragraph('─' * 50)
+        
+        # Save the document
+        docx_path = f"{project_name}.docx"
+        doc.save(docx_path)
+        return docx_path
+    except Exception as e:
+        print(f"Fallback conversion failed: {e}")
         return None
 
 

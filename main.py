@@ -4592,19 +4592,24 @@ Your summary should be written in professional academic language suitable for a 
                                 if os.path.exists(img_path):
                                     markdown += f"\n![]({img_path})\n"
 
-                        # Create the docx file
-                        docx_file = markdown_to_docx(
-                            "gpt_analysis", markdown
-                        )
+                        # Create the docx file with a progress indicator
+                        with st.spinner("Creating Word document..."):
+                            docx_file = markdown_to_docx(
+                                "gpt_analysis", markdown
+                            )
                         
                         # Offer download
-                        with open(docx_file, "rb") as file:
-                            btn = st.download_button(
-                                label="Download DOCX",
-                                data=file,
-                                file_name="gpt_analysis.docx",
-                                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                            )
+                        if docx_file and os.path.exists(docx_file):
+                            with open(docx_file, "rb") as file:
+                                btn = st.download_button(
+                                    label="Download DOCX",
+                                    data=file,
+                                    file_name="gpt_analysis.docx",
+                                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                )
+                            st.success("Word document created successfully!")
+                        else:
+                            st.error("Failed to create Word document. Please try again.")
                         
                         # Clean up all generated files
                         os.remove(docx_file)
