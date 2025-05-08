@@ -137,7 +137,9 @@ def markdown_to_docx(project_name, markdown_content):
         # Create a temporary directory for intermediate files
         with tempfile.TemporaryDirectory() as temp_dir:
             # Convert markdown to HTML with extensions
-            html_content = markdown.markdown(
+            # The markdown module has a function called markdown, not a method on the module
+            import markdown as md
+            html_content = md.markdown(
                 markdown_content,
                 extensions=[
                     'markdown.extensions.tables',
@@ -203,7 +205,8 @@ def fallback_markdown_to_docx(project_name, markdown_content):
         doc = docx.Document()
         
         # Convert markdown to HTML
-        html_content = markdown.markdown(
+        import markdown as md
+        html_content = md.markdown(
             markdown_content,
             extensions=[
                 'markdown.extensions.tables',

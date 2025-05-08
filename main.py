@@ -76,7 +76,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 # We'll use the html2docx library directly instead
 import html2docx
 import docx
-import markdown
+import markdown as md
 import tempfile
 from bs4 import BeautifulSoup
 import sweetviz as sv
@@ -146,7 +146,7 @@ def convert_markdown_to_docx(markdown_text, file_name):
     """Convert markdown text directly to docx using html2docx"""
     try:
         # Convert markdown to HTML
-        html_content = markdown.markdown(
+        html_content = md.markdown(
             markdown_text,
             extensions=[
                 'markdown.extensions.tables',
