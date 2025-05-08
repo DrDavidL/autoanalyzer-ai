@@ -4300,11 +4300,17 @@ The analysis produced this output:
 {final_output}
 ```
 
-The analysis also generated {len(final_images)} visualizations.
+The code that generated this analysis is:
+```python
+{final_code}
+```
+
+The analysis generated {len(final_images)} visualizations. Based on the code, these visualizations include:
+{', '.join([f"'{os.path.basename(img)}'" for img in final_images]) if final_images else "No visualizations were generated"}
 
 Please provide:
 1. A clear, concise summary of the key findings (3-5 bullet points)
-2. A brief explanation of what the visualizations show and how they can be utilized
+2. A brief explanation of what the visualizations show and how they can be utilized (be specific about which plots were created based on the code)
 3. Any important limitations or caveats to consider
 
 Your summary should be written in professional academic language suitable for a busy researcher.
