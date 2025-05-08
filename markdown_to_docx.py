@@ -203,35 +203,54 @@ def generate_gpt_analysis_docx(
 
     # Helper: parse markdown-style bold/italic in a string and add to a paragraph
     def add_markdown_text(paragraph, text):
-        """
-        Add text to a docx paragraph, parsing *italic*, **bold**, and ***bolditalic***.
-        Handles nested and adjacent markdown asterisks.
-        """
-        import re
+        """Adds markdown-formatted text to a paragraph, handling bold, italics, and other elements."""
+        try:
+            html = markdown.markdown(text, extensions=['nl2br', 'fenced_code', 'tables'])
+            soup = BeautifulSoup(html, 'html.parser')
 
-        # This regex matches ***bolditalic***, **bold**, *italic*
-        # and handles adjacent/overlapping patterns correctly.
-        pattern = re.compile(
-            r"(\*\*\*([^\*]+?)\*\*\*|\*\*([^\*]+?)\*\*|\*([^\*]+?)\*)"
-        )
-        pos = 0
-        for match in pattern.finditer(text):
-            start, end = match.span()
-            if start > pos:
-                paragraph.add_run(text[pos:start])
-            if match.group(2):  # ***bolditalic***
-                run = paragraph.add_run(match.group(2))
-                run.bold = True
-                run.italic = True
-            elif match.group(3):  # **bold**
-                run = paragraph.add_run(match.group(3))
-                run.bold = True
-            elif match.group(4):  # *italic*
-                run = paragraph.add_run(match.group(4))
-                run.italic = True
-            pos = end
-        if pos < len(text):
-            paragraph.add_run(text[pos:])
+            def walk(element, parent):
+                for child in element.contents:
+                    if isinstance(child, str):
+                        parent.add_run(child)
+                    elif child.name == 'strong' or child.name == 'b':
+                        run = parent.add_run(child.get_text())
+                        run.bold = True
+                    elif child.name == 'em' or child.name == 'i':
+                        run = parent.add_run(child.get_text())
+                        run.italic = True
+                    elif child.name == 'a':
+                        add_hyperlink(parent, child['href'], child.get_text())
+                    elif child.name == 'code':
+                        run = parent.add_run(child.get_text())
+                        run.font.name = "Courier New"
+                        run.font.size = Pt(10)
+                    elif child.name == 'ul':
+                        for li in child.find_all('li'):
+                            p = paragraph.insert_paragraph_before("• " + li.get_text(), style='List Bullet')
+                    elif child.name == 'ol':
+                        for i, li in enumerate(child.find_all('li')):
+                            p = paragraph.insert_paragraph_before(f"{i+1}. " + li.get_text(), style='List Number')
+                    elif child.name == 'table':
+                        # Handle tables by creating a docx table
+                        table = docx.Document()
+                        docx_table = table.add_table(rows=0, cols=len(child.find_all('th')))
+                        docx_table.style = 'Table Grid'
+                        for row in child.find_all('tr'):
+                            cells = row.find_all(['td', 'th'])
+                            row_cells = docx_table.add_row().cells
+                            for i, cell in enumerate(cells):
+                                row_cells[i].text = cell.get_text()
+                        # Add the table to the document
+                        paragraph._p.addnext(docx_table._element)
+                    elif child.name == 'br':
+                        parent.add_run("\n")
+                    else:
+                        walk(child, parent)
+
+            walk(soup.body, paragraph)
+
+        except Exception as e:
+            paragraph.add_run(f"Error adding markdown text: {e}")
 
     # Output (with table parsing and markdown-style formatting)
     if output:
