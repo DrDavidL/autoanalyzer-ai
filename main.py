@@ -4015,7 +4015,7 @@ with tab3:
                 
                 # Remove any prior plot images in the output directory
                 image_exts = ["png", "jpg", "jpeg", "svg", "pdf"]
-            outputs_path = st.session_state.outputs_path
+                outputs_path = st.session_state.outputs_path
             for ext in image_exts:
                 for img_path in glob.glob(f"{outputs_path}/*.{ext}"):
                     try:
@@ -4151,7 +4151,7 @@ Respond ONLY with valid Python code, not with natural language or explanations.
                 
                 # Ensure the working copy of the dataframe exists and is used
                 if "gpt_working_df" not in st.session_state:
-                    st.session_state.gpt_working_df = df.copy()
+                    st.session_state.gpt_working_df = st.session_state.df.copy()
 
                 # Ensure the REPL globals are updated with the current working df state
                 # This is crucial for subsequent iterations
@@ -4211,13 +4211,16 @@ print("---------------------------------")
 
                     # Update the working dataframe with the state after execution
                     # Only update if execution was successful
-                    st.session_state.gpt_working_df = repl.globals['df'].copy()
+                    if 'df' in repl.globals:
+                        st.session_state.gpt_working_df = repl.globals['df'].copy()
 
                     # Capture any categorical mappings that were created
                     if 'categorical_mappings' in repl.globals:
                         mappings = repl.globals['categorical_mappings']
                         if mappings:
                             # Store mappings in session state
+                            if "categorical_mappings" not in st.session_state:
+                                st.session_state.categorical_mappings = {}
                             st.session_state.categorical_mappings.update(mappings)
 
                             # Add mapping information to the output
@@ -4245,7 +4248,7 @@ print("---------------------------------")
                 new_images = sorted(new_images, key=os.path.getmtime)
                 if not new_images:
                     all_pngs = sorted(glob.glob(f"{st.session_state.outputs_path}/*.png"), key=os.path.getmtime)
-                    if all_pngs:
+                    if all_pngs and len(images_before) < len(images_after):
                         new_images = [all_pngs[-1]]
                 # Limit image size to ensure scrolling works
                 for img_path in new_images:
@@ -4276,6 +4279,10 @@ print("---------------------------------")
             output = ""
             error = None
             new_images = []
+            
+            # Make sure we have a clean working dataframe at the start
+            if "gpt_working_df" not in st.session_state or st.session_state.gpt_working_df is None:
+                st.session_state.gpt_working_df = st.session_state.df.copy()
             
             # Run up to max_iterations
             for iteration in range(1, max_iterations + 1):
@@ -4366,6 +4373,31 @@ Does this completely and correctly answer the user's question? Answer with ONLY 
                         final_output = prev_iteration["output"]
                         final_images = prev_iteration["images"]
                         st.warning(f"Using results from iteration {i+1} because the final iteration had errors.")
+                        
+                        # Also restore the working dataframe state from that iteration if possible
+                        if i > 0 and "gpt_working_df" in st.session_state:
+                            # We need to re-run the code up to this point to get the correct dataframe state
+                            temp_repl = PythonREPL()
+                            temp_repl.globals.update({
+                                "df": st.session_state.df.copy(),
+                                "original_df": st.session_state.df,
+                                "plt": plt,
+                                "sns": sns,
+                                "np": np,
+                                "pd": pd,
+                            })
+                            
+                            # Run all successful iterations up to this point
+                            for j in range(i+1):
+                                iter_code = st.session_state.iteration_history[timestamp][j]["code"]
+                                try:
+                                    exec(iter_code, temp_repl.globals)
+                                    # If this was the last successful iteration, save its dataframe
+                                    if j == i:
+                                        st.session_state.gpt_working_df = temp_repl.globals["df"].copy()
+                                except Exception:
+                                    # If any error occurs, stop trying to restore the dataframe
+                                    break
                         break
             
             # Generate a summary of the findings for busy researchers
@@ -4440,10 +4472,16 @@ Your summary should be written in professional academic language suitable for a 
                 st.code(st.session_state.model_output1)
                 
             # Check if the working dataframe was modified and is different from the original
-            if "gpt_working_df" in st.session_state:
+            if "gpt_working_df" in st.session_state and st.session_state.gpt_working_df is not None:
                 try:
                     # Check if dataframes are different (ignoring index)
-                    if not st.session_state.gpt_working_df.equals(df) and not st.session_state.gpt_working_df.empty:
+                    original_df_reset = st.session_state.df.reset_index(drop=True)
+                    working_df_reset = st.session_state.gpt_working_df.reset_index(drop=True)
+                    
+                    # Compare columns first to avoid errors with different column sets
+                    columns_same = set(original_df_reset.columns) == set(working_df_reset.columns)
+                    
+                    if not columns_same or not working_df_reset.equals(original_df_reset):
                         with st.expander("View modified dataframe", expanded=False):
                             st.write("The analysis modified the dataframe. Here's the result:")
                             st.dataframe(st.session_state.gpt_working_df)
