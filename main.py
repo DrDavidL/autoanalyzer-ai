@@ -4076,6 +4076,9 @@ Respond ONLY with valid Python code, not with natural language or explanations.
                 if "categorical_mappings" not in st.session_state:
                     st.session_state.categorical_mappings = {}
                 
+                # Store the original map method at function scope
+                original_map = pd.Series.map
+                
                 # Add code to track categorical variable mappings
                 tracking_code = """
 # Track categorical variable mappings
@@ -4090,11 +4093,11 @@ def track_categorical_mapping(df_col, mapping):
         categorical_mappings[df_col] = mapping
     
 # Monkey patch pandas Series map method to capture mappings
-original_map = pd.Series.map
+original_map_inner = pd.Series.map
 def map_with_tracking(self, arg, *args, **kwargs):
     if isinstance(arg, dict):
         track_categorical_mapping(self.name, arg)
-    return original_map(self, arg, *args, **kwargs)
+    return original_map_inner(self, arg, *args, **kwargs)
 pd.Series.map = map_with_tracking
 """
                 
@@ -4123,15 +4126,14 @@ pd.Series.map = map_with_tracking
                             
                             output += mapping_output
                     
-                    # Restore original map method
+                    # Restore original map method (using the function-scope variable)
                     pd.Series.map = original_map
                     
                 except Exception as e:
                     output = f.getvalue() + "\n" + traceback.format_exc()
                     error = str(e)
                     # Restore original map method in case of error
-                    if 'original_map' in locals():
-                        pd.Series.map = original_map
+                    pd.Series.map = original_map
                 
                 images_after = set(glob.glob(f"{st.session_state.outputs_path}/*.png"))
                 new_images = list(images_after - images_before)
