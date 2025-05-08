@@ -4030,7 +4030,7 @@ with tab3:
             # Reset categorical mappings and working dataframe for new analysis
             st.session_state.categorical_mappings = {}
             if "gpt_working_df" in st.session_state:
-                st.session_state.gpt_working_df = df.copy()
+                st.session_state.gpt_working_df = st.session_state.df.copy()
             
             # Create a progress bar for iterations
             progress_bar = st.progress(0)
@@ -4285,9 +4285,9 @@ print("---------------------------------")
                 
                 # Generate code based on previous results
                 if iteration == 1:
-                    code_to_run = get_code_from_llm(agent_question, df, iteration)
+                    code_to_run = get_code_from_llm(agent_question, st.session_state.gpt_working_df, iteration)
                 else:
-                    code_to_run = get_code_from_llm(agent_question, df, iteration, 
+                    code_to_run = get_code_from_llm(agent_question, st.session_state.gpt_working_df, iteration, 
                                                    previous_code=final_code, 
                                                    previous_output=final_output,
                                                    previous_error=final_error)
