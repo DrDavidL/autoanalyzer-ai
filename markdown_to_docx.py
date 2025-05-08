@@ -187,8 +187,13 @@ def markdown_to_docx(project_name, markdown_content):
             return docx_path
     except Exception as e:
         print(f"Could not convert markdown to docx: {e}")
-        # Fallback to the original implementation if html2docx fails
-        return fallback_markdown_to_docx(project_name, markdown_content)
+        try:
+            # Fallback to the original implementation if html2docx fails
+            return fallback_markdown_to_docx(project_name, markdown_content)
+        except Exception as fallback_error:
+            print(f"Fallback conversion also failed: {fallback_error}")
+            # Return a default path that will be checked for existence
+            return f"{project_name}.docx"
 
 
 def fallback_markdown_to_docx(project_name, markdown_content):

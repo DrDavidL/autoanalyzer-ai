@@ -4633,11 +4633,14 @@ Your summary should be written in professional academic language suitable for a 
                                     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                                 )
                             st.success("Word document created successfully!")
+                            
+                            # Clean up the docx file only if it was successfully created
+                            try:
+                                os.remove(docx_file)
+                            except Exception as e:
+                                st.warning(f"Could not remove temporary file: {e}")
                         else:
                             st.error("Failed to create Word document. Please try again.")
-                        
-                        # Clean up all generated files
-                        os.remove(docx_file)
                         
                         # Remove any HTML files in the outputs directory
                         for html_file in glob.glob(f"{st.session_state.outputs_path}/*.html"):
@@ -4652,19 +4655,21 @@ Your summary should be written in professional academic language suitable for a 
                         image_paths_to_clean = []
                         for img_path in st.session_state.gpt_analysis_images:
                             try:
-                                # Make a copy of the image for the Word doc
-                                import shutil
-                                doc_img_path = f"{st.session_state.outputs_path}/doc_{os.path.basename(img_path)}"
-                                shutil.copy2(img_path, doc_img_path)
-                                image_paths_to_clean.append(doc_img_path)
-                            except Exception:
-                                pass
+                                if os.path.exists(img_path):
+                                    # Make a copy of the image for the Word doc
+                                    import shutil
+                                    doc_img_path = f"{st.session_state.outputs_path}/doc_{os.path.basename(img_path)}"
+                                    shutil.copy2(img_path, doc_img_path)
+                                    image_paths_to_clean.append(doc_img_path)
+                            except Exception as e:
+                                st.warning(f"Could not copy image {img_path}: {e}")
                                 
                         # Clean up only the copies made for the Word doc
                         for img_path in image_paths_to_clean:
                             try:
-                                os.remove(img_path)
-                            except Exception:
-                                pass
+                                if os.path.exists(img_path):
+                                    os.remove(img_path)
+                            except Exception as e:
+                                st.warning(f"Could not remove temporary image {img_path}: {e}")
                     except Exception as e:
                         st.error(f"An error occurred while creating the DOCX file: {str(e)}")
