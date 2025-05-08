@@ -198,12 +198,22 @@ def generate_gpt_analysis_docx(
                     except ValueError:
                         pass # Not h1-h6, treat as inline or process children
                 elif node.name == 'p':
-                    # Create a new paragraph for <p>
-                    p = doc_obj.add_paragraph()
-                    # Process children into this new paragraph
-                    for child in node.contents:
-                        _process_node_recursive(child, p, doc_obj, new_bold, new_italic)
-                    current_paragraph = p # Set current paragraph to the one just created
+                    if current_paragraph is None:
+                        # If no current paragraph, create a new one for this <p>
+                        p = doc_obj.add_paragraph()
+                        # Process children into this new paragraph
+                        for child in node.contents:
+                            _process_node_recursive(child, p, doc_obj, new_bold, new_italic)
+                        current_paragraph = p # Set current paragraph to the one just created
+                    else:
+                        # If there is a current paragraph (e.g., inside an <li>),
+                        # add a newline and then process children into the current paragraph.
+                        # Add newline only if the current paragraph is not empty
+                        if current_paragraph.text.strip() or current_paragraph.runs:
+                             current_paragraph.add_run('\n')
+                        for child in node.contents:
+                            _process_node_recursive(child, current_paragraph, doc_obj, new_bold, new_italic)
+                        # current_paragraph remains the same
                 elif node.name == 'pre':
                     # Create a code block paragraph
                     code_text = node.get_text()
@@ -249,12 +259,15 @@ def generate_gpt_analysis_docx(
                     # Handle lists
                     list_style = 'List Bullet' if node.name == 'ul' else 'List Number'
                     for li in node.find_all('li', recursive=False):
-                        # Each li is a new paragraph with list style
-                        p_li = doc_obj.add_paragraph(style=list_style)
-                        # Process children of li into this new paragraph
-                        # Pass the list style down so nested lists could potentially be handled
-                        for child_li in li.contents:
-                            _process_node_recursive(child_li, p_li, doc_obj, new_bold, new_italic, list_style)
+                        # Only create a paragraph for non-empty list items
+                        if li.get_text(strip=True):
+                            # Each li is a new paragraph with list style
+                            p_li = doc_obj.add_paragraph(style=list_style)
+                            # Process children of li into this new paragraph
+                            # Pass the list style down so nested lists could potentially be handled
+                            for child_li in li.contents:
+                                _process_node_recursive(child_li, p_li, doc_obj, new_bold, new_italic, list_style)
+                        # If li is empty, do nothing, don't create a paragraph
                     current_paragraph = None # After list, subsequent content should be new para
                 elif node.name == 'table':
                     # Handle tables - simplified fallback
