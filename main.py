@@ -161,7 +161,8 @@ def convert_markdown_to_docx(markdown_text, file_name):
         doc = docx.Document()
         
         # Convert HTML to DOCX
-        html2docx.convert(html_content, doc)
+        converter = html2docx.HTML2DOCX()
+        converter.add_html_to_document(html_content, doc)
         
         # Save the document
         docx_file_path = file_name + ".docx"
