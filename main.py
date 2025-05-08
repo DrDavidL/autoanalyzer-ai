@@ -4056,8 +4056,9 @@ You have access to two dataframes:
 If the user refers to a column name in a different case (e.g., 'glucose' instead of 'Glucose'), always match it to the correct column name in the dataframe, ignoring case. For example, if the user says 'glucose', use 'Glucose' if that is the actual column name.
 
 Before performing any analysis that requires numeric data (such as correlation heatmaps, PCA, or regression), always check for categorical columns (object dtype or string values). 
-- If a categorical column has exactly 2 unique values, convert it to numeric by mapping the most common value to 0 and the least common value to 1. Use the Series.map() method for this conversion and print a message indicating which columns were converted and how.
+- If a categorical column has exactly 2 unique values, convert it to numeric by mapping the most common value to 0 and the least common value to 1. Use the `safe_map_categorical()` function for this conversion and print a message indicating which columns were converted and how.
 - If a categorical column has more than 2 unique values, use one-hot encoding (e.g., `pd.get_dummies(df, columns=[col])`) to create additional columns as needed, and print a message indicating which columns were one-hot encoded.
+- Always check for and handle NaN values in categorical columns before mapping or encoding.
 Do this as a first step in your code if needed.
 
 **Important:** The unique values for categorical columns in the current `df` are printed in the previous output/history for your reference. Use this information to correctly identify and handle categorical values.
@@ -4127,7 +4128,8 @@ Write improved Python code to better answer the question.
 - Do not use plt.show().
 - Do not print explanations, only print results or tables.
 - If the question is not answerable, raise an Exception with a helpful message.
-- When converting categorical variables to numeric, use the Series.map() method and clearly document the mapping.
+- When converting categorical variables to numeric, use the `safe_map_categorical()` function and clearly document the mapping.
+- Always check for and handle NaN values in categorical columns before mapping or encoding.
 
 **Important:** The unique values for categorical columns in the current `df` are printed in the previous output/history for your reference. Use this information to correctly identify and handle categorical values.
 
@@ -4186,7 +4188,9 @@ original_map_inner = pd.Series.map
 def map_with_tracking(self, arg, *args, **kwargs):
     if isinstance(arg, dict):
         track_categorical_mapping(self.name, arg)
-    return original_map_inner(self, arg, *args, **kwargs)
+    # Use the original map method but handle NaN values safely
+    result = original_map_inner(self, arg, *args, **kwargs)
+    return result
 pd.Series.map = map_with_tracking
 
 # Print unique values for categorical columns for LLM reference
@@ -4194,14 +4198,56 @@ print("\\n--- Unique Categorical Values ---")
 for col in df.select_dtypes(include=['object', 'category']).columns:
     try:
         unique_vals = df[col].unique().tolist()
-        print(f"Column '{col}': {unique_vals}")
+        # Check for NaN values
+        has_nan = any(pd.isna(val) for val in unique_vals)
+        if has_nan:
+            print(f"Column '{col}': {unique_vals} (contains NaN values)")
+        else:
+            print(f"Column '{col}': {unique_vals}")
     except Exception as e:
         print(f"Could not get unique values for column '{col}': {e}")
 print("---------------------------------")
 """
                 
-                # Prepend the tracking code to the user's code
-                full_code = tracking_code + "\n" + code
+                # Add safe mapping helper function
+                safe_mapping_code = """
+# Helper function for safe categorical mapping
+def safe_map_categorical(series, mapping, default=None):
+    """
+    Safely map categorical values, handling NaN values and unknown categories.
+    
+    Args:
+        series: pandas Series to map
+        mapping: dictionary mapping values to new values
+        default: value to use for categories not in mapping (None = keep original)
+    
+    Returns:
+        Mapped pandas Series
+    """
+    # Create a copy to avoid modifying the original
+    result = series.copy()
+    
+    # Handle each value
+    for i, val in enumerate(result):
+        if pd.isna(val):
+            # Keep NaN values as NaN
+            continue
+        elif val in mapping:
+            # Apply mapping for known values
+            result.iloc[i] = mapping[val]
+        elif default is not None:
+            # Use default for unknown values if provided
+            result.iloc[i] = default
+    
+    # Track the mapping
+    if isinstance(series.name, str):
+        categorical_mappings[series.name] = mapping
+        
+    return result
+"""
+
+                # Prepend the tracking code and safe mapping helper to the user's code
+                full_code = tracking_code + "\n" + safe_mapping_code + "\n" + code
                 
                 try:
                     with redirect_stdout(f):
