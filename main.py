@@ -4273,6 +4273,9 @@ Does this completely and correctly answer the user's question? Answer with ONLY 
                         # Compose markdown with code and images from persistent storage
                         markdown = "# GPT Analysis Report\n\n"
                         
+                        # Add the user's original question at the top
+                        markdown += f"## Original Question\n\n{agent_question}\n\n"
+                        
                         # Get the current timestamp
                         timestamp = st.session_state.get("current_analysis_timestamp", "")
                         
