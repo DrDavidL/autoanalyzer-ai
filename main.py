@@ -3961,8 +3961,10 @@ with tab3:
             st.session_state.gpt_analysis_images = []
             st.session_state.model_output1 = ""
             
-            # Reset categorical mappings for new analysis
+            # Reset categorical mappings and working dataframe for new analysis
             st.session_state.categorical_mappings = {}
+            if "gpt_working_df" in st.session_state:
+                st.session_state.gpt_working_df = df.copy()
             
             # Create a progress bar for iterations
             progress_bar = st.progress(0)
@@ -3981,6 +3983,10 @@ You are an expert Python data analyst. The user has provided a pandas dataframe 
 
 The dataframe columns are: {col_list}
 
+You have access to two dataframes:
+1. `df` - A working copy that you can modify as needed for your analysis
+2. `original_df` - The original unmodified dataframe (read-only reference)
+
 If the user refers to a column name in a different case (e.g., 'glucose' instead of 'Glucose'), always match it to the correct column name in the dataframe, ignoring case. For example, if the user says 'glucose', use 'Glucose' if that is the actual column name.
 
 Before performing any analysis that requires numeric data (such as correlation heatmaps, PCA, or regression), always check for categorical columns (object dtype or string values). 
@@ -3995,6 +4001,8 @@ import numpy as np
 import pandas as pd
 
 Write Python code to answer the question. 
+- Feel free to modify the `df` dataframe as needed (filter, transform, etc.)
+- If you need to reference the original unmodified data, use `original_df`
 - If a plot is needed, save it to '{st.session_state.outputs_path}/gpt_plot_{iteration}.png' using plt.savefig and then call plt.close().
 - Do not use plt.show().
 - Do not print explanations, only print results or tables.
@@ -4014,6 +4022,10 @@ You are an expert Python data analyst. The user has provided a pandas dataframe 
 {question}
 
 The dataframe columns are: {col_list}
+
+You have access to two dataframes:
+1. `df` - A working copy that you can modify as needed for your analysis
+2. `original_df` - The original unmodified dataframe (read-only reference)
 
 This is iteration {iteration} of your analysis. You previously wrote this code:
 
@@ -4041,6 +4053,8 @@ import numpy as np
 import pandas as pd
 
 Write improved Python code to better answer the question. 
+- Feel free to modify the `df` dataframe as needed (filter, transform, etc.)
+- If you need to reference the original unmodified data, use `original_df`
 - If a plot is needed, save it to '{st.session_state.outputs_path}/gpt_plot_{iteration}.png' using plt.savefig and then call plt.close().
 - Do not use plt.show().
 - Do not print explanations, only print results or tables.
@@ -4064,12 +4078,22 @@ Respond ONLY with valid Python code, not with natural language or explanations.
             def run_code_and_capture(code):
                 f = io.StringIO()
                 images_before = set(glob.glob(f"{st.session_state.outputs_path}/*.png"))
+                
+                # Create a working copy of the dataframe for the model to modify
+                if "gpt_working_df" not in st.session_state:
+                    st.session_state.gpt_working_df = df.copy()
+                else:
+                    # Reset the working dataframe for each new code execution
+                    st.session_state.gpt_working_df = df.copy()
+                
                 # Always ensure the most common imports are available in the exec environment
                 repl.globals.update({
                     "plt": plt,
                     "sns": sns,
                     "np": np,
                     "pd": pd,
+                    "df": st.session_state.gpt_working_df,  # Use the working copy
+                    "original_df": df,  # Also provide access to the original dataframe
                 })
                 
                 # Initialize a dictionary to store categorical variable mappings
@@ -4281,11 +4305,27 @@ Does this completely and correctly answer the user's question? Answer with ONLY 
         if st.session_state.model_output1 or st.session_state.gpt_analysis_code:
             # Get the current timestamp
             timestamp = st.session_state.get("current_analysis_timestamp", "")
-            
+                
             # Display output if available
             if st.session_state.model_output1:
                 st.write("**Output:**")
                 st.code(st.session_state.model_output1)
+                
+            # Check if the working dataframe was modified and is different from the original
+            if "gpt_working_df" in st.session_state:
+                try:
+                    # Check if dataframes are different (ignoring index)
+                    if not st.session_state.gpt_working_df.equals(df) and not st.session_state.gpt_working_df.empty:
+                        with st.expander("View modified dataframe", expanded=False):
+                            st.write("The analysis modified the dataframe. Here's the result:")
+                            st.dataframe(st.session_state.gpt_working_df)
+                                
+                            # Add option to use this as the new dataframe
+                            if st.button("Use this modified dataframe for future analyses"):
+                                st.session_state.modified_df = st.session_state.gpt_working_df.copy()
+                                st.success("Modified dataframe saved! Select 'Modified Dataframe' in the sidebar to use it.")
+                except Exception as e:
+                    st.warning(f"Could not compare dataframes: {e}")
                 
             # Display code if available
             if st.session_state.gpt_analysis_code:
