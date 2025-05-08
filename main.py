@@ -4042,6 +4042,8 @@ Before performing any analysis that requires numeric data (such as correlation h
 - If a categorical column has more than 2 unique values, use one-hot encoding (e.g., `pd.get_dummies(df, columns=[col])`) to create additional columns as needed, and print a message indicating which columns were one-hot encoded.
 Do this as a first step in your code if needed.
 
+**Important:** The unique values for categorical columns in the current `df` are printed in the previous output/history for your reference. Use this information to correctly identify and handle categorical values.
+
 At the top of your code, always include:
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -4108,6 +4110,8 @@ Write improved Python code to better answer the question.
 - Do not print explanations, only print results or tables.
 - If the question is not answerable, raise an Exception with a helpful message.
 - When converting categorical variables to numeric, use the Series.map() method and clearly document the mapping.
+
+**Important:** The unique values for categorical columns in the current `df` are printed in the previous output/history for your reference. Use this information to correctly identify and handle categorical values.
 
 Return only the improved code, nothing else.
 Respond ONLY with valid Python code, not with natural language or explanations.
