@@ -2051,7 +2051,7 @@ with tab1:
 
     if demo_or_custom == "✨ Generate Data":
         # Removed authentication info message as requested
-        
+        st.sidebar.markdown("Enter column names on the main page ➡️")
         # Move input fields and button to main area, but keep the password check
         if hu_key == "True" or check_password(): # Keep the check
             user_input = st.text_area( # Use st.text_area for main area
