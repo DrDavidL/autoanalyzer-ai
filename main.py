@@ -3920,7 +3920,7 @@ with tab3:
         # Display the current dataframe being used for analysis
         # This could be the initially loaded df or the gpt_working_df from a previous run
         current_analysis_df = st.session_state.get("gpt_working_df", st.session_state.df)
-        
+
         n_rows, n_cols = current_analysis_df.shape
         st.write(f"Current DataFrame shape: {n_rows} rows × {n_cols} columns")
 
