@@ -2024,7 +2024,7 @@ with tab1:
         )
 
     if demo_or_custom == "✨ Generate Data":
-        st.info("Data generation requires authentication (password or HEALTH_UNIVERSE environment variable set to 'True'). Input fields will appear below if authenticated.")
+        # Removed authentication info message as requested
         
         # Move input fields and button to main area, but keep the password check
         if hu_key == "True" or check_password(): # Keep the check
