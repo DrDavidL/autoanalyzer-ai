@@ -168,25 +168,29 @@ def generate_gpt_analysis_docx(
     def add_markdown_text(paragraph, text):
         """
         Add text to a docx paragraph, parsing *italic*, **bold**, and ***bolditalic***.
+        Handles nested and adjacent markdown asterisks.
         """
         import re
+
+        # This regex matches ***bolditalic***, **bold**, *italic*
+        # and handles adjacent/overlapping patterns correctly.
+        pattern = re.compile(
+            r"(\*\*\*([^\*]+?)\*\*\*|\*\*([^\*]+?)\*\*|\*([^\*]+?)\*)"
+        )
         pos = 0
-        # Pattern for ***bolditalic***, **bold**, *italic*
-        pattern = re.compile(r"(\*\*\*.+?\*\*\*|\*\*.+?\*\*|\*.+?\*)")
         for match in pattern.finditer(text):
             start, end = match.span()
             if start > pos:
                 paragraph.add_run(text[pos:start])
-            token = match.group()
-            if token.startswith("***") and token.endswith("***"):
-                run = paragraph.add_run(token[3:-3])
+            if match.group(2):  # ***bolditalic***
+                run = paragraph.add_run(match.group(2))
                 run.bold = True
                 run.italic = True
-            elif token.startswith("**") and token.endswith("**"):
-                run = paragraph.add_run(token[2:-2])
+            elif match.group(3):  # **bold**
+                run = paragraph.add_run(match.group(3))
                 run.bold = True
-            elif token.startswith("*") and token.endswith("*"):
-                run = paragraph.add_run(token[1:-1])
+            elif match.group(4):  # *italic*
+                run = paragraph.add_run(match.group(4))
                 run.italic = True
             pos = end
         if pos < len(text):
