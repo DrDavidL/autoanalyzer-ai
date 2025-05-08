@@ -3991,10 +3991,13 @@ with tab3:
             # Ensure a dataframe is loaded before proceeding
             if st.session_state.df.empty:
                 st.warning("Please load a dataframe first.")
-                return # Stop execution if no dataframe is loaded
+                # Stop execution if no dataframe is loaded
+                # The rest of the code in this block will not run if df is empty
 
             # Set up the REPL for code execution *inside* the button click
-            repl = PythonREPL()
+            # Only proceed if the dataframe is not empty
+            if not st.session_state.df.empty:
+                repl = PythonREPL()
             # Initialize REPL globals with the current dataframe and common libraries
             repl.globals.update({
                 "df": st.session_state.df.copy(), # Use a copy of the loaded df as the initial working df
