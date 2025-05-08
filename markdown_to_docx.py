@@ -432,19 +432,56 @@ def generate_gpt_analysis_docx(
             else:
                 other_blocks.append(block_text)
 
-        # Add non-table blocks as paragraphs, using add_html_to_doc (as per original structure)
-        # If add_markdown_text is preferred, this call should change.
+        # Add non-table blocks as paragraphs, attempting to preserve code block formatting
+        code_block_style = create_code_block_style(doc) # Ensure style is available
+        
         for block_content in other_blocks:
-            if block_content.strip():
-                # Using add_html_to_doc as in the original structure for 'output' section.
-                # If the improved add_markdown_text is intended here, this should be:
-                # p = doc.add_paragraph()
-                # add_markdown_text(p, block_content.strip())
-                html_output_block = markdown.markdown(block_content.strip(), extensions=['nl2br', 'fenced_code', 'tables', 'sane_lists', 'markdown.extensions.extra'])
-                add_html_to_doc(doc, html_output_block)
+            if not block_content.strip():
+                # Add an empty paragraph for spacing if the block was just whitespace
+                doc.add_paragraph()
+                continue
+                
+            lines = block_content.strip().splitlines()
+            
+            in_code_block = False
+            current_code_block_lines = []
+            
+            for line in lines:
+                # Detect lines that look like code (start with space/tab or within ```)
+                # This is a simple heuristic; more robust parsing might be needed for complex cases
+                is_code_line = line.startswith(' ') or line.startswith('\t') or line.strip().startswith('```')
+                
+                if line.strip().startswith('```'):
+                    if in_code_block: # End of a fenced code block
+                        in_code_block = False
+                        # Add the accumulated code block lines
+                        if current_code_block_lines:
+                            doc.add_paragraph('\n'.join(current_code_block_lines), style=code_block_style)
+                            current_code_block_lines = []
+                    else: # Start of a fenced code block
+                        in_code_block = True
+                        # Skip the ``` line itself
+                    continue # Process next line
+                
+                if in_code_block:
+                    current_code_block_lines.append(line)
+                elif is_code_line:
+                    # If not already in a fenced block but line is indented, treat as code
+                    doc.add_paragraph(line, style=code_block_style)
+                else:
+                    # Regular paragraph line
+                    # We could potentially run markdown on this line for inline formatting,
+                    # but for raw console output, plain text is often better.
+                    # Let's add as plain text paragraph for now.
+                    doc.add_paragraph(line)
+            
+            # Add any remaining lines if the block ended inside a fenced code block
+            if current_code_block_lines:
+                 doc.add_paragraph('\n'.join(current_code_block_lines), style=code_block_style)
 
 
         # Add tables (using markdown library's table extension and then parsing HTML table)
+        # This section remains largely the same for markdown tables
         for table_markdown_block in table_blocks:
             html_table = markdown.markdown(table_markdown_block, extensions=['tables'])
             soup_table = BeautifulSoup(html_table, 'html.parser').find('table')
@@ -492,8 +529,10 @@ def generate_gpt_analysis_docx(
                 except Exception as e_table:
                     doc.add_paragraph(f"[Error parsing table: {e_table}]\n{table_markdown_block}")
             else: # Not parsed as a table by markdown lib, add as preformatted text
-                p = doc.add_paragraph()
-                add_markdown_text(p, f"```\n{table_markdown_block}\n```") # Treat as code block
+                # If it wasn't a markdown table, it might be a console-printed table.
+                # The 'other_blocks' processing above should handle this as code/plain text.
+                # We can add a note here if desired, but the content is already added.
+                pass # Content already handled by other_blocks processing
 
     # Categorical mappings
     if categorical_mappings:
