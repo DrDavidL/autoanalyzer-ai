@@ -47,6 +47,9 @@ def do_table_of_contents(document):
 
 
 def do_table(doc, table_in, style):
+    """
+    Enhanced table handling with support for HTML tables and cell coordinates
+    """
     try:
         the_header = table_in.find("thead")
         the_column_names = the_header.find_all("th") if the_header else []
@@ -59,16 +62,37 @@ def do_table(doc, table_in, style):
         n_rows = len(table_in.find_all("tr"))
         this_table = doc.add_table(rows=n_rows, cols=n_cols, style=style)
 
+        # Process each row with precise positioning
         for i, row in enumerate(table_in.find_all("tr")):
             cells = row.find_all(["th", "td"])
             for j, cell in enumerate(cells):
-                this_table.cell(i, j).text = cell.get_text(strip=True)
+                # Get cell coordinates if available
+                row_coord = cell.get('data-row', i)
+                col_coord = cell.get('data-col', j)
+                
+                # Get cell text
+                cell_text = cell.get_text(strip=True)
+                
+                # Apply text to the table cell
+                this_table.cell(i, j).text = cell_text
+                
+                # Apply special formatting for numeric values
+                if cell_text and cell_text.replace('.', '', 1).replace('-', '', 1).isdigit():
+                    for paragraph in this_table.cell(i, j).paragraphs:
+                        paragraph.alignment = docx.enum.text.WD_ALIGN_PARAGRAPH.RIGHT
 
         # Make the header row bold
         for cell in this_table.rows[0].cells:
             for paragraph in cell.paragraphs:
                 for run in paragraph.runs:
                     run.bold = True
+                    
+        # Apply consistent cell padding and spacing
+        for row in this_table.rows:
+            for cell in row.cells:
+                for paragraph in cell.paragraphs:
+                    paragraph.paragraph_format.space_before = Pt(2)
+                    paragraph.paragraph_format.space_after = Pt(2)
     except Exception as e:
         doc.add_paragraph(f"[Table could not be rendered: {e}]")
 

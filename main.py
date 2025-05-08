@@ -4481,10 +4481,12 @@ Your summary should be written in professional academic language suitable for a 
                                 # Check if this looks like a pandas DataFrame output
                                 # Look for patterns like spaces with column headers and numeric data
                                 if re.match(r'\s*\w+\s+\w+', lines[0]) and len(lines) > 3:
+                                    # Parse the table into a structured format
+                                    table_data = []
+                                    
                                     # First, determine column positions by analyzing the header line
                                     header_line = lines[0].strip()
                                     col_positions = []
-                                    current_pos = 0
                                     
                                     # Find the starting position of each column header
                                     for match in re.finditer(r'\S+\s*\S*', header_line):
@@ -4497,11 +4499,10 @@ Your summary should be written in professional academic language suitable for a 
                                         end = col_positions[i+1] if i < len(col_positions)-1 else len(header_line)
                                         headers.append(header_line[start:end].strip())
                                     
-                                    # Start building markdown table
-                                    md_table = "| " + " | ".join(headers) + " |\n"
-                                    md_table += "| " + " | ".join(["---" for _ in headers]) + " |\n"
+                                    # Add headers as first row in table_data
+                                    table_data.append(headers)
                                     
-                                    # Add data rows using the same column positions
+                                    # Process each data row
                                     for line in lines[1:]:
                                         if line.strip():  # Skip empty lines
                                             row_values = []
@@ -4515,19 +4516,46 @@ Your summary should be written in professional academic language suitable for a 
                                                     row_values.append("")
                                             
                                             if len(row_values) == len(headers):
-                                                md_table += "| " + " | ".join(row_values) + " |\n"
+                                                table_data.append(row_values)
                                     
-                                    return md_table
+                                    # Generate HTML table with proper structure
+                                    html_table = "<table>\n"
+                                    
+                                    # Add header row with th elements
+                                    html_table += "  <thead>\n    <tr>\n"
+                                    for header in table_data[0]:
+                                        html_table += f"      <th>{header}</th>\n"
+                                    html_table += "    </tr>\n  </thead>\n"
+                                    
+                                    # Add data rows with td elements and coordinates
+                                    html_table += "  <tbody>\n"
+                                    for row_idx, row in enumerate(table_data[1:], 1):
+                                        html_table += "    <tr>\n"
+                                        for col_idx, cell in enumerate(row):
+                                            # Add data attributes for row/column coordinates
+                                            html_table += f'      <td data-row="{row_idx}" data-col="{col_idx}">{cell}</td>\n'
+                                        html_table += "    </tr>\n"
+                                    html_table += "  </tbody>\n"
+                                    html_table += "</table>"
+                                    
+                                    return html_table
                                 return text_block
                             
                             # Split the output by double newlines to identify potential table blocks
                             output_blocks = re.split(r'\n\s*\n', output_for_doc)
                             formatted_output = ""
                             
+                            # Track table count for unique IDs
+                            table_count = 0
+                            
                             for block in output_blocks:
                                 # If block looks like a table, format it
                                 if re.search(r'\n\s*\w+\s+\w+\s+\w+', block):
-                                    formatted_output += format_text_table_to_markdown(block) + "\n\n"
+                                    table_count += 1
+                                    formatted_table = format_text_table_to_markdown(block)
+                                    
+                                    # Add a table identifier and wrap in div for better handling
+                                    formatted_output += f'<div class="table-container" id="table-{table_count}">\n{formatted_table}\n</div>\n\n'
                                 else:
                                     formatted_output += block + "\n\n"
                             
