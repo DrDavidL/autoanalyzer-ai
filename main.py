@@ -1967,7 +1967,10 @@ with tab1:
         ),
         index=0,
     )
-    if demo_or_custom == "CSV or Excel Upload":
+    
+    # Add a message in the main area if CSV/Excel upload is selected
+    if demo_or_custom == "📁 CSV or Excel Upload":
+        st.info("Please use the file uploader that appeared in the sidebar on the left.")
         uploaded_file = st.sidebar.file_uploader("Choose a CSV or Excel file", type=["csv", "xlsx"])
         if uploaded_file:
             if uploaded_file.name.endswith(".csv"):
