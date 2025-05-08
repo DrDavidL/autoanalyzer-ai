@@ -3998,23 +3998,23 @@ with tab3:
             # Only proceed if the dataframe is not empty
             if not st.session_state.df.empty:
                 repl = PythonREPL()
-            # Initialize REPL globals with the current dataframe and common libraries
-            repl.globals.update({
-                "df": st.session_state.df.copy(), # Use a copy of the loaded df as the initial working df
-                "original_df": st.session_state.df, # Keep a reference to the original df
-                "plt": plt,
-                "sns": sns,
-                "np": np,
-                "pd": pd,
-            })
-            # Store the initial working df in session state
-            st.session_state.gpt_working_df = repl.globals['df'].copy()
+                # Initialize REPL globals with the current dataframe and common libraries
+                repl.globals.update({
+                    "df": st.session_state.df.copy(), # Use a copy of the loaded df as the initial working df
+                    "original_df": st.session_state.df, # Keep a reference to the original df
+                    "plt": plt,
+                    "sns": sns,
+                    "np": np,
+                    "pd": pd,
+                })
+                # Store the initial working df in session state
+                st.session_state.gpt_working_df = repl.globals['df'].copy()
 
-            # Store the current question in session state
-            st.session_state.last_agent_question = agent_question
-            
-            # Remove any prior plot images in the output directory
-            image_exts = ["png", "jpg", "jpeg", "svg", "pdf"]
+                # Store the current question in session state
+                st.session_state.last_agent_question = agent_question
+                
+                # Remove any prior plot images in the output directory
+                image_exts = ["png", "jpg", "jpeg", "svg", "pdf"]
             outputs_path = st.session_state.outputs_path
             for ext in image_exts:
                 for img_path in glob.glob(f"{outputs_path}/*.{ext}"):
