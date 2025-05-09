@@ -4073,6 +4073,8 @@ import seaborn as sns
 import numpy as np
 import pandas as pd
 
+**Very important:** Unless the user's question is strictly non-visual (such as "show me the column names" or "print the shape of the dataframe"), your code should always generate at least one relevant figure (such as a histogram, boxplot, scatterplot, or other plot) that helps answer or illustrate the user's query. If the question is ambiguous, make a reasonable choice of a plot that is most likely to be helpful. If it is not possible to generate a relevant plot, add a comment in the code explaining why.
+
 Write Python code to answer the question. 
 - Feel free to modify the `df` dataframe as needed (filter, transform, etc.)
 - If you need to reference the original unmodified data, use `original_df`
@@ -4124,6 +4126,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 import pandas as pd
+
+**Very important:** Unless the user's question is strictly non-visual (such as "show me the column names" or "print the shape of the dataframe"), your code should always generate at least one relevant figure (such as a histogram, boxplot, scatterplot, or other plot) that helps answer or illustrate the user's query. If the question is ambiguous, make a reasonable choice of a plot that is most likely to be helpful. If it is not possible to generate a relevant plot, add a comment in the code explaining why.
 
 Write improved Python code to better answer the question.
 - Feel free to modify the `df` dataframe as needed (filter, transform, etc.). These modifications will persist for subsequent iterations.
