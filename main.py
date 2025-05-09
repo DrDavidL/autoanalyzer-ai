@@ -4062,7 +4062,7 @@ You have access to two dataframes:
 1. `df` - A working copy that you can modify as needed for your analysis
 2. `original_df` - The original unmodified dataframe (read-only reference)
 
-If the user refers to a column name in a different case (e.g., 'glucose' instead of 'Glucose'), always match it to the correct column name in the dataframe, ignoring case. For example, if the user says 'glucose', use 'Glucose' if that is the actual column name.
+If the user refers to a column name using a synonym or in a different case (e.g., 'glucose' instead of 'Glucose' or 'sodium' for 'Na'), always match it to the correct intended column name in the dataframe, ignoring case. For example, if the user says 'glucose', use 'Glucose' if that is the actual column name.
 
 Before performing any analysis that requires numeric data (such as correlation heatmaps, PCA, or regression), always check for categorical columns (object dtype or string values). 
 - If a categorical column has exactly 2 unique values, convert it to numeric by mapping the most common value to 0 and the least common value to 1. Use the `safe_map_categorical()` function for this conversion and print a message indicating which columns were converted and how.
