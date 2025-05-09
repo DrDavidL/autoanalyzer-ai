@@ -3992,6 +3992,11 @@ with tab3:
             st.session_state.last_agent_question = ""
             
         if st.button("🚀 Analyze My Data", use_container_width=True):
+            # Always start from the original dataframe for each new analysis
+            st.session_state.gpt_working_df = st.session_state.df.copy()
+            if "modified_df" in st.session_state:
+                st.session_state.modified_df = pd.DataFrame()
+
             # Ensure a dataframe is loaded before proceeding
             if st.session_state.df.empty:
                 st.warning("Please load a dataframe first.")
