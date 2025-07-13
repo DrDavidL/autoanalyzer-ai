@@ -1,63 +1,22 @@
-import numpy as np
-
-import pandas as pd
-from scipy import stats
-import io
-import missingno as msno
 import streamlit as st
-import matplotlib.pyplot as plt
-import seaborn as sns
-from statsmodels.imputation import mice
-from sklearn.neural_network import MLPClassifier
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler, MinMaxScaler, normalize
-from sklearn.decomposition import PCA
-from sklearn.metrics import (
-    accuracy_score,
-    confusion_matrix,
-    roc_curve,
-    roc_auc_score,
-    precision_recall_curve,
-    auc,
-    f1_score,
-    ConfusionMatrixDisplay,
-)
+import streamlit.components.v1 as components
+import tempfile
 from sklearn.linear_model import LogisticRegression, RidgeClassifier, Lasso
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
-from sklearn.impute import SimpleImputer
-from sklearn import svm
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.naive_bayes import GaussianNB
-try:
-    from xgboost import XGBClassifier
-    xgboost_available = True
-except ImportError:
-    xgboost_available = False
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
-from langchain_openai import ChatOpenAI, AzureChatOpenAI, AzureOpenAI
-from langchain.agents.agent_types import AgentType
-from langchain_experimental.agents.agent_toolkits import create_pandas_dataframe_agent
-import json
-import base64
-from PIL import Image
-from lifelines import KaplanMeierFitter, CoxPHFitter
+from sklearn import svm
+from xgboost import XGBClassifier
+import os
+import warnings
 from explanations.explanations import (
     shapley_explanation,
     mult_linear_reg_explanation,
     cox,
     kaplan_meier,
 )
-import openai
-from tableone import TableOne
-from random import randint
-import os
-from sklearn import linear_model
-import statsmodels.api as sm
-import category_encoders as ce
-import shap
-import time
-import tempfile
 from prompts import (
     csv_prefix_gpt4,
     data_analysis_prompt,
@@ -65,27 +24,19 @@ from prompts import (
     quick_analysis_prompt,
     tool_explanations,
 )
-import asyncio
-from langchain.callbacks.base import AsyncCallbackHandler
-from langchain_core.outputs import LLMResult
-from typing import Any
-# Import functions directly from markdown_to_docx.py
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-# We'll use the html2docx library directly instead
-import html2docx
-import docx
-import markdown as md
-import tempfile
-from bs4 import BeautifulSoup
-import sweetviz as sv
-import streamlit.components.v1 as components
-from ydata_profiling import ProfileReport
-# Import importlib.resources to replace pkg_resources
-import importlib.resources
-import importlib.metadata
-import warnings # Import the warnings module
+from markdown_to_docx import generate_gpt_analysis_docx
+import utils
+import data_processing
+import plotting
+import stats
+import llm_integration
+import ui
+import pandas as pd
+import numpy as np
+from tableone import TableOne
+import matplotlib.pyplot as plt
+import seaborn as sns
+import io
 
 # Suppress specific DeprecationWarnings from seaborn
 warnings.filterwarnings(
@@ -132,6 +83,7 @@ if "df_to_download" not in st.session_state:
 def make_sweet_report(df):
     # Suppress deprecation warnings from sweetviz's internal use of pkg_resources
     import warnings
+    import sweetviz as sv
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", category=DeprecationWarning)
         return sv.analyze(df)
@@ -141,100 +93,19 @@ def make_sweet_report(df):
 def make_pandas_report(df, title):
     # Suppress deprecation warnings from ydata-profiling's internal use of pkg_resources
     import warnings
+    from ydata_profiling import ProfileReport
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", category=DeprecationWarning)
         return ProfileReport(df, title=title)
 
 
-def get_output_path():
-    tmpdirname = tempfile.mkdtemp(prefix="output_")
-    return tmpdirname
-
-
-from markdown_to_docx import generate_gpt_analysis_docx
-
-
+# Use utils.get_output_path instead of local definition
 if "outputs_path" not in st.session_state:
-    st.session_state.outputs_path = get_output_path()
+    st.session_state.outputs_path = utils.get_output_path()
 
 
-# Removed pandasai Agent-based function, as only langchain-experimental is now used.
-
-
-def is_valid_api_key(api_key):
-    openai.api_key = api_key
-    try:
-        # Send a test request to the OpenAI API
-        openai.Completion.create(
-            model="text-davinci-003", prompt="Hello world"
-        )["choices"][0]["text"]
-        return True
-    except Exception:
-        return False
-
-
-def is_bytes_like(obj):
-    return isinstance(obj, (bytes, bytearray, memoryview))
-
-
-def save_image(plot, filename):
-    try:
-        if is_bytes_like(plot):
-            img = io.BytesIO(plot)
-        else:
-            img = io.BytesIO()
-            plot.savefig(img, format="png")
-        img.seek(0)
-        btn = st.download_button(
-            label="Download your plot.",
-            data=img,
-            file_name=filename,
-            mime="image/png",
-        )
-    except Exception as e:
-        st.warning(f"Could not save or download plot: {e}")
-
-
-def generate_regression_equation(intercept, coef, x_col):
-    equation = f"y = {round(intercept, 4)}"
-
-    for c, feature in zip(coef, x_col):
-        equation += f" + {round(c, 4)} * {feature}"
-
-    return equation
-
-
-def df_download_options(df, report_type):
-    a = randint(0, 10000000000)
-    format = st.radio(
-        "Select the format for your report:",
-        (
-            "csv",
-            "json",
-            "html",
-        ),
-        key=f"report_format_{a}",
-        horizontal=True,
-    )
-    file_name = f"{report_type}.{format}"
-
-    if format == "csv":
-        data = df.to_csv(index=True)
-        mime = "text/csv"
-    if format == "json":
-        data = df.to_json(orient="records")
-        mime = "application/json"
-    if format == "html":
-        data = df.to_html()
-        mime = "text/html"
-    if True:
-        st.download_button(
-            label="Download your report.",
-            data=data,
-            # data=df.to_csv(index=True),
-            file_name=file_name,
-            mime=mime,
-        )
+# Use ui.df_download_options instead of local definition
+# Use utils.generate_regression_equation if needed (move to utils if not already)
 
 
 def plot_mult_linear_reg(df, x, y):
@@ -259,107 +130,13 @@ def plot_mult_linear_reg(df, x, y):
     return print_model, df_mlr_output, regr.intercept_, regr.coef_
 
 
-def all_categorical(df):
-    categ_cols = df.select_dtypes(include=["object"]).columns.tolist()
-    numeric_cols = [
-        col
-        for col in df.columns
-        if df[col].nunique() == 2 and df[col].dtype != "object"
-    ]
-    filtered_categorical_cols = [col for col in categ_cols if df[col].nunique() <= 15]
-    all_categ = filtered_categorical_cols + numeric_cols
-    return all_categ
+# Use data_processing.all_categorical, data_processing.all_numerical, data_processing.filter_dataframe instead of local definitions
 
 
-def all_numerical(df):
-    numerical_cols = df.select_dtypes(include="number").columns.tolist()
-
-    for col in df.select_dtypes(include="object").columns:
-        if df[col].nunique() == 2:
-            unique_values = df[col].unique()
-            if 0 in unique_values and 1 in unique_values:
-                continue
-
-            value_counts = df[col].value_counts()
-            most_frequent_value = value_counts.idxmax()
-            least_frequent_value = value_counts.idxmin()
-
-            if most_frequent_value != 0 and least_frequent_value != 1:
-                df[col] = np.where(df[col] == most_frequent_value, 0, 1)
-                st.write(
-                    f"Replaced most frequent value '{most_frequent_value}' with 0 and least frequent value '{least_frequent_value}' with 1 in column '{col}'."
-                )
-                numerical_cols.append(col)  # Update numerical_cols
-
-    return numerical_cols
-
-
-def filter_dataframe(df):
-    # Get the column names and data types of the dataframe
-    columns = df.columns
-    dtypes = df.dtypes
-
-    # Create a sidebar for selecting columns to exclude
-    excluded_columns = st.multiselect("Exclude Columns", columns)
-
-    # Create a copy of the dataframe to apply the filters
-    filtered_df = df.copy()
-
-    # Exclude the selected columns from the dataframe
-    filtered_df = filtered_df.drop(excluded_columns, axis=1)
-
-    # Get the column names and data types of the filtered dataframe
-    filtered_columns = filtered_df.columns
-    filtered_dtypes = filtered_df.dtypes
-
-    # Create a sidebar for selecting numerical variables and their range
-    numerical_columns = [
-        col
-        for col, dtype in zip(filtered_columns, filtered_dtypes)
-        if dtype in ["int64", "float64"]
-    ]
-    for col in numerical_columns:
-        min_val = filtered_df[col].min()
-        max_val = filtered_df[col].max()
-        st.write(f"**{col}**")
-        min_range, max_range = st.slider(
-            "", min_val, max_val, (min_val, max_val), key=col
-        )
-
-        # Filter the dataframe based on the selected range
-        if min_range > min_val or max_range < max_val:
-            filtered_df = filtered_df[
-                (filtered_df[col] >= min_range) & (filtered_df[col] <= max_range)
-            ]
-
-    # Create a sidebar for selecting categorical variables and their values
-    categorical_columns = [
-        col
-        for col, dtype in zip(filtered_columns, filtered_dtypes)
-        if dtype == "object"
-    ]
-    for col in categorical_columns:
-        unique_values = filtered_df[col].unique()
-        selected_values = st.multiselect(col, unique_values, unique_values)
-
-        # Filter the dataframe based on the selected values
-        if len(selected_values) < len(unique_values):
-            filtered_df = filtered_df[filtered_df[col].isin(selected_values)]
-
-    return filtered_df
-
-
-# Function to generate a download link
+# Use utils.get_download_link instead of local definition
 def get_download_link(file_path, file_type):
-    try:
-        with open(file_path, "rb") as file:
-            contents = file.read()
-        base64_data = base64.b64encode(contents).decode("utf-8")
-        download_link = f'<a href="data:application/octet-stream;base64,{base64_data}" download="tableone_results.{file_type}">Click here to download the TableOne results in {file_type} format.</a>'
-        return download_link
-    except Exception as e:
-        st.warning(f"Could not create download link: {e}")
-        return ""
+    # Note: Replaced with call to utils.get_download_link
+    return utils.get_download_link(file_path, file_type)
 
 
 def find_binary_categorical_variables(df):
@@ -392,39 +169,22 @@ def generate_2x2_table(df, var1, var2):
     return table
 
 
+# Use plotting.plot_mult_linear_reg instead of local definition
+def plot_mult_linear_reg(df, x, y):
+    # Note: Replaced with call to plotting.plot_mult_linear_reg
+    return plotting.plot_mult_linear_reg(df, x, y)
+
+
+# Use plotting.plot_survival_curve instead of local definition
 def plot_survival_curve(df, time_col, event_col):
-    # Create a Kaplan-Meier fitter object
-    try:
-        if time_col not in df.columns or event_col not in df.columns:
-            st.warning("Selected columns not found in dataframe.")
-            return None
-        if df[time_col].isnull().any() or df[event_col].isnull().any():
-            st.warning("Time or event column contains missing values.")
-            return None
-        kmf = KaplanMeierFitter()
-        kmf.fit(df[time_col], event_observed=df[event_col])
-        fig, ax = plt.subplots()
-        kmf.plot_survival_function(ax=ax)
-        ax.set_xlabel("Time")
-        ax.set_ylabel("Survival Probability")
-        ax.set_title("Survival Curve")
-        st.pyplot(fig)
-        return fig
-    except Exception as e:
-        st.warning(f"Could not plot survival curve: {e}")
-        return None
+    # Note: Replaced with call to plotting.plot_survival_curve
+    return plotting.plot_survival_curve(df, time_col, event_col)
 
 
+# Use stats.calculate_rr_arr_nnt instead of local definition
 def calculate_rr_arr_nnt(tn, fp, fn, tp):
-    rr = (tp / (tp + fn)) / (fp / (fp + tn)) if fp + tn > 0 and tp + fn > 0 else np.inf
-    arr = (fn / (fn + tp)) - (fp / (fp + tn)) if fn + tp > 0 and fp + tn > 0 else np.inf
-    nnt = 1 / arr if arr > 0 else np.inf
-    return rr, arr, nnt
-
-
-# def fetch_api_key():
-#     api_key = None
-
+    # Note: Replaced with call to stats.calculate_rr_arr_nnt
+    return stats.calculate_rr_arr_nnt(tn, fp, fn, tp)
 #     try:
 #         # Attempt to retrieve the API key as a secret
 #         api_key = st.secrets["openai-api-key"]
@@ -526,18 +286,14 @@ Remember to structure the code such that it is properly indented and formatted a
 
 
 def assess_data_readiness(df):
+    import missingno as msno
     readiness_summary = {}
     st.write("White horizontal lines (if present) show missing data")
     try:
         missing_matrix = msno.matrix(df)
-        # missing_matrix = visualimiss.matrix(df, color=(43, 102, 189), sort="asc")
-        # missing_matrix = msno.matrix(df)
         st.pyplot(missing_matrix.figure)
-
-    except:
-        st.warning(
-            'Dataframe not yet amenable to missing for "missingno" library analysis.'
-        )
+    except Exception as e:
+        st.warning(f'Dataframe not yet amenable to missing for "missingno" library analysis. Exception: {e}')
 
     # Check if the DataFrame is empty
 
@@ -827,23 +583,10 @@ def start_plot_gpt4(df, question, max_retries=5, delay=3):
     return model_output
 
 
-class StreamlitAsyncCallbackHandler(AsyncCallbackHandler):
-    def __init__(self, progress_bar):
-        self.progress_bar = progress_bar
-        self.token_count = 0
-        self.total_tokens = 100  # Estimate, adjust as needed
-
-    async def on_llm_new_token(self, token: str, **kwargs) -> None:
-        self.token_count += 1
-        progress = min(self.token_count / self.total_tokens, 1.0)
-        self.progress_bar.progress(progress)
-
-    async def on_llm_end(self, response: LLMResult, **kwargs: Any) -> None:
-        self.progress_bar.progress(1.0)
 
 
 async def start_plot_gpt4_async(df, question, progress_bar, max_retries=5, delay=2):
-    callback_handler = StreamlitAsyncCallbackHandler(progress_bar)
+    callback_handler = llm_integration.StreamlitAsyncCallbackHandler(progress_bar)
 
     llm = ChatOpenAI(
         api_key=openai_api_key,
@@ -1426,57 +1169,6 @@ def preprocess_old(df, target_col):
                     st.write(f"Imputed missing values in {col} with mean.")
                 included_cols.append(col)
 
-    # st.write(f"Included Columns: {included_cols}")
-    # st.write(f"Excluded Columns: {excluded_cols}")
-
-    return df[included_cols], included_cols, excluded_cols
-
-
-def create_boxplot(df, numeric_col, categorical_col, show_points=False):
-    try:
-        if numeric_col and categorical_col:
-            fig, ax = plt.subplots()
-
-            # Plot the notched box plot
-            sns.boxplot(x=categorical_col, y=numeric_col, data=df, notch=True, ax=ax)
-
-            if show_points:
-                # Add the actual data points on the plot
-                sns.swarmplot(x=categorical_col, y=numeric_col, data=df, color=".25", ax=ax)
-
-            # Add a title to the plot
-            ax.set_title(f"Box Plot of {numeric_col} by {categorical_col}")
-
-            st.pyplot(fig)
-            return fig
-        else:
-            st.warning("Please select both a numerical and a categorical column for the box plot.")
-            return None
-    except Exception as e:
-        st.warning(f"Could not create box plot: {e}")
-        return None
-
-
-def create_violinplot(df, numeric_col, categorical_col):
-    try:
-        if numeric_col and categorical_col:
-            fig, ax = plt.subplots()
-
-            # Plot the violin plot
-            sns.violinplot(x=categorical_col, y=numeric_col, data=df, ax=ax)
-
-            # Add a title to the plot
-            ax.set_title(f"Violin Plot of {numeric_col} by {categorical_col}")
-
-            st.pyplot(fig)
-            return fig
-        else:
-            st.warning("Please select both a numerical and a categorical column for the violin plot.")
-            return None
-    except Exception as e:
-        st.warning(f"Could not create violin plot: {e}")
-        return None
-
 
 def create_scatterplot(df, scatter_x, scatter_y):
     try:
@@ -1701,7 +1393,7 @@ def run_ttest(df, numeric_col, group_col):
             return None
         group1 = df[df[group_col] == groups[0]][numeric_col].dropna()
         group2 = df[df[group_col] == groups[1]][numeric_col].dropna()
-        t_stat, p_val = stats.ttest_ind(group1, group2)
+        t_stat, p_val = stats.run_ttest(df, numeric_col, group_col)
         st.write(f"T-test between {groups[0]} and {groups[1]} for {numeric_col}:")
         st.write(f"t-statistic = {t_stat:.3f}, p-value = {p_val:.3g}")
         return t_stat, p_val
@@ -1715,7 +1407,7 @@ def run_anova(df, numeric_col, group_col):
         if len(groups) < 2:
             st.warning("ANOVA requires at least 2 groups.")
             return None
-        f_stat, p_val = stats.f_oneway(*groups)
+        f_stat, p_val = stats.run_anova(df, numeric_col, group_col)
         st.write(f"ANOVA for {numeric_col} by {group_col}:")
         st.write(f"F-statistic = {f_stat:.3f}, p-value = {p_val:.3g}")
         return f_stat, p_val
@@ -1731,7 +1423,7 @@ def run_mannwhitney(df, numeric_col, group_col):
             return None
         group1 = df[df[group_col] == groups[0]][numeric_col].dropna()
         group2 = df[df[group_col] == groups[1]][numeric_col].dropna()
-        u_stat, p_val = stats.mannwhitneyu(group1, group2, alternative="two-sided")
+        u_stat, p_val = stats.run_mannwhitney(df, numeric_col, group_col)
         st.write(f"Mann-Whitney U test between {groups[0]} and {groups[1]} for {numeric_col}:")
         st.write(f"U-statistic = {u_stat:.3f}, p-value = {p_val:.3g}")
         return u_stat, p_val
@@ -1745,7 +1437,7 @@ def run_kruskal(df, numeric_col, group_col):
         if len(groups) < 2:
             st.warning("Kruskal-Wallis test requires at least 2 groups.")
             return None
-        h_stat, p_val = stats.kruskal(*groups)
+        h_stat, p_val = stats.run_kruskal(df, numeric_col, group_col)
         st.write(f"Kruskal-Wallis test for {numeric_col} by {group_col}:")
         st.write(f"H-statistic = {h_stat:.3f}, p-value = {p_val:.3g}")
         return h_stat, p_val
@@ -1756,17 +1448,15 @@ def run_kruskal(df, numeric_col, group_col):
 def run_chi2(df, col1, col2):
     try:
         table = pd.crosstab(df[col1], df[col2])
-        chi2, p, dof, expected = stats.chi2_contingency(table)
+        chi2, p, dof, expected = stats.run_chi2(df, col1, col2)
         st.write(f"Chi-square test for {col1} vs {col2}:")
         st.write(f"Chi2 = {chi2:.3f}, p-value = {p:.3g}, dof = {dof}")
         st.write("Contingency Table:")
-        st.write(table)
+        st.write(pd.crosstab(df[col1], df[col2]))
         return chi2, p, dof, expected
     except Exception as e:
         st.warning(f"Could not run Chi-square test: {e}")
         return None
-
-def run_simple_linear_regression(df, x_col, y_col):
     try:
         x = df[x_col].values.reshape(-1, 1)
         y = df[y_col].values
@@ -1820,6 +1510,7 @@ def plot_time_series(df, time_col, value_col):
         return None
 
 def plot_missing_data(df):
+    import missingno as msno
     try:
         fig = msno.matrix(df)
         st.pyplot(fig.figure)
@@ -2363,7 +2054,22 @@ print(table)
         slr_x = st.selectbox("Select X (predictor):", numeric_cols, key="slr_x")
         slr_y = st.selectbox("Select Y (outcome):", numeric_cols, key="slr_y")
         if st.button("Run Simple Linear Regression"):
-            run_simple_linear_regression(st.session_state.df, slr_x, slr_y)
+            coef, intercept = stats.run_simple_linear_regression(st.session_state.df, slr_x, slr_y)
+            st.write(f"Regression equation: {slr_y} = {coef:.4f} * {slr_x} + {intercept:.4f}")
+            # Plot regression line and data points
+            x_vals = st.session_state.df[slr_x]
+            y_vals = st.session_state.df[slr_y]
+            import matplotlib.pyplot as plt
+            fig, ax = plt.subplots()
+            ax.scatter(x_vals, y_vals, label='Data')
+            ax.plot(x_vals, coef * x_vals + intercept, color='red', label='Regression Line')
+            ax.set_xlabel(slr_x)
+            ax.set_ylabel(slr_y)
+            ax.set_title(f'Simple Linear Regression: {slr_y} vs {slr_x}')
+            ax.legend()
+            st.pyplot(fig)
+            utils.save_image(fig, "simple_linear_regression.png")
+
         with st.expander("Show code for simple linear regression"):
             st.code(
                 f'''from sklearn.linear_model import LinearRegression
@@ -2417,35 +2123,44 @@ plt.show()
         )
         # Get column names for time and event from the user
         temp_df_mlr = st.session_state.df.copy()
-        numeric_columns_mlr = all_numerical(temp_df_mlr)
+        numeric_columns_mlr = data_processing.all_numerical(temp_df_mlr)
 
-        x_col = st.multiselect(
-            "Select the columns for x", numeric_columns_mlr, numeric_columns_mlr[1]
-        )
-        y_col = st.selectbox("Select the column for y", numeric_columns_mlr)
-        # Convert the columns to numeric values
-        # temp_df_mlr[x_col] = temp_df_mlr[x_col].astype(float)
-        # temp_df_mlr[y_col] = temp_df_mlr[y_col].astype(float)
-        # x_col_array = np.array(x_col)
-        # y_col_array = np.array(y_col)
-
-        # x_col_reshaped = x_col_array.reshape(-1, 1)
-        # y_col_reshaped = y_col_array.reshape(-1, 1)
-        # Plot the survival curve
-        try:
-            mult_linear_reg, mlr_report, intercept, coef = plot_mult_linear_reg(
-                temp_df_mlr, temp_df_mlr[x_col], temp_df_mlr[y_col]
+        if len(numeric_columns_mlr) >= 2:
+            x_col = st.multiselect(
+                "Select the columns for x",
+                numeric_columns_mlr,
+                default=[numeric_columns_mlr[1]]
             )
-            mlr_equation = generate_regression_equation(intercept, coef, x_col)
-            show_equation = st.checkbox("Show regression equation")
-            # mlr_report
-            if show_equation:
-                st.write(mlr_equation)
-            st.write("Download your cooefficients and intercept below.")
-            df_download_options(mlr_report, "Your Multiple Linear Regression")
-            with st.expander("Show code for multiple linear regression"):
-                st.code(
-                    f'''from sklearn.linear_model import LinearRegression
+        else:
+            x_col = st.multiselect(
+                "Select the columns for x",
+                numeric_columns_mlr
+            )
+
+        y_col = st.selectbox("Select the column for y", numeric_columns_mlr if numeric_columns_mlr else [""])
+
+        if st.button("Run Multiple Linear Regression"):
+            if not x_col or not y_col:
+                st.warning("Please select at least one column for x and one column for y.")
+            else:
+                try:
+                    regr, intercept, coef, summary, summary_table = stats.run_multiple_linear_regression(temp_df_mlr, x_col, y_col)
+                    mlr_equation = utils.generate_regression_equation(intercept, coef, x_col)
+                    show_equation = st.checkbox("Show regression equation")
+                    if show_equation:
+                        st.write(mlr_equation)
+                    st.write("Download your coefficients and intercept below.")
+                    if summary_table is not None:
+                        ui.df_download_options(summary_table, "Your Multiple Linear Regression")
+                    else:
+                        st.warning("No summary table available for download.")
+                    # Plot regression and offer download
+                    fig, *_ = plotting.plot_multiple_linear_regression(temp_df_mlr, x_col, y_col)
+                    st.pyplot(fig)
+                    utils.save_image(fig, "multiple_linear_regression.png")
+                    with st.expander("Show code for multiple linear regression"):
+                        st.code(
+                            f'''from sklearn.linear_model import LinearRegression
 
 # Fit multiple linear regression
 X = df[{x_col}]
@@ -2455,21 +2170,19 @@ regr.fit(X, y)
 print("Intercept:", regr.intercept_)
 print("Coefficients:", regr.coef_)
 ''', language="python")
-        except:
-            st.error("Please select at least one column for x and one column for y.")
-        # save_image(mult_linear_reg, 'mult_linear_reg.png')
-        # df_download_options(mult_linear_reg, 'csv')
-        with st.expander("What is a Multiple Linear Regression?"):
-            from prompts import mult_linear_reg_text
-            st.write(mult_linear_reg_text)
+                except Exception as e:
+                    st.error(f"An error occurred while running regression: {e}")
+            with st.expander("What is a Multiple Linear Regression?"):
+                from prompts import mult_linear_reg_text
+                st.write(mult_linear_reg_text)
 
     if cox_ph:
         df = st.session_state.df
 
         st.markdown("## Cox Analysis: Select Columns")
 
-        categ_columns_cox = all_categorical(df)
-        numeric_columns_cox = all_numerical(df)
+        categ_columns_cox = data_processing.all_categorical(df)
+        numeric_columns_cox = data_processing.all_numerical(df)
 
         event_col = st.selectbox(
             "Select the event column", categ_columns_cox, key="event_col"
@@ -2484,6 +2197,7 @@ print("Coefficients:", regr.coef_)
                 st.error("Select at least one column!")
             else:
                 cph_data = df[selected_columns_cox + [event_col] + [duration_col]]
+                from lifelines import CoxPHFitter
                 cph = CoxPHFitter(penalizer=0.1)
                 cph.fit(cph_data, duration_col=duration_col, event_col=event_col)
                 summary_cox = cph.summary
@@ -2504,7 +2218,7 @@ print(cph.summary)
         else:
             st.text("Select columns & hit 'Analyze'.")
         if st.session_state.df_to_download is not None:
-            df_download_options(st.session_state.df_to_download, "cox_ph_summary")
+            ui.df_download_options(st.session_state.df_to_download, "cox_ph_summary")
         with st.expander("What is a Cox Proportional Hazards Analysis?"):
             from prompts import cox_text
             st.write(cox_text)
@@ -2536,7 +2250,7 @@ ax.set_ylabel("Survival Probability")
 ax.set_title("Survival Curve")
 plt.show()
 ''', language="python")
-        save_image(surv_curve, "survival_curve.png")
+        utils.save_image(surv_curve, "survival_curve.png")
         with st.expander("What is a Kaplan-Meier Curve?"):
             from prompts import kaplan_meier_text
             st.write(kaplan_meier_text)
@@ -2611,7 +2325,8 @@ plt.show()
                 fp = table.iloc[0, 1]
                 fn = table.iloc[1, 0]
                 tp = table.iloc[1, 1]
-                rr, arr, nnt = calculate_rr_arr_nnt(tn, fp, fn, tp)
+                results = calculate_rr_arr_nnt(tn, fp, fn, tp)
+                rr, arr, nnt = results['RR'], results['ARR'], results['NNT']
 
                 # Display the 2x2 table and analysis results
                 st.subheader("2x2 Table")
@@ -2677,7 +2392,7 @@ print(summary)
 ''', language="python")
         st.session_state.df_to_download = sum_num_data
         if st.session_state.df_to_download is not None:
-            df_download_options(
+            ui.df_download_options(
                 st.session_state.df_to_download, "numerical_data_summary"
             )
 
@@ -2768,7 +2483,7 @@ plt.xlabel("{selected_col}")
 plt.ylabel("Frequency")
 plt.show()
 ''', language="python")
-        save_image(plt, "histogram.png")
+        utils.save_image(plt, "histogram.png")
 
     if barchart:
         numeric_cols, categorical_cols = get_categorical_and_numerical_cols(
@@ -2791,7 +2506,7 @@ plt.ylabel("Frequency")
 plt.title("Frequency of Categories for {cat_selected_col}")
 plt.show()
 ''', language="python")
-        save_image(plt, "bar_chart.png")
+        utils.save_image(plt, "bar_chart.png")
         with st.expander("Expand for Python|Streamlit Code"):
             st.code("""
 import matplotlib.pyplot as plt
@@ -2855,7 +2570,7 @@ sns.heatmap(corr, annot=True, cmap="coolwarm", cbar=True)
 plt.title("Correlation Heatmap")
 plt.show()
 ''', language="python")
-        save_image(plt, "heatmap.png")
+        utils.save_image(plt, "heatmap.png")
         with st.expander("What is a correlation heatmap?"):
             from prompts import correlation_heatmap_text
             st.write(correlation_heatmap_text)
@@ -2884,7 +2599,7 @@ print(summary)
 ''', language="python")
         st.session_state.df_to_download = summary
         if st.session_state.df_to_download is not None:
-            df_download_options(st.session_state.df_to_download, "categorical_summary")
+            ui.df_download_options(st.session_state.df_to_download, "categorical_summary")
 
     if piechart:
         st.info("Pie chart for categorical data")
@@ -2906,7 +2621,7 @@ df["{cat_selected_col}"].value_counts().plot(kind="pie", autopct="%1.1f%%")
 plt.title("Distribution for {cat_selected_col}")
 plt.show()
 ''', language="python")
-        save_image(plt, "pie_chart.png")
+        utils.save_image(plt, "pie_chart.png")
 
     if check_preprocess:
         # st.write("Running readiness assessment...")
@@ -3034,7 +2749,7 @@ sns.regplot(x="{scatter_x}", y="{scatter_y}", data=df)
 plt.title("Scatter Plot for {scatter_y} vs {scatter_x}")
 plt.show()
 ''', language="python")
-            save_image(scatterplot, "custom_scatterplot.png")
+            utils.save_image(scatterplot, "custom_scatterplot.png")
 
     if box_plot:
         numeric_cols, categorical_cols = get_categorical_and_numerical_cols(
@@ -3048,7 +2763,7 @@ plt.show()
         categorical_col = st.selectbox(
             "Select a categorical column:", categorical_cols, key="box_category"
         )
-        mybox = create_boxplot(
+        mybox = plotting.create_boxplot(
             st.session_state.df, numeric_col, categorical_col, show_points=False
         )
         with st.expander("Show code for box plot"):
@@ -3061,7 +2776,7 @@ sns.boxplot(x="{categorical_col}", y="{numeric_col}", data=df, notch=True)
 plt.title("Box Plot of {numeric_col} by {categorical_col}")
 plt.show()
 ''', language="python")
-        save_image(mybox, "box_plot.png")
+        utils.save_image(mybox, "box_plot.png")
         with st.expander("What is a box plot?"):
             from prompts import box_plot_text
             st.write(box_plot_text)
@@ -3079,7 +2794,7 @@ plt.show()
             "Select a categorical column:", categorical_cols, key="violin_category"
         )
 
-        violin = create_violinplot(st.session_state.df, numeric_col, categorical_col)
+        violin = plotting.create_violinplot(st.session_state.df, numeric_col, categorical_col)
         with st.expander("Show code for violin plot"):
             st.code(
                 f'''import seaborn as sns
@@ -3090,7 +2805,7 @@ sns.violinplot(x="{categorical_col}", y="{numeric_col}", data=df)
 plt.title("Violin Plot of {numeric_col} by {categorical_col}")
 plt.show()
 ''', language="python")
-        save_image(violin, "violin_plot.png")
+        utils.save_image(violin, "violin_plot.png")
         with st.expander("What is a violin plot?"):
             from prompts import violin_plot_text
             st.write(violin_plot_text)
@@ -3227,7 +2942,7 @@ ax.set_title("2 component PCA")
 ax.scatter(principalDf["PC1"], principalDf["PC2"])
 plt.show()
 ''', language="python")
-        save_image(pca_fig2, f"./{st.session_state.outputs_path}/pca_plot.png")
+        utils.save_image(pca_fig2, f"./{st.session_state.outputs_path}/pca_plot.png")
         scree_plot = create_scree_plot(st.session_state.df)
         with st.expander("Show code for scree plot"):
             st.code(
@@ -3247,7 +2962,7 @@ plt.xlabel("Number of Components")
 plt.ylabel("Cumulative Explained Variance Ratio")
 plt.show()
 ''', language="python")
-        save_image(scree_plot, f"./{st.session_state.outputs_path}/scree_plot.png")
+        utils.save_image(scree_plot, f"./{st.session_state.outputs_path}/scree_plot.png")
 
         with st.expander("What is PCA?"):
             st.write("""Principal Component Analysis, or PCA, is a method used to highlight important information in datasets that have many variables and to bring out strong patterns in a dataset. It's a way of identifying underlying structure in data.
@@ -3478,129 +3193,56 @@ with tab2:
                 "Model explanation is computationally expensive and may not work well with all model types (like Ridge Classifier or KNN). Please be patient."
             )
         if st.button("Predict"):
-            model = None
-            model_explanation = ""
-            shap_explainer = None
-            shap_values = None
-            shap_summary_plot = None
-            y_scores = None
-            # Model selection and fitting
-            if model_option == "Logistic Regression":
-                model = LogisticRegression()
-                model_explanation = "Logistic regression is a statistical model commonly used in the field of medicine to predict binary outcomes. It models the probability that a given input belongs to a particular category."
-                with st.expander("What is logistic regression?"):
-                    from prompts import logistic_regression_text
-                    st.write(logistic_regression_text)
-            elif model_option == "Ridge Classifier":
-                model = RidgeClassifier()
-                model_explanation = "Ridge Classifier is a linear model for classification that applies L2 regularization, helping to prevent overfitting."
-                with st.expander("What is Ridge Classifier?"):
-                    st.write("Ridge Classifier is a linear model for classification that applies L2 regularization, helping to prevent overfitting.")
-            elif model_option == "Lasso Regression":
-                model = Lasso()
-                model_explanation = "Lasso Regression is a linear model that uses L1 regularization, which can shrink some coefficients to zero, effectively performing feature selection. Note: This is a regression model, not a classification model."
-                with st.expander("What is Lasso Regression?"):
-                    st.write("Lasso Regression is a linear model that uses L1 regularization, which can shrink some coefficients to zero, effectively performing feature selection. It produces continuous outputs rather than binary classifications.")
-            elif model_option == "K-Nearest Neighbors (KNN)":
-                model = KNeighborsClassifier()
-                model_explanation = "K-Nearest Neighbors (KNN) is a simple, instance-based learning algorithm that classifies data points based on the majority class among their k nearest neighbors."
-                with st.expander("What is K-Nearest Neighbors (KNN)?"):
-                    st.write("K-Nearest Neighbors (KNN) is a simple, instance-based learning algorithm that classifies data points based on the majority class among their k nearest neighbors.")
-            elif model_option == "Naive Bayes":
-                model = GaussianNB()
-                model_explanation = "Naive Bayes is a probabilistic classifier based on Bayes' theorem, assuming independence between features. It's especially useful for categorical data."
-                with st.expander("What is Naive Bayes?"):
-                    st.write("Naive Bayes is a probabilistic classifier based on Bayes' theorem, assuming independence between features. It's especially useful for categorical data.")
-            elif model_option == "Decision Tree":
-                model = DecisionTreeClassifier()
-                model_explanation = "A decision tree is a type of predictive model that you can think of as similar to the flowcharts sometimes used in medical decision making."
-                with st.expander("What is a decision tree?"):
-                    from prompts import decision_tree_text
-                    st.write(decision_tree_text)
-            elif model_option == "Random Forest":
-                model = RandomForestClassifier()
-                model_explanation = "Random Forest is a type of machine learning model that is excellent for making predictions (both binary and multiclass) and for understanding which features are most important."
-                with st.expander("What is a random forest?"):
-                    from prompts import random_forest_text
-                    st.write(random_forest_text)
-            elif model_option == "Gradient Boosting Machines (GBMs)":
-                model = GradientBoostingClassifier()
-                model_explanation = "Gradient Boosting Machines (GBMs) are ensemble models that build trees sequentially, each one correcting the errors of the previous."
-                with st.expander("What is a gradient boosting machine?"):
-                    from prompts import gbm_text
-                    st.write(gbm_text)
-            elif model_option == "XGBoost":
-                model = XGBClassifier(use_label_encoder=False, eval_metric="logloss")
-                model_explanation = "XGBoost is a high-performance, scalable gradient boosting library that is widely used in data science competitions and industry."
-                with st.expander("What is XGBoost?"):
-                    st.write("XGBoost is a high-performance, scalable gradient boosting library that is widely used in data science competitions and industry.")
-            elif model_option == "Linear Discriminant Analysis (LDA)":
-                model = LinearDiscriminantAnalysis()
-                model_explanation = "Linear Discriminant Analysis (LDA) is a classification method that projects data onto a lower-dimensional space to maximize class separability."
-                with st.expander("What is Linear Discriminant Analysis (LDA)?"):
-                    st.write("Linear Discriminant Analysis (LDA) is a classification method that projects data onto a lower-dimensional space to maximize class separability.")
-            elif model_option == "Support Vector Machines (SVMs)":
-                model = svm.SVC(probability=True)
-                model_explanation = "Support Vector Machines (SVMs) are powerful classifiers that find the optimal hyperplane to separate classes in the feature space."
-                with st.expander("What is a support vector machine?"):
-                    from prompts import svm_text
-                    st.write(svm_text)
-            elif model_option == "Neural Network":
-                model = MLPClassifier(hidden_layer_sizes=(100,), activation="relu")
-                model_explanation = "A neural network is a type of machine learning model inspired by the structure and function of the human brain."
-                with st.expander("What is a neural network?"):
-                    from prompts import neural_network_text
-                    st.write(neural_network_text)
+            from ml import run_ml_pipeline
+            # Use modified_df if present and not empty, else df
+            df_to_use = st.session_state.modified_df if (
+                "modified_df" in st.session_state and st.session_state.modified_df is not None and not st.session_state.modified_df.empty
+            ) else st.session_state.df
+            # User selects target column
+            target_col = st.selectbox("Select target column (outcome):", df_to_use.columns, key="ml_target_col")
+            # User can select features (optional)
+            feature_cols = st.multiselect(
+                "Select feature columns (optional):", [col for col in df_to_use.columns if col != target_col], key="ml_feature_cols"
+            )
+            normalization_option = st.selectbox(
+                "Select normalization (optional):",
+                [None, "StandardScaler", "l1", "l2"],
+                index=0,
+                key="ml_norm_option"
+            )
+            # Run ML pipeline
+            result = run_ml_pipeline(
+                df=df_to_use,
+                target_col=target_col,
+                model_option=model_option,
+                normalization_option=normalization_option,
+                feature_cols=feature_cols if feature_cols else None
+            )
+            metrics = result['metrics']
+            predictions = result['predictions']
+            y_test = result['y_test']
+            y_scores = result['y_scores']
+            st.subheader("Test Set Performance (most important)")
+            st.write(metrics)
+            # Show confusion matrix if classification
+            if 'confusion_matrix' in metrics:
+                import matplotlib.pyplot as plt
+                import seaborn as sns
+                fig, ax = plt.subplots()
+                sns.heatmap(metrics['confusion_matrix'], annot=True, fmt='d', cmap='Blues', ax=ax)
+                ax.set_xlabel('Predicted')
+                ax.set_ylabel('Actual')
+                ax.set_title('Confusion Matrix (Test Set)')
+                st.pyplot(fig)
 
-            if model is not None:
-                model.fit(X_train, y_train)
-                # Test set metrics only
-                predictions = model.predict(X_test)
-                if hasattr(model, "predict_proba"):
-                    y_scores = model.predict_proba(X_test)[:, 1]
-                elif hasattr(model, "decision_function"):
-                    y_scores = model.decision_function(X_test)
-                else:
-                    y_scores = predictions
+# The following block was causing a SyntaxError and has been removed. If you wish to display this information, please use st.write() or add it as a docstring or comment.
 
-                st.subheader("Test Set Performance (most important)")
-                is_regression = display_metrics(y_test, predictions, y_scores, set_name="Test")
-
-                # Only show classification visualizations for classification models
-                if not is_regression:
-                    # Show confusion matrix
-                    st.subheader("Confusion Matrix (Test Set)")
-                    st.pyplot(plot_confusion_matrix(y_test, predictions))
-                    with st.expander("What is a confusion matrix?"):
-                        st.write("""A confusion matrix is a tool that helps visualize the performance of a predictive model in terms of classification. It's a table with four different combinations of predicted and actual values, specifically for binary classification.
-
-The four combinations are:
-
-1. **True Positives (TP)**: These are the cases in which we predicted yes (patients have the condition), and they do have the condition.
-
-2. **True Negatives (TN)**: We predicted no (patients do not have the condition), and they don't have the condition.
-
-3. **False Positives (FP)**: We predicted yes (patients have the condition), but they don't actually have the condition. Also known as "Type I error" or "False Alarm".
-
-4. **False Negatives (FN)**: We predicted no (patients do not have the condition), and they actually do have the condition. Also known as "Type II error" or "Miss".
-
-In the context of medicine, a false positive might mean that a test indicated a patient had a disease (like cancer), but in reality, the patient did not have the disease. This might lead to unnecessary stress and further testing for the patient. 
-
-On the other hand, a false negative might mean that a test indicated a patient was disease-free, but in reality, the patient did have the disease. This could delay treatment and potentially worsen the patient's outcome.
-
-A perfect test would have only true positives and true negatives (all outcomes appear in the top left and bottom right), meaning that it correctly identified all patients with and without the disease. Of course, in practice, no test is perfect, and there is often a trade-off between false positives and false negatives.
-
-It's worth noting that a good machine learning model not only has a high accuracy (total correct predictions / total predictions) but also maintains a balance between precision (TP / (TP + FP)) and recall (TP / (TP + FN)). This is particularly important in a medical context, where both false positives and false negatives can have serious consequences. 
-
-Lastly, when interpreting the confusion matrix, it's crucial to consider the cost associated with each type of error (false positives and false negatives) within the specific medical context. Sometimes, it's more crucial to minimize one type of error over the other. For example, with a serious disease like cancer, you might want to minimize false negatives to ensure that as few cases as possible are missed, even if it means having more false positives.
-""")
-
-                    # Show ROC curve
-                    st.subheader("ROC Curve (Test Set)")
-                    st.pyplot(plot_roc_curve(y_test, y_scores))
-                    with st.expander("What is an ROC curve?"):
-                        st.write("""
+                st.subheader("ROC Curve (Test Set)")
+                st.pyplot(plot_roc_curve(y_test, y_scores))
+                with st.expander("What is an ROC curve?"):
+                    st.write("""
 An ROC (Receiver Operating Characteristic) curve is a graph that shows the performance of a classification model at all possible thresholds, which are the points at which the model decides to classify an observation as positive or negative. 
+{{ ... }}
 
 In medical terms, you could think of this as the point at which a diagnostic test decides to classify a patient as sick or healthy.
 
