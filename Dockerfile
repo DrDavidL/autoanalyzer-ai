@@ -1,27 +1,28 @@
-# Use Python 3.11 slim image as the base image
-FROM python:3.11-slim
+# Use Python 3.11 slim image with UV pre-installed
+FROM ghcr.io/astral-sh/uv:python3.11-bookworm-slim
 
-# Set the working directory to /auto_analyze within the container
+# Set the working directory 
 WORKDIR /auto_analyze
 
-# Install system dependencies and curl for the health check in one RUN command
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    build-essential \
-    gcc \
-    g++ \
-    cmake \
-    libffi-dev \
-    libssl-dev && \
+# Install curl for the health check
+RUN apt-get update --allow-releaseinfo-change && \
+    apt-get install -y --no-install-recommends --allow-unauthenticated ca-certificates debian-archive-keyring && \
+    apt-get update --allow-releaseinfo-change && \
+    apt-get install -y curl && \
+    apt-get clean && \
     rm -rf /var/lib/apt/lists/*
+
+# Set UV to use the system Python and copy mode for linking
+ENV UV_SYSTEM_PYTHON=1
+ENV UV_LINK_MODE=copy
 
 # Copy the requirements.txt file and install Python dependencies
 COPY requirements.txt ./
-RUN pip install --upgrade pip && \
-    pip install -r requirements.txt
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --system -r requirements.txt
 
 # Copy the main application code and additional necessary files
-COPY main.py prompts.py markdown_to_docx.py ./
+COPY main.py prompts.py markdown_to_docx.py data_processing.py llm_integration.py ml.py pca.py plotting.py stats.py ui.py utils.py ./
 COPY data/ ./data/
 COPY .streamlit/ ./.streamlit/
 COPY explanations/ ./explanations/
