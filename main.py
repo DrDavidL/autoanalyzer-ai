@@ -31,12 +31,17 @@ import plotting
 import stats
 import llm_integration
 import ui
+from data_processing import filter_dataframe
 import pandas as pd
 import numpy as np
 from tableone import TableOne
 import matplotlib.pyplot as plt
 import seaborn as sns
 import io
+import category_encoders as ce
+from sklearn.preprocessing import StandardScaler, MinMaxScaler, normalize
+from sklearn.model_selection import train_test_split
+from sklearn.decomposition import PCA
 
 # Suppress specific DeprecationWarnings from seaborn
 warnings.filterwarnings(
@@ -3023,7 +3028,7 @@ with tab2:
         st.subheader("""
         Set the Target Class Value to Predict
         """)
-        try:
+        if target_col and len(st.session_state.df[target_col].unique()) >= 2:
             categories_to_predict = st.multiselect(
                 "Select one or more categories but not all. You need 2 options to predict a group, i.e, your target versus the rest.:",
                 st.session_state.df[target_col].unique().tolist(),
@@ -3083,6 +3088,11 @@ with tab2:
             scaling_or_norm = st.checkbox(
                 "Scaling or Normalization?", value=False, key="scaling_or_norm-10"
             )
+            
+            # Initialize variables with default values
+            scaling_option = "No Scaling"
+            normalization_option = "No Normalization"
+            
             # User selection for scaling option
             if scaling_or_norm == True:
                 scaling_option = st.selectbox(
@@ -3159,9 +3169,9 @@ with tab2:
             #         )
             #     fig = plt.show()
             #     st.pyplot(fig)
-        except:
+        else:
             st.warning(
-                "Please select a target column first or pick a dataset with a target column avaialble."
+                "Please select a target column first or pick a dataset with a target column available."
             )
 
         st.subheader("""
@@ -3193,321 +3203,424 @@ with tab2:
                 "Model explanation is computationally expensive and may not work well with all model types (like Ridge Classifier or KNN). Please be patient."
             )
         if st.button("Predict"):
-            from ml import run_ml_pipeline
+            # Import ML functions from ml.py
+            from ml import run_ml_pipeline, display_metrics, plot_roc_curve, plot_pr_curve, plot_confusion_matrix
+            
             # Use modified_df if present and not empty, else df
             df_to_use = st.session_state.modified_df if (
-                "modified_df" in st.session_state and st.session_state.modified_df is not None and not st.session_state.modified_df.empty
+                "modified_df" in st.session_state and 
+                st.session_state.modified_df is not None and 
+                not st.session_state.modified_df.empty
             ) else st.session_state.df
-            # User selects target column
-            target_col = st.selectbox("Select target column (outcome):", df_to_use.columns, key="ml_target_col")
-            # User can select features (optional)
-            feature_cols = st.multiselect(
-                "Select feature columns (optional):", [col for col in df_to_use.columns if col != target_col], key="ml_feature_cols"
-            )
-            normalization_option = st.selectbox(
-                "Select normalization (optional):",
-                [None, "StandardScaler", "l1", "l2"],
-                index=0,
-                key="ml_norm_option"
-            )
-            # Run ML pipeline
-            result = run_ml_pipeline(
-                df=df_to_use,
-                target_col=target_col,
-                model_option=model_option,
-                normalization_option=normalization_option,
-                feature_cols=feature_cols if feature_cols else None
-            )
-            metrics = result['metrics']
-            predictions = result['predictions']
-            y_test = result['y_test']
-            y_scores = result['y_scores']
-            st.subheader("Test Set Performance (most important)")
-            st.write(metrics)
-            # Show confusion matrix if classification
-            if 'confusion_matrix' in metrics:
-                import matplotlib.pyplot as plt
-                import seaborn as sns
-                fig, ax = plt.subplots()
-                sns.heatmap(metrics['confusion_matrix'], annot=True, fmt='d', cmap='Blues', ax=ax)
-                ax.set_xlabel('Predicted')
-                ax.set_ylabel('Actual')
-                ax.set_title('Confusion Matrix (Test Set)')
-                st.pyplot(fig)
-
-# The following block was causing a SyntaxError and has been removed. If you wish to display this information, please use st.write() or add it as a docstring or comment.
-
-                st.subheader("ROC Curve (Test Set)")
-                st.pyplot(plot_roc_curve(y_test, y_scores))
-                with st.expander("What is an ROC curve?"):
-                    st.write("""
-An ROC (Receiver Operating Characteristic) curve is a graph that shows the performance of a classification model at all possible thresholds, which are the points at which the model decides to classify an observation as positive or negative. 
-{{ ... }}
-
-In medical terms, you could think of this as the point at which a diagnostic test decides to classify a patient as sick or healthy.
-
-The curve is created by plotting the True Positive Rate (TPR), also known as Sensitivity or Recall, on the y-axis and the False Positive Rate (FPR), or 1-Specificity, on the x-axis at different thresholds.
-
-In simpler terms:
-
-- **True Positive Rate (TPR)**: Out of all the actual positive cases (for example, all the patients who really do have a disease), how many did our model correctly identify?
-
-- **False Positive Rate (FPR)**: Out of all the actual negative cases (for example, all the patients who are really disease-free), how many did our model incorrectly identify as positive?
-
-The closer the curve follows the left-hand border and then the top border of the ROC space, the more accurate the test. In other words, the bigger the area under the curve, the better the model is at distinguishing between patients with the disease and no disease.
-
-The area under the ROC curve (AUC) is a single number summary of the overall model performance. The value can range from 0 to 1, where:
-
-- **AUC = 0.5**: This is no better than a random guess, or flipping a coin. It's not an effective classifier.
-- **AUC < 0.5**: This means the model is worse than a random guess. But, by reversing its decision, we can get AUC > 0.5.
-- **AUC = 1**: The model has perfect accuracy. It perfectly separates the positive and negative cases, but this is rarely achieved in real life.
-
-In clinical terms, an AUC of 0.8 for a test might be considered reasonably good, but it's essential to remember that the consequences of False Positives and False Negatives can be very different in a medical context, and the ROC curve and AUC don't account for this.
-
-Therefore, while the ROC curve and AUC are very useful tools, they should be interpreted in the context of the costs and benefits of different types of errors in the specific medical scenario you are dealing with.""")
-
-                    # Show PR curve
-                    st.subheader("Precision-Recall (PR) Curve (Test Set)")
-                    pr_fig = plot_pr_curve(y_test, y_scores)
-                    st.pyplot(pr_fig)
-                    with st.expander("What is a PR curve?"):
-                        st.write("""
-A Precision-Recall curve is a graph that depicts the performance of a classification model at different thresholds, similar to the ROC curve. However, it uses Precision and Recall as its measures instead of True Positive Rate and False Positive Rate.
-
-In the context of medicine:
-
-- **Recall (or Sensitivity)**: Out of all the actual positive cases (for example, all the patients who really do have a disease), how many did our model correctly identify? It's the ability of the test to find all the positive cases.
- 
-- **Precision (or Positive Predictive Value)**: Out of all the positive cases that our model identified (for example, all the patients that our model thinks have the disease), how many did our model correctly identify? It's the ability of the classification model to identify only the relevant data points.
-
-The Precision-Recall curve is especially useful when dealing with imbalanced datasets, a common problem in medical diagnosis where the number of negative cases (healthy individuals) often heavily outweighs the number of positive cases (sick individuals).
-
-A model with perfect precision (1.0) and recall (1.0) will have a curve that reaches to the top right corner of the plot. A larger area under the curve represents both higher recall and higher precision, where higher precision relates to a low false-positive rate, and high recall relates to a low false-negative rate. High scores for both show that the classifier is returning accurate results (high precision), and returning a majority of all positive results (high recall).
-
-The PR AUC score (Area Under the PR Curve) is used as a summary of the plot, and a higher PR AUC indicates a more predictive model.
-
-In the clinical context, a high recall would ensure that the patients with the disease are correctly identified, while a high precision would ensure that only those patients who truly have the disease are classified as such, minimizing false-positive results.
-
-However, there is usually a trade-off between precision and recall. Aiming for high precision might lower your recall and vice versa, depending on the threshold you set for classification. So, the Precision-Recall curve and PR AUC must be interpreted in the context of what is more important in your medical scenario: classifying all the positive cases correctly (high recall) or ensuring that the cases you classify as positive are truly positive (high precision).""")
-
-                # Show model explanation
-                with st.expander("About this model"):
-                    st.write(model_explanation)
-
-                # Show code for model training
-                with st.expander("Show code for model training"):
-                    st.code(
-                        f"""# Model training code
-model = {model.__class__.__name__}()
-model.fit(X_train, y_train)
-predictions = model.predict(X_test)
-""",
-                        language="python",
+            
+            # Run ML pipeline using the modular function from ml.py
+            with st.spinner("Running ML Pipeline..."):
+                try:
+                    result = run_ml_pipeline(
+                        df=df_to_use,
+                        target_col=target_col,
+                        model_option=model_option,
+                        normalization_option=normalization_option if scaling_or_norm else None,
+                        feature_cols=final_columns if final_columns else None,
+                        perform_shapley=perform_shapley
                     )
+                    
+                    # Extract results
+                    model = result['model']
+                    metrics = result['metrics']
+                    predictions = result['predictions']
+                    y_test = result['y_test']
+                    y_scores = result['y_scores']
+                    X_test = result['X_test']
+                    explainer = result.get('explainer')
+                    shap_values = result.get('shap_values')
+                    feature_names_for_equation = result.get('feature_names')
+                    
+                    # Display metrics using the modular function
+                    st.subheader("Test Set Performance (most important)")
+                    is_regression = display_metrics(y_test, predictions, y_scores, "Test")
+                    
+                    # Show confusion matrix if classification
+                    if 'confusion_matrix' in metrics and not is_regression:
+                        st.subheader("Confusion Matrix (Test Set)")
+                        fig = plot_confusion_matrix(y_test, predictions)
+                        st.pyplot(fig)
+                        plt.close()
+                    
+                    # Show ROC curve if classification and y_scores available
+                    if not is_regression and y_scores is not None and metrics.get('roc_auc') is not None:
+                        st.subheader("ROC Curve (Test Set)")
+                        fig = plot_roc_curve(y_test, y_scores)
+                        st.pyplot(fig)
+                        plt.close()
+                        
+                        with st.expander("What is an ROC curve?"):
+                            st.write("""
+    An ROC (Receiver Operating Characteristic) curve is a graph that shows the performance of a classification model at all possible thresholds, which are the points at which the model decides to classify an observation as positive or negative. 
 
-                # Show comparison table for metrics
-                st.subheader("Model Performance Metrics")
-                if is_regression:
-                    from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
-                    metrics_data = {
-                        "RMSE": np.sqrt(mean_squared_error(y_test, predictions)),
-                        "MAE": mean_absolute_error(y_test, predictions),
-                        "R²": r2_score(y_test, predictions),
-                    }
-                else:
-                    metrics_data = {
-                        "F1 Score": f1_score(y_test, predictions),
-                        "Accuracy": accuracy_score(y_test, predictions),
-                        "ROC AUC": roc_auc_score(y_test, y_scores),
-                    }
-                metrics_df = pd.DataFrame(
-                    [metrics_data], index=[type(model).__name__]
-                )
-                st.table(metrics_df)
+    In medical terms, you could think of this as the point at which a diagnostic test decides to classify a patient as sick or healthy.
 
-                # Show equation for linear models
-                if model_option in ["Logistic Regression", "Ridge Classifier", "Lasso Regression"]:
-                    try:
-                        coeff = model.coef_[0]
-                        features = X_train.columns if hasattr(X_train, "columns") else [f"X{i}" for i in range(len(coeff))]
-                        intercept = model.intercept_[0] if hasattr(model.intercept_, "__len__") else model.intercept_
-                        equation = f"{model.__class__.__name__} Equation: y = {intercept:.3f}"
-                        for c, feature in zip(coeff, features):
-                            equation += f" + {c:.3f} * {feature}"
-                        st.write("The equation of the model is:")
-                        st.write(equation)
-                    except Exception:
-                        pass
+    The curve is created by plotting the True Positive Rate (TPR), also known as Sensitivity or Recall, on the y-axis and the False Positive Rate (FPR), or 1-Specificity, on the x-axis at different thresholds.
 
-                # --- Improved SHAP Implementation ---
-                if perform_shapley:
-                    with st.expander("What is a Shapley Force Plot?"):
-                        st.markdown(shapley_explanation)
-                    with st.spinner("Performing Shapley Analysis..."):
-                        # Try to select the best SHAP explainer
+    In simpler terms:
+
+    - **True Positive Rate (TPR)**: Out of all the actual positive cases (for example, all the patients who really do have a disease), how many did our model correctly identify?
+
+    - **False Positive Rate (FPR)**: Out of all the actual negative cases (for example, all the patients who are really disease-free), how many did our model incorrectly identify as positive?
+
+    The closer the curve follows the left-hand border and then the top border of the ROC space, the more accurate the test. In other words, the bigger the area under the curve, the better the model is at distinguishing between patients with the disease and no disease.
+
+    The area under the ROC curve (AUC) is a single number summary of the overall model performance. The value can range from 0 to 1, where:
+
+    - **AUC = 0.5**: This is no better than a random guess, or flipping a coin. It's not an effective classifier.
+    - **AUC < 0.5**: This means the model is worse than a random guess. But, by reversing its decision, we can get AUC > 0.5.
+    - **AUC = 1**: The model has perfect accuracy. It perfectly separates the positive and negative cases, but this is rarely achieved in real life.
+
+    In clinical terms, an AUC of 0.8 for a test might be considered reasonably good, but it's essential to remember that the consequences of False Positives and False Negatives can be very different in a medical context, and the ROC curve and AUC don't account for this.
+
+    Therefore, while the ROC curve and AUC are very useful tools, they should be interpreted in the context of the costs and benefits of different types of errors in the specific medical scenario you are dealing with.""")
+
+                    # Show PR curve if classification and y_scores available
+                    if not is_regression and y_scores is not None and metrics.get('pr_auc') is not None:
+                        st.subheader("Precision-Recall (PR) Curve (Test Set)")
+                        fig = plot_pr_curve(y_test, y_scores)
+                        st.pyplot(fig)
+                        plt.close()
+                        
+                        with st.expander("What is a PR curve?"):
+                            st.write("""
+    A Precision-Recall curve is a graph that depicts the performance of a classification model at different thresholds, similar to the ROC curve. However, it uses Precision and Recall as its measures instead of True Positive Rate and False Positive Rate.
+
+    In the context of medicine:
+
+    - **Recall (or Sensitivity)**: Out of all the actual positive cases (for example, all the patients who really do have a disease), how many did our model correctly identify? It's the ability of the test to find all the positive cases.
+    
+    - **Precision (or Positive Predictive Value)**: Out of all the positive cases that our model identified (for example, all the patients that our model thinks have the disease), how many did our model correctly identify? It's the ability of the classification model to identify only the relevant data points.
+
+    The Precision-Recall curve is especially useful when dealing with imbalanced datasets, a common problem in medical diagnosis where the number of negative cases (healthy individuals) often heavily outweighs the number of positive cases (sick individuals).
+
+    A model with perfect precision (1.0) and recall (1.0) will have a curve that reaches to the top right corner of the plot. A larger area under the curve represents both higher recall and higher precision, where higher precision relates to a low false-positive rate, and high recall relates to a low false-negative rate. High scores for both show that the classifier is returning accurate results (high precision), and returning a majority of all positive results (high recall).
+
+    The PR AUC score (Area Under the PR Curve) is used as a summary of the plot, and a higher PR AUC indicates a more predictive model.
+
+    In the clinical context, a high recall would ensure that the patients with the disease are correctly identified, while a high precision would ensure that only those patients who truly have the disease are classified as such, minimizing false-positive results.
+
+    However, there is usually a trade-off between precision and recall. Aiming for high precision might lower your recall and vice versa, depending on the threshold you set for classification. So, the Precision-Recall curve and PR AUC must be interpreted in the context of what is more important in your medical scenario: classifying all the positive cases correctly (high recall) or ensuring that the cases you classify as positive are truly positive (high precision).""")
+
+                    # Show model explanation
+                    with st.expander("About this model"):
+                        model_explanations = {
+                            "Logistic Regression": "Logistic regression is a linear model for classification that uses the logistic function to model the probability of class membership.",
+                            "Ridge Classifier": "Ridge classifier uses L2 regularization to prevent overfitting by penalizing large coefficients.",
+                            "Lasso Regression": "Lasso regression uses L1 regularization which can drive some coefficients to zero, effectively performing feature selection.",
+                            "K-Nearest Neighbors (KNN)": "KNN classifies data points based on the majority class of their k nearest neighbors in the feature space.",
+                            "Naive Bayes": "Naive Bayes assumes independence between features and uses Bayes' theorem for classification.",
+                            "Decision Tree": "Decision trees create a model that predicts target values by learning simple decision rules inferred from data features.",
+                            "Random Forest": "Random Forest builds multiple decision trees and merges them together to get more accurate and stable predictions.",
+                            "Gradient Boosting Machines (GBMs)": "GBM builds models sequentially, where each new model corrects errors made by previous models.",
+                            "XGBoost": "XGBoost is an optimized gradient boosting framework designed for speed and performance.",
+                            "Linear Discriminant Analysis (LDA)": "LDA finds a linear combination of features that characterizes or separates two or more classes.",
+                            "Support Vector Machines (SVMs)": "SVM finds the optimal hyperplane that separates different classes with maximum margin.",
+                            "Neural Network": "Neural networks are computing systems inspired by biological neural networks, capable of learning complex patterns."
+                        }
+                        st.write(model_explanations.get(model_option, "No explanation available for this model."))
+
+                    # Show code for model training
+                    with st.expander("Show code for model training"):
+                        st.code(
+                            f"""# Model training code using ml.py
+    from ml import run_ml_pipeline
+
+    result = run_ml_pipeline(
+        df=df,
+        target_col='{target_col}',
+        model_option='{model_option}',
+        normalization_option={repr(normalization_option if scaling_or_norm else None)},
+        feature_cols={repr(final_columns) if final_columns else None},
+        perform_shapley={perform_shapley}
+    )
+
+    model = result['model']
+    predictions = result['predictions']
+    metrics = result['metrics']
+    """,
+                            language="python",
+                        )
+
+                    # Show comparison table for metrics
+                    st.subheader("Model Performance Metrics")
+                    if is_regression:
+                        metrics_data = {
+                            "Model": model_option,
+                            "R²": metrics.get('accuracy', 'N/A'),  # For regression, accuracy is R²
+                        }
+                    else:
+                        metrics_data = {
+                            "Model": model_option,
+                            "F1 Score": metrics.get('f1', 'N/A'),
+                            "Accuracy": metrics.get('accuracy', 'N/A'),
+                            "ROC AUC": metrics.get('roc_auc', 'N/A'),
+                            "PR AUC": metrics.get('pr_auc', 'N/A'),
+                        }
+                    metrics_df = pd.DataFrame([metrics_data])
+                    st.table(metrics_df)
+
+                    # Show equation for linear models
+                    if model_option in ["Logistic Regression", "Ridge Classifier", "Lasso Regression"]:
                         try:
-                            # Flag to control flow
-                            continue_analysis = True
-                            # Standardize features for KernelExplainer if needed
-                            # Special handling for different model types
-                            if model_option in [
-                                "Decision Tree",
-                                "Random Forest",
-                                "Gradient Boosting Machines (GBMs)",
-                                "XGBoost",
-                            ]:
-                                # Tree-based models can use TreeExplainer
-                                explainer = shap.TreeExplainer(model)
-                                shap_values = explainer.shap_values(X_test)
-                                X_test_for_shap = X_test
-                            elif model_option == "K-Nearest Neighbors (KNN)":
-                                # For KNN, use a simpler approach with permutation importance
-                                st.info("For KNN models, we'll show feature importance using permutation importance instead of SHAP values")
-                                
-                                from sklearn.inspection import permutation_importance
-                                result = permutation_importance(
-                                    model, X_test, y_test, 
-                                    n_repeats=10, 
-                                    random_state=42
-                                )
-                                
-                                # Create a DataFrame for visualization
-                                perm_importance_df = pd.DataFrame({
-                                    'Feature': X_train.columns if hasattr(X_train, "columns") else [f"Feature {i}" for i in range(X_train.shape[1])],
-                                    'Importance': result.importances_mean
-                                }).sort_values('Importance', ascending=False)
-                                
-                                # Plot permutation importance instead of SHAP
-                                fig, ax = plt.subplots(figsize=(10, 6))
-                                sns.barplot(x='Importance', y='Feature', data=perm_importance_df, ax=ax)
-                                ax.set_title("Feature Importance (Permutation Method)")
-                                st.pyplot(fig)
-                                plt.close()
-                                
-                                # Skip the regular SHAP plots for KNN
-                                st.info("SHAP force plots are not shown for KNN models due to computational limitations")
-                                # Set flag to skip the rest of the analysis
-                                continue_analysis = False
-                            else:
-                                # For other models, use KernelExplainer with careful settings
-                                scaler = StandardScaler()
-                                X_train_scaled = scaler.fit_transform(X_train)
-                                X_test_scaled = scaler.transform(X_test)
-                                
-                                # Use a fixed number of features and a small background dataset
-                                # to avoid computational issues
-                                explainer = shap.KernelExplainer(
-                                    model.predict_proba if hasattr(model, "predict_proba") else model.predict,
-                                    shap.sample(X_train_scaled, min(50, len(X_train_scaled))),
-                                    l1_reg='num_features(5)'  # Limit to top 5 features for speed and stability
-                                )
-                                
-                                # Use fewer test samples for SHAP calculation to improve performance
-                                max_samples = min(20, len(X_test_scaled))
-                                shap_values = explainer.shap_values(X_test_scaled[:max_samples])
-                                X_test_for_shap = X_test_scaled[:max_samples]
+                            if hasattr(model, 'coef_') and hasattr(model, 'intercept_'):
+                                coeff = model.coef_[0] if len(model.coef_.shape) > 1 else model.coef_
+                                # Use actual feature names from ml.py output
+                                features = feature_names_for_equation
+                                intercept = model.intercept_[0] if hasattr(model.intercept_, "__len__") else model.intercept_
+                                equation = f"{model.__class__.__name__} Equation: y = {intercept:.3f}"
+                                for c, feature in zip(coeff, features):
+                                    equation += f" + {c:.3f} * {feature}"
+                                st.write("The equation of the model is:")
+                                st.write(equation)
+                        except Exception as e:
+                            st.write(f"Could not display equation: {e}")
 
-                            # Skip the rest of the analysis if the flag is False (for KNN)
-                            if not continue_analysis:
-                                # Skip to the end of the try block
-                                st.warning("Skipping SHAP analysis for this model type")
-                                raise Exception("Skipping SHAP analysis - not an error")
-                                
-                            # For binary classification, select the correct class
-                            if isinstance(shap_values, list):
-                                shap_values_for_class = shap_values[1]
-                            else:
-                                shap_values_for_class = shap_values
-
-                            # Only show SHAP plots for non-KNN models
-                            if model_option != "K-Nearest Neighbors (KNN)":
-                                # Show summary plot (bar)
-                                st.subheader("SHAP Feature Importance (Summary Plot)")
-                                # Create a new figure for the SHAP summary plot
-                                plt.figure(figsize=(10, 6))
-                                # SHAP summary_plot does not support 'ax' in recent versions; use default behavior and display with st.pyplot
-                                shap.summary_plot(
-                                    shap_values_for_class,
-                                    X_test_for_shap,  # Use the appropriate test data based on model type
-                                    plot_type="bar",
-                                    show=False,
-                                    max_display=10  # Limit to top 10 features for clarity
-                                )
-                                st.pyplot(plt.gcf())
-                                plt.close()  # Close the figure to ensure it doesn't affect subsequent plots
-
-                            # Only show force plot for non-KNN models
-                            if model_option != "K-Nearest Neighbors (KNN)":
-                                # Show force plot for first instance
-                                st.subheader("SHAP Force Plot (First Test Instance)")
-                                # Handle different model types and their expected_value formats
-                                if isinstance(explainer.expected_value, (list, np.ndarray)):
-                                    # For binary classification with TreeExplainer (has two classes)
-                                    if len(explainer.expected_value) == 2:
-                                        expected_val = explainer.expected_value[1]  # Use positive class
-                                    else:
-                                        expected_val = explainer.expected_value[0]  # Fallback
-                                else:
-                                    # For KernelExplainer or single value
-                                    expected_val = explainer.expected_value
-                                    
+                    # SHAP Analysis (if performed)
+                    if perform_shapley and shap_values is not None:
+                        from explanations.explanations import shapley_explanation
+                        with st.expander("What is a Shapley Force Plot?"):
+                            st.markdown(shapley_explanation)
+                        
+                        st.subheader("SHAP Analysis")
+                        
+                        # Handle different model types for SHAP
+                        if model_option == "K-Nearest Neighbors (KNN)":
+                            st.info("For KNN models, SHAP analysis uses permutation importance instead of SHAP values")
+                            
+                            from sklearn.inspection import permutation_importance
+                            perm_result = permutation_importance(
+                                model, X_test, y_test, 
+                                n_repeats=10, 
+                                random_state=42
+                            )
+                            
+                            # Create a DataFrame for visualization
+                            perm_importance_df = pd.DataFrame({
+                                'Feature': [f"Feature_{i}" for i in range(X_test.shape[1])],
+                                'Importance': perm_result.importances_mean
+                            }).sort_values('Importance', ascending=False)
+                            
+                            # Plot permutation importance
+                            fig, ax = plt.subplots(figsize=(10, 6))
+                            import seaborn as sns
+                            sns.barplot(x='Importance', y='Feature', data=perm_importance_df, ax=ax)
+                            ax.set_title("Feature Importance (Permutation Method)")
+                            st.pyplot(fig)
+                            plt.close()
+                        else:
+                            # For other models, show SHAP plots if available
+                            if shap_values is not None:
+                                st.subheader("SHAP Feature Importance")
                                 try:
-                                    # Get feature names for better visualization
-                                    feature_names = X_train.columns.tolist() if hasattr(X_train, "columns") else [f"Feature {i}" for i in range(X_train.shape[1])]
-                                    
-                                    # Handle different shapes of SHAP values
-                                    if len(shap_values_for_class.shape) == 3:  # For TreeExplainer with multi-class
-                                        instance_shap_values = shap_values_for_class[0, :, 0]  # First instance, all features, first class
-                                    elif len(shap_values_for_class.shape) == 2:  # For binary classification
-                                        instance_shap_values = shap_values_for_class[0]  # First instance
+                                    import shap
+                                    # Handle different SHAP value formats and ensure proper data types
+                                    if isinstance(shap_values, list):
+                                        # For binary classification, use the positive class (index 1)
+                                        shap_values_to_plot = shap_values[1] if len(shap_values) > 1 else shap_values[0]
                                     else:
-                                        instance_shap_values = shap_values_for_class  # Fallback
+                                        shap_values_to_plot = shap_values
                                     
-                                    # Get the feature values for the first instance
-                                    if hasattr(X_test_for_shap, "iloc"):
-                                        instance_features = X_test_for_shap.iloc[0]
+                                    # Convert to numpy array if needed and ensure proper shape
+                                    if hasattr(shap_values_to_plot, 'values'):
+                                        shap_values_to_plot = shap_values_to_plot.values
+                                    shap_values_to_plot = np.array(shap_values_to_plot)
+                                    
+                                    # Handle the case where we have 3D array (samples, features, classes)
+                                    if len(shap_values_to_plot.shape) == 3:
+                                        # Take the positive class (last dimension, index 1)
+                                        shap_values_to_plot = shap_values_to_plot[:, :, 1]
+                                    elif len(shap_values_to_plot.shape) == 2 and shap_values_to_plot.shape[1] == 2:
+                                        # This might be (features, classes) - take the positive class
+                                        shap_values_to_plot = shap_values_to_plot[:, 1]
+                                    
+                                    # Ensure we have the right shape: (n_samples, n_features)
+                                    if len(shap_values_to_plot.shape) == 1:
+                                        # If we have a 1D array, it might be for a single sample
+                                        shap_values_to_plot = shap_values_to_plot.reshape(1, -1)
+                                    
+                                    # Ensure X_test is in the right format and shape
+                                    if hasattr(X_test, 'values'):
+                                        X_test_values = X_test.values
                                     else:
-                                        instance_features = X_test_for_shap[0]
+                                        X_test_values = np.array(X_test)
                                     
-                                    # Create a temporary file to save the HTML
-                                    with tempfile.NamedTemporaryFile(delete=False, suffix='.html') as tmp:
-                                        temp_path = tmp.name
+                                    # Make sure X_test_values is 2D
+                                    if len(X_test_values.shape) == 1:
+                                        X_test_values = X_test_values.reshape(1, -1)
                                     
-                                    # Create the force plot with proper error handling
-                                    force_plot = shap.force_plot(
-                                        expected_val,
-                                        instance_shap_values,
-                                        instance_features,
-                                        feature_names=feature_names,
-                                        matplotlib=False,
-                                        show=False
+                                    # Get proper feature names
+                                    if final_columns:
+                                        feature_names = final_columns
+                                    elif hasattr(X_test, 'columns'):
+                                        feature_names = list(X_test.columns)
+                                    else:
+                                        feature_names = [f"Feature_{i}" for i in range(shap_values_to_plot.shape[1])]
+                                    
+                                    # Ensure we have the right number of feature names
+                                    if len(feature_names) != shap_values_to_plot.shape[1]:
+                                        feature_names = [f"Feature_{i}" for i in range(shap_values_to_plot.shape[1])]
+                                    
+                                    # Create SHAP summary plot (bar chart) - show ALL features
+                                    plt.figure(figsize=(12, max(8, len(feature_names) * 0.4)))
+                                    try:
+                                        shap.summary_plot(
+                                            shap_values_to_plot,
+                                            X_test_values,
+                                            feature_names=feature_names,
+                                            plot_type="bar",
+                                            show=False,
+                                            max_display=len(feature_names)  # Show all features, not just 15
+                                        )
+                                        st.pyplot(plt.gcf())
+                                        plt.close()
+                                    except Exception as e:
+                                        st.warning(f"Could not create bar plot: {e}")
+                                        # Fallback: simple bar plot of mean absolute SHAP values
+                                        mean_shap = np.mean(np.abs(shap_values_to_plot), axis=0)
+                                        plt.figure(figsize=(12, max(8, len(feature_names) * 0.4)))
+                                        plt.barh(range(len(feature_names)), mean_shap)
+                                        plt.yticks(range(len(feature_names)), feature_names)
+                                        plt.xlabel('Mean |SHAP value|')
+                                        plt.title('Feature Importance (Mean Absolute SHAP Values)')
+                                        plt.tight_layout()
+                                        st.pyplot(plt.gcf())
+                                        plt.close()
+                                    
+                                    # Create SHAP summary plot (beeswarm) - show ALL features
+                                    st.subheader("SHAP Feature Impact (Beeswarm Plot)")
+                                    plt.figure(figsize=(12, max(8, len(feature_names) * 0.4)))
+                                    try:
+                                        shap.summary_plot(
+                                            shap_values_to_plot,
+                                            X_test_values,
+                                            feature_names=feature_names,
+                                            show=False,
+                                            max_display=len(feature_names)  # Show all features, not just 15
+                                        )
+                                        st.pyplot(plt.gcf())
+                                        plt.close()
+                                    except Exception as e:
+                                        st.warning(f"Could not create beeswarm plot: {e}")
+                                        # Fallback: violin plot
+                                        plt.figure(figsize=(12, max(8, len(feature_names) * 0.4)))
+                                        shap_df = pd.DataFrame(shap_values_to_plot, columns=feature_names)
+                                        shap_df_melted = shap_df.melt(var_name='Feature', value_name='SHAP_value')
+                                        import seaborn as sns
+                                        sns.violinplot(data=shap_df_melted, y='Feature', x='SHAP_value')
+                                        plt.title('SHAP Value Distribution by Feature')
+                                        plt.tight_layout()
+                                        st.pyplot(plt.gcf())
+                                        plt.close()
+                                    
+                                    # Add SHAP Force Plot for individual predictions
+                                    st.subheader("SHAP Force Plot (Individual Predictions)")
+                                    st.info("Force plots show how each feature contributes to individual predictions. Select a sample to analyze:")
+                                    
+                                    # Let user select which sample to analyze
+                                    sample_idx = st.selectbox(
+                                        "Select sample index for force plot:",
+                                        options=list(range(min(10, len(X_test)))),
+                                        index=0
                                     )
                                     
-                                    # Save the plot to the temporary file
-                                    shap.save_html(temp_path, force_plot)
-                                    
-                                    # Read the HTML content and display it
-                                    with open(temp_path, 'r') as f:
-                                        html_content = f.read()
-                                    st.components.v1.html(html_content, height=400)
-                                    
-                                    # Clean up the temporary file
                                     try:
-                                        os.remove(temp_path)
-                                    except:
-                                        pass
+                                        # Create force plot for selected sample
+                                        if hasattr(explainer, 'expected_value'):
+                                            expected_value = explainer.expected_value
+                                            if isinstance(expected_value, (list, np.ndarray)):
+                                                expected_value = expected_value[1] if len(expected_value) > 1 else expected_value[0]
+                                        else:
+                                            expected_value = 0.5  # Default for binary classification
+                                        
+                                        # Get original feature names from the dataset
+                                        if final_columns:
+                                            feature_names = final_columns
+                                        else:
+                                            feature_names = [f"Feature_{i}" for i in range(len(shap_values_to_plot[sample_idx]))]
+                                        
+                                        # Generate force plot using HTML rendering (not matplotlib)
+                                        force_plot = shap.force_plot(
+                                            expected_value,
+                                            shap_values_to_plot[sample_idx],
+                                            X_test[sample_idx] if hasattr(X_test, '__getitem__') else X_test.iloc[sample_idx],
+                                            feature_names=feature_names,
+                                            matplotlib=False,  # Use HTML rendering instead
+                                            show=False
+                                        )
+                                        
+                                        # Display the force plot using Streamlit components
+                                        import streamlit.components.v1 as components
+                                        components.html(shap.save_html(force_plot), height=400)
+                                        
+                                        # Show prediction details
+                                        prediction_prob = y_scores[sample_idx] if y_scores is not None else predictions[sample_idx]
+                                        st.write(f"**Sample {sample_idx} Details:**")
+                                        st.write(f"- Predicted probability: {prediction_prob:.3f}")
+                                        st.write(f"- Actual label: {y_test.iloc[sample_idx] if hasattr(y_test, 'iloc') else y_test[sample_idx]}")
+                                        st.write(f"- Base value (expected): {expected_value:.3f}")
+                                        
+                                    except Exception as e:
+                                        st.warning(f"Could not generate force plot: {e}")
+                                        st.info("Showing waterfall plot as alternative:")
+                                        
+                                        # Alternative: Waterfall plot for single sample
+                                        try:
+                                            # Get original feature names
+                                            if final_columns:
+                                                feature_names = final_columns
+                                            else:
+                                                feature_names = [f"Feature_{i}" for i in range(len(shap_values_to_plot[sample_idx]))]
+                                            
+                                            plt.figure(figsize=(10, 6))
+                                            
+                                            # Create SHAP Explanation object for single sample
+                                            explanation = shap.Explanation(
+                                                values=shap_values_to_plot[sample_idx],
+                                                base_values=expected_value,
+                                                data=X_test[sample_idx] if hasattr(X_test, '__getitem__') else X_test.iloc[sample_idx],
+                                                feature_names=feature_names
+                                            )
+                                            
+                                            shap.waterfall_plot(explanation, show=False)
+                                            st.pyplot(plt.gcf())
+                                            plt.close()
+                                        except Exception as e2:
+                                            st.warning(f"Could not generate waterfall plot either: {e2}")
+                                    
+                                    # Add option to show multiple force plots
+                                    if st.checkbox("Show force plots for multiple samples"):
+                                        st.subheader("Multiple Sample Force Plots")
+                                        num_samples = st.slider("Number of samples to show:", 2, min(10, len(X_test)), 5)
+                                        
+                                        try:
+                                            # Create force plot for multiple samples
+                                            force_plot_multi = shap.force_plot(
+                                                expected_value,
+                                                shap_values_to_plot[:num_samples],
+                                                X_test[:num_samples] if hasattr(X_test, '__getitem__') else X_test.iloc[:num_samples],
+                                                feature_names=feature_names if 'feature_names' in locals() else (final_columns if final_columns else [f"Feature_{i}" for i in range(shap_values_to_plot.shape[1])]),
+                                                matplotlib=True,
+                                                show=False
+                                            )
+                                            st.pyplot(plt.gcf())
+                                            plt.close()
+                                        except Exception as e:
+                                            st.warning(f"Could not generate multiple force plots: {e}")
+                                    
                                 except Exception as e:
-                                    st.error(f"Error generating force plot: {str(e)}")
-                                    st.write("Debug info:")
-                                    st.write(f"SHAP values shape: {shap_values_for_class.shape}")
-                                    st.write(f"First instance shape: {(X_test.iloc[0].shape if hasattr(X_test, 'iloc') else X_test[0].shape)}")
-                                    st.write(f"Feature names: {feature_names[:5]}...")  # Show first 5 feature names
-                        except Exception as e:
-                            if str(e) == "Skipping SHAP analysis - not an error":
-                                pass  # This is our controlled exit for KNN models
+                                    st.warning(f"Could not generate SHAP plots: {e}")
                             else:
-                                st.warning(f"Could not generate SHAP plots: {e}")
-            # End of if model is not None
+                                st.info("SHAP analysis was requested but no SHAP values were generated.")
+                    
+                except Exception as e:
+                    st.error(f"An error occurred during machine learning analysis: {e}")
+                    st.write("Please check your data and try again.")
 
 
 with tab3:
