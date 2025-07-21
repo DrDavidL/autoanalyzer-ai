@@ -48,7 +48,11 @@ warnings.filterwarnings(
     "ignore",
     message="is_categorical_dtype is deprecated and will be removed in a future version. Use isinstance(dtype, pd.CategoricalDtype) instead",
     category=DeprecationWarning,
-    module="seaborn._oldcore"
+)
+warnings.filterwarnings(
+    "ignore",
+    message="use_inf_as_na option is deprecated and will be removed in a future version. Convert inf values to NaN before operating instead.",
+    category=FutureWarning,
 )
 
 
@@ -2150,33 +2154,39 @@ plt.show()
             else:
                 try:
                     regr, intercept, coef, summary, summary_table = stats.run_multiple_linear_regression(temp_df_mlr, x_col, y_col)
-                    mlr_equation = utils.generate_regression_equation(intercept, coef, x_col)
-                    show_equation = st.checkbox("Show regression equation")
-                    if show_equation:
-                        st.write(mlr_equation)
-                    st.write("Download your coefficients and intercept below.")
-                    if summary_table is not None:
-                        ui.df_download_options(summary_table, "Your Multiple Linear Regression")
-                    else:
-                        st.warning("No summary table available for download.")
-                    # Plot regression and offer download
-                    fig, *_ = plotting.plot_multiple_linear_regression(temp_df_mlr, x_col, y_col)
-                    st.pyplot(fig)
-                    utils.save_image(fig, "multiple_linear_regression.png")
-                    with st.expander("Show code for multiple linear regression"):
-                        st.code(
-                            f'''from sklearn.linear_model import LinearRegression
+                    st.session_state.mlr_summary_table = summary_table
+                    st.session_state.mlr_fig, *_ = plotting.plot_multiple_linear_regression(temp_df_mlr, x_col, y_col)
+                    st.session_state.mlr_ran = True
+                    st.session_state.mlr_x_col = x_col
+                    st.session_state.mlr_y_col = y_col
+
+
+                except Exception as e:
+                    st.error(f"An error occurred while running regression: {e}")
+                    st.session_state.mlr_ran = False
+        
+        if st.session_state.get("mlr_ran"):
+            st.pyplot(st.session_state.mlr_fig)
+            utils.save_image(st.session_state.mlr_fig, "multiple_linear_regression.png")
+            st.write("Download your coefficients and intercept below.")
+            if st.session_state.mlr_summary_table is not None:
+                ui.df_download_options(st.session_state.mlr_summary_table, "Your Multiple Linear Regression")
+            else:
+                st.warning("No summary table available for download.")
+
+            with st.expander("Show code for multiple linear regression"):
+                st.code(
+                    f'''from sklearn.linear_model import LinearRegression
 
 # Fit multiple linear regression
-X = df[{x_col}]
-y = df["{y_col}"]
+X = df[{st.session_state.mlr_x_col}]
+y = df["{st.session_state.mlr_y_col}"]
 regr = LinearRegression()
 regr.fit(X, y)
 print("Intercept:", regr.intercept_)
 print("Coefficients:", regr.coef_)
 ''', language="python")
-                except Exception as e:
-                    st.error(f"An error occurred while running regression: {e}")
+
             with st.expander("What is a Multiple Linear Regression?"):
                 from prompts import mult_linear_reg_text
                 st.write(mult_linear_reg_text)
