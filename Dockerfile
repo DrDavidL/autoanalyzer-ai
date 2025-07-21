@@ -8,7 +8,7 @@ WORKDIR /auto_analyze
 RUN apt-get update --allow-releaseinfo-change && \
     apt-get install -y --no-install-recommends --allow-unauthenticated ca-certificates debian-archive-keyring && \
     apt-get update --allow-releaseinfo-change && \
-    apt-get install -y curl && \
+    apt-get install -y curl build-essential && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
