@@ -3814,13 +3814,13 @@ You are an expert Python data analyst. The user has provided a pandas dataframe 
 The dataframe columns are: {col_list}
 
 You have access to two dataframes:
-1. `df` - A working copy that you can modify as needed for your analysis
-2. `original_df` - The original unmodified dataframe (read-only reference)
+1. `df` - A working copy that you can modify as needed for your analysis. **Use this dataframe for all your analysis unless you need to start from scratch.**
+2. `original_df` - The original unmodified dataframe (read-only reference).
 
 If the user refers to a column name using a synonym or in a different case (e.g., 'glucose' instead of 'Glucose' or 'sodium' for 'Na'), always match it to the correct intended column name in the dataframe, ignoring case. For example, if the user says 'glucose', use 'Glucose' if that is the actual column name.
 
 Before performing any analysis that requires numeric data (such as correlation heatmaps, PCA, or regression), always check for categorical columns (object dtype or string values). 
-- If a categorical column has exactly 2 unique values, convert it to numeric by mapping the most common value to 0 and the least common value to 1. Use the `safe_map_categorical()` function for this conversion and print a message indicating which columns were converted and how.
+- If a categorical column has exactly 2 unique values, convert it to numeric by mapping the **most frequent value to 0 and the least frequent value to 1**. Use the `safe_map_categorical()` function for this conversion and print a message indicating which columns were converted and how.
 - If a categorical column has more than 2 unique values, use one-hot encoding (e.g., `pd.get_dummies(df, columns=[col])`) to create additional columns as needed, and print a message indicating which columns were one-hot encoded.
 - Always check for and handle NaN values in categorical columns before mapping or encoding.
 Do this as a first step in your code if needed.
@@ -3836,11 +3836,11 @@ import pandas as pd
 **Very important:** Unless the user's question is strictly non-visual (such as "show me the column names" or "print the shape of the dataframe"), your code should always generate at least one relevant figure (such as a histogram, boxplot, scatterplot, or other plot) that helps answer or illustrate the user's query. If the question is ambiguous, make a reasonable choice of a plot that is most likely to be helpful. If it is not possible to generate a relevant plot, add a comment in the code explaining why.
 
 Write Python code to answer the question. 
-- Feel free to modify the `df` dataframe as needed (filter, transform, etc.)
+- Feel free to modify the `df` dataframe as needed (filter, transform, etc.). **This is the current dataframe and should be used for analysis.**
 - If you need to reference the original unmodified data, use `original_df`
 - If a plot is needed, save it to '{st.session_state.outputs_path}/gpt_plot_{iteration}.png' using plt.savefig and then call plt.close().
 - Do not use plt.show().
-- Do not print explanations, only print results or tables.
+- Do not print explanations, only print results or tables. If you calculate a specific number, print it out clearly.
 - Do not return any text or explanation, only the code.
 - If the question is ambiguous, make reasonable assumptions and proceed.
 - If the question is not answerable, raise an Exception with a helpful message.
@@ -3894,7 +3894,7 @@ Write improved Python code to better answer the question.
 - If you need to reference the original unmodified data, use `original_df`.
 - If a plot is needed, save it to '{st.session_state.outputs_path}/gpt_plot_{iteration}.png' using plt.savefig and then call plt.close().
 - Do not use plt.show().
-- Do not print explanations, only print results or tables.
+- Do not print explanations, only print results or tables. If you calculate a specific number, print it out clearly.
 - If the question is not answerable, raise an Exception with a helpful message.
 - When converting categorical variables to numeric, use the `safe_map_categorical()` function and clearly document the mapping.
 - Always check for and handle NaN values in categorical columns before mapping or encoding.
