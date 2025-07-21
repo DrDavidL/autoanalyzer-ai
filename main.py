@@ -42,6 +42,26 @@ import category_encoders as ce
 from sklearn.preprocessing import StandardScaler, MinMaxScaler, normalize
 from sklearn.model_selection import train_test_split
 from sklearn.decomposition import PCA
+from sklearn import linear_model
+import statsmodels.api as sm
+import json
+from langchain_experimental.agents.agent_toolkits import create_pandas_dataframe_agent
+from langchain_openai import ChatOpenAI
+from langchain.agents.types import AgentType
+from PIL import Image
+import asyncio
+from sklearn.metrics import (
+    f1_score,
+    accuracy_score,
+    roc_auc_score,
+    precision_recall_curve,
+    auc,
+    roc_curve,
+    confusion_matrix,
+    ConfusionMatrixDisplay,
+)
+from sklearn.impute import SimpleImputer
+from statsmodels.imputation import mice
 
 # Suppress specific DeprecationWarnings from seaborn
 warnings.filterwarnings(
@@ -86,6 +106,44 @@ if "gen_csv" not in st.session_state:
     st.session_state.gen_csv = None
 if "df_to_download" not in st.session_state:
     st.session_state.df_to_download = None
+if "mlr_ran" not in st.session_state:
+    st.session_state.mlr_ran = False
+if "mlr_summary_table" not in st.session_state:
+    st.session_state.mlr_summary_table = None
+if "mlr_fig" not in st.session_state:
+    st.session_state.mlr_fig = None
+if "mlr_x_col" not in st.session_state:
+    st.session_state.mlr_x_col = []
+if "mlr_y_col" not in st.session_state:
+    st.session_state.mlr_y_col = ""
+if "agent_question_input" not in st.session_state:
+    st.session_state.agent_question_input = ""
+if "gpt_analysis_code" not in st.session_state:
+    st.session_state.gpt_analysis_code = ""
+if "gpt_analysis_images" not in st.session_state:
+    st.session_state.gpt_analysis_images = []
+if "model_output1" not in st.session_state:
+    st.session_state.model_output1 = ""
+if "persistent_gpt_code" not in st.session_state:
+    st.session_state.persistent_gpt_code = {}
+if "persistent_gpt_output" not in st.session_state:
+    st.session_state.persistent_gpt_output = {}
+if "persistent_gpt_images" not in st.session_state:
+    st.session_state.persistent_gpt_images = {}
+if "iteration_history" not in st.session_state:
+    st.session_state.iteration_history = {}
+if "last_agent_question" not in st.session_state:
+    st.session_state.last_agent_question = ""
+if "categorical_mappings" not in st.session_state:
+    st.session_state.categorical_mappings = {}
+if "gpt_working_df" not in st.session_state:
+    st.session_state.gpt_working_df = pd.DataFrame()
+if "current_analysis_timestamp" not in st.session_state:
+    st.session_state.current_analysis_timestamp = ""
+if "research_summary" not in st.session_state:
+    st.session_state.research_summary = ""
+if "persistent_research_summary" not in st.session_state:
+    st.session_state.persistent_research_summary = ""
 
 
 @st.cache_resource
@@ -3685,6 +3743,9 @@ with tab3:
                     st.session_state.df = pd.read_csv(uploaded_file_gpt)
                 else:
                     st.session_state.df = pd.read_excel(uploaded_file_gpt)
+        
+        # Ensure gpt_working_df reflects the current main dataframe or newly uploaded file
+        st.session_state.gpt_working_df = st.session_state.df.copy()
 
         # Display the current dataframe being used for analysis
         # This could be the initially loaded df or the gpt_working_df from a previous run
@@ -3695,7 +3756,10 @@ with tab3:
 
         with st.expander("View the current dataframe", expanded=True):
             st.write("### Current Data Frame")
-            st.dataframe(current_analysis_df, height=200)
+            if current_analysis_df.empty:
+                st.info("No dataframe loaded. Please select a demo dataset or upload a file in the 'Data Exploration' tab, or upload a new file above.")
+            else:
+                st.dataframe(current_analysis_df, height=200)
 
         import matplotlib
         matplotlib.use("Agg")  # Ensure non-GUI backend for matplotlib

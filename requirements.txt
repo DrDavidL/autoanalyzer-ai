@@ -194,7 +194,7 @@ sqlglot==25.10.0
 sqlglotrs==0.2.8
 stack-data==0.5.1
 statsmodels==0.14.2
-streamlit==1.37.1
+streamlit==1.47.0
 streamlit-chat==0.1.1
 sweetviz==2.3.1
 tableone==0.7.12
