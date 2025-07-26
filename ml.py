@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler, normalize, MinMaxScaler
+from sklearn.preprocessing import StandardScaler, normalize 
 from sklearn.linear_model import LogisticRegression, RidgeClassifier, Lasso
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.naive_bayes import GaussianNB
@@ -50,7 +50,7 @@ def display_metrics(y_true, y_pred, y_scores, set_name="Test"):
         st.info(
             f"**Your Model Metrics ({set_name} Set):** F1 score: {f1:.2f}, Accuracy: {accuracy:.2f}, ROC AUC: {roc_auc:.2f}, PR AUC: {pr_auc:.2f}"
         )
-    except ValueError as e:
+    except ValueError:
         # If we get a ValueError, it's likely because we're using a regression model
         is_regression = True
         from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
@@ -253,7 +253,7 @@ def run_ml_pipeline(
     Returns:
         dict with model, metrics, predictions, etc.
     """
-    # Feature/target selection
+    # Feature/target selection updates
     if feature_cols is None:
         feature_cols = [col for col in df.columns if col != target_col]
     X = df[feature_cols].copy()
