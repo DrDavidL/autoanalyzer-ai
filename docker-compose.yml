@@ -1,0 +1,131 @@
+version: '3.8'
+
+services:
+  # Redis for caching and task queue
+  redis:
+    image: redis:7-alpine
+    container_name: autoanalyzer-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # FastAPI Backend
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: autoanalyzer-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - DATABASE_URL=sqlite:///./autoanalyzer.db
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - AZURE_OPENAI_ENDPOINT=${AZURE_OPENAI_ENDPOINT}
+      - AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY}
+      - DEBUG=true
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./backend:/app
+      - backend_uploads:/app/uploads
+      - backend_results:/app/results
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Celery Worker for background tasks
+  worker:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: autoanalyzer-worker
+    command: celery -A app.workers.celery_app worker --loglevel=info --concurrency=2
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - DATABASE_URL=sqlite:///./autoanalyzer.db
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - AZURE_OPENAI_ENDPOINT=${AZURE_OPENAI_ENDPOINT}
+      - AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY}
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./backend:/app
+      - backend_uploads:/app/uploads
+      - backend_results:/app/results
+    depends_on:
+      redis:
+        condition: service_healthy
+    deploy:
+      replicas: 2
+
+  # Streamlit Frontend
+  frontend:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: autoanalyzer-frontend
+    ports:
+      - "8501:8501"
+    environment:
+      - API_BASE_URL=http://backend:8000
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - AZURE_OPENAI_ENDPOINT=${AZURE_OPENAI_ENDPOINT}
+      - PASSWORD=${PASSWORD:-autoanalyzer}
+    volumes:
+      - .:/app
+      - frontend_static:/app/static
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Celery Flower for monitoring (optional)
+  flower:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: autoanalyzer-flower
+    command: celery -A app.workers.celery_app flower --port=5555
+    ports:
+      - "5555:5555"
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      redis:
+        condition: service_healthy
+    profiles:
+      - monitoring
+
+volumes:
+  redis_data:
+    driver: local
+  backend_uploads:
+    driver: local
+  backend_results:
+    driver: local
+  frontend_static:
+    driver: local
+
+networks:
+  default:
+    name: autoanalyzer-network
