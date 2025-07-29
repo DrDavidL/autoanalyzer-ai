@@ -86,6 +86,14 @@ from ydata_profiling import ProfileReport
 import importlib.resources
 import importlib.metadata
 import warnings # Import the warnings module
+# Import data_gov_search with error handling
+try:
+    from data_gov_search import data_gov_search_interface
+except ImportError:
+    # If import fails, define a placeholder function
+    def data_gov_search_interface():
+        st.error("Data.gov search functionality is not available. Please check that data_gov_search.py is in the correct location.")
+        return None
 
 # Suppress specific DeprecationWarnings from seaborn
 warnings.filterwarnings(
@@ -1540,16 +1548,36 @@ def replace_missing_values(df, method):
     if method == "drop":
         df = df.dropna()
     elif method == "zero":
-        df[num_cols] = df[num_cols].fillna(0)
+        if num_cols:
+            df[num_cols] = df[num_cols].fillna(0)
     elif method == "mean":
-        df[num_cols] = df[num_cols].fillna(df[num_cols].mean())
+        if num_cols:
+            df[num_cols] = df[num_cols].fillna(df[num_cols].mean())
     elif method == "median":
-        df[num_cols] = df[num_cols].fillna(df[num_cols].median())
+        if num_cols:
+            df[num_cols] = df[num_cols].fillna(df[num_cols].median())
     elif method == "mode":
-        df[cat_cols] = df[cat_cols].fillna(df[cat_cols].mode().iloc[0])
+        # Handle categorical columns with mode, with proper error checking
+        for col in cat_cols:
+            if col in df.columns:
+                mode_values = df[col].mode()
+                if len(mode_values) > 0:
+                    # Use the first mode value if available
+                    df[col] = df[col].fillna(mode_values.iloc[0])
+                else:
+                    # If no mode is available (all NaN or empty), fill with a default value
+                    st.warning(f"No mode found for column '{col}'. Filling with 'Unknown'.")
+                    df[col] = df[col].fillna('Unknown')
     elif method == "mice":
-        imp = mice.MICEData(df[num_cols])  # only apply to numerical columns
-        df[num_cols] = imp.data
+        if num_cols:
+            try:
+                imp = mice.MICEData(df[num_cols])  # only apply to numerical columns
+                df[num_cols] = imp.data
+            except Exception as e:
+                st.error(f"MICE imputation failed: {e}")
+                st.info("Falling back to mean imputation for numerical columns.")
+                df[num_cols] = df[num_cols].fillna(df[num_cols].mean())
+    
     st.session_state.df = df
     return df
 
@@ -1992,6 +2020,7 @@ with tab1:
             "📈 Demo 4 (time series -CHF deaths)",
             "🧠 Demo 5 (stroke)",
             "✨ Generate Data",
+            "🏛️ Search Data.gov",
             "📁 CSV or Excel Upload",
             "🔄 Modified Dataframe",
         ),
@@ -2103,6 +2132,13 @@ with tab1:
             "[About Demo 5 dataset](https://www.kaggle.com/fedesoriano/stroke-prediction-dataset)"
         )
         st.session_state.df = load_data(file_path)
+
+    if demo_or_custom == "🏛️ Search Data.gov":
+        st.sidebar.markdown("Search and download datasets from Data.gov ➡️")
+        # Move the interface to the main area
+        df_from_data_gov = data_gov_search_interface()
+        if df_from_data_gov is not None:
+            st.session_state.df = df_from_data_gov
 
     with st.sidebar:
         if st.session_state.gen_csv is not None:
