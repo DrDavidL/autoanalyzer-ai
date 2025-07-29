@@ -58,6 +58,13 @@ import category_encoders as ce
 import shap
 import time
 import tempfile
+from session_cleanup import (
+    get_session_temp_dir, 
+    cleanup_on_session_start, 
+    session_manager,
+    get_session_info,
+    cleanup_session_images
+)
 from prompts import (
     csv_prefix_gpt4,
     data_analysis_prompt,
@@ -155,12 +162,14 @@ def make_pandas_report(df, title):
 
 
 def get_output_path():
-    tmpdirname = tempfile.mkdtemp(prefix="output_")
-    return tmpdirname
+    # Use session-specific temporary directory instead of random temp dirs
+    return get_session_temp_dir()
 
 
 from markdown_to_docx import generate_gpt_analysis_docx
 
+# Initialize session cleanup on app start
+cleanup_on_session_start()
 
 if "outputs_path" not in st.session_state:
     st.session_state.outputs_path = get_output_path()
@@ -284,25 +293,55 @@ def all_numerical(df):
 
     for col in df.select_dtypes(include="object").columns:
         if df[col].nunique() == 2:
-            unique_values = df[col].unique()
+            # Check for NaN values first
+            non_null_values = df[col].dropna()
+            if non_null_values.nunique() != 2:
+                st.warning(f"Column '{col}' has NaN values that prevent proper binary mapping. Skipping.")
+                continue
+                
+            unique_values = non_null_values.unique()
             if 0 in unique_values and 1 in unique_values:
                 continue
 
-            value_counts = df[col].value_counts()
+            value_counts = non_null_values.value_counts()
             most_frequent_value = value_counts.idxmax()
             least_frequent_value = value_counts.idxmin()
 
-            if most_frequent_value != 0 and least_frequent_value != 1:
-                df[col] = np.where(df[col] == most_frequent_value, 0, 1)
+            # Create mapping dictionary to handle NaN values properly
+            mapping_dict = {most_frequent_value: 0, least_frequent_value: 1}
+            
+            try:
+                # Apply mapping and check for NaN results
+                df[col] = df[col].map(mapping_dict)
+                
+                # Check if mapping resulted in NaN values
+                if df[col].isnull().any():
+                    st.error(f"Error: Mapping for column '{col}' resulted in NaN values. Check the mapping dictionary.")
+                    # Revert the column to original values
+                    df[col] = df[col].map({0: most_frequent_value, 1: least_frequent_value})
+                    continue
+                
                 st.write(
-                    f"Replaced most frequent value '{most_frequent_value}' with 0 and least frequent value '{least_frequent_value}' with 1 in column '{col}'."
+                    f"Mapped column '{col}': most frequent '{most_frequent_value}' → 0 (most frequent), least frequent '{least_frequent_value}' → 1 (least frequent)."
                 )
                 numerical_cols.append(col)  # Update numerical_cols
+                
+            except Exception as e:
+                st.error(f"Error mapping column '{col}': {str(e)}")
+                continue
 
     return numerical_cols
 
 
 def filter_dataframe(df):
+    # Check if dataframe is too large for efficient processing
+    if df.memory_usage(deep=True).sum() > 200 * 1024 * 1024:  # 200MB limit
+        st.warning("⚠️ Large dataset detected. Consider sampling your data first to avoid performance issues.")
+        sample_size = st.number_input("Sample size (rows)", min_value=1000, max_value=min(50000, len(df)), value=min(10000, len(df)))
+        if st.button("Sample Data"):
+            df = df.sample(n=sample_size, random_state=42)
+            st.success(f"Sampled {sample_size} rows from the dataset.")
+    
     # Get the column names and data types of the dataframe
     columns = df.columns
     dtypes = df.dtypes
@@ -327,18 +366,34 @@ def filter_dataframe(df):
         if dtype in ["int64", "float64"]
     ]
     for col in numerical_columns:
-        min_val = filtered_df[col].min()
-        max_val = filtered_df[col].max()
-        st.write(f"**{col}**")
-        min_range, max_range = st.slider(
-            "", min_val, max_val, (min_val, max_val), key=col
-        )
+        # Handle potential data type conversion issues
+        try:
+            # Convert string years to numeric if needed
+            if filtered_df[col].dtype == 'object':
+                # Try to convert to numeric, coercing errors to NaN
+                filtered_df[col] = pd.to_numeric(filtered_df[col], errors='coerce')
+            
+            min_val = float(filtered_df[col].min())
+            max_val = float(filtered_df[col].max())
+            
+            # Skip columns with all NaN values
+            if pd.isna(min_val) or pd.isna(max_val):
+                st.warning(f"Column '{col}' contains only missing values, skipping filter.")
+                continue
+                
+            st.write(f"**{col}**")
+            min_range, max_range = st.slider(
+                f"Range for {col}", min_val, max_val, (min_val, max_val), key=col
+            )
 
-        # Filter the dataframe based on the selected range
-        if min_range > min_val or max_range < max_val:
-            filtered_df = filtered_df[
-                (filtered_df[col] >= min_range) & (filtered_df[col] <= max_range)
-            ]
+            # Filter the dataframe based on the selected range
+            if min_range > min_val or max_range < max_val:
+                filtered_df = filtered_df[
+                    (filtered_df[col] >= min_range) & (filtered_df[col] <= max_range)
+                ]
+        except Exception as e:
+            st.warning(f"Could not create filter for column '{col}': {e}")
+            continue
 
     # Create a sidebar for selecting categorical variables and their values
     categorical_columns = [
@@ -347,12 +402,19 @@ def filter_dataframe(df):
         if dtype == "object"
     ]
     for col in categorical_columns:
-        unique_values = filtered_df[col].unique()
-        selected_values = st.multiselect(col, unique_values, unique_values)
+        try:
+            unique_values = filtered_df[col].dropna().unique()  # Remove NaN values from options
+            if len(unique_values) > 50:  # Limit options for very high cardinality columns
+                st.warning(f"Column '{col}' has {len(unique_values)} unique values. Consider excluding it to improve performance.")
+                continue
+            selected_values = st.multiselect(col, unique_values, unique_values)
 
-        # Filter the dataframe based on the selected values
-        if len(selected_values) < len(unique_values):
-            filtered_df = filtered_df[filtered_df[col].isin(selected_values)]
+            # Filter the dataframe based on the selected values
+            if len(selected_values) < len(unique_values):
+                filtered_df = filtered_df[filtered_df[col].isin(selected_values)]
+        except Exception as e:
+            st.warning(f"Could not create filter for column '{col}': {e}")
+            continue
 
     return filtered_df
 
@@ -1585,9 +1647,37 @@ def replace_missing_values(df, method):
 # This function will be cached
 def load_data(file_path):
     try:
-        data = pd.read_csv(file_path)
+        # Read with better error handling and data type inference
+        data = pd.read_csv(file_path, low_memory=False)
         if data.empty:
             st.warning("Loaded CSV is empty.")
+            return pd.DataFrame()
+        
+        # Check dataset size and warn if too large
+        memory_usage = data.memory_usage(deep=True).sum()
+        size_mb = memory_usage / (1024 * 1024)
+        
+        if size_mb > 500:  # 500MB threshold
+            st.warning(f"⚠️ Large dataset detected ({size_mb:.1f} MB). This may cause performance issues.")
+            st.info("Consider sampling your data or filtering to reduce size before analysis.")
+        
+        # Fix common data type issues
+        for col in data.columns:
+            # Try to convert string numbers to numeric
+            if data[col].dtype == 'object':
+                # Check if it looks like it should be numeric
+                sample_values = data[col].dropna().head(100)
+                if len(sample_values) > 0:
+                    # Try to convert a sample to see if it's numeric
+                    try:
+                        pd.to_numeric(sample_values, errors='raise')
+                        # If successful, convert the whole column
+                        data[col] = pd.to_numeric(data[col], errors='coerce')
+                        st.info(f"Converted column '{col}' from text to numeric")
+                    except (ValueError, TypeError):
+                        # Not numeric, leave as is
+                        pass
+        
         return data
     except pd.errors.EmptyDataError:
         st.error("The uploaded file is empty or not a valid CSV.")
@@ -2163,7 +2253,28 @@ with tab1:
             key="Filter data",
         )
 
-        st.markdown("<div class='step-header'>Step 3: Tools for Analysis</div>", unsafe_allow_html=True)
+        st.markdown("<div class='step-header'>Step 3: Session Management</div>", unsafe_allow_html=True)
+        
+        # Session info display
+        session_info = get_session_info()
+        with st.expander("📊 Session Information"):
+            st.write(f"**Session ID:** {session_info['session_id'][:8]}...")
+            st.write(f"**Temp Files:** {session_info['file_count']} files")
+            st.write(f"**Storage Used:** {session_info['total_size_mb']:.2f} MB")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("🧹 Clean Session", help="Remove all temporary files for this session"):
+                    session_manager.reset_session()
+                    st.success("Session cleaned!")
+                    st.rerun()
+            
+            with col2:
+                if st.button("🗑️ Clean Old Sessions", help="Remove sessions older than 24 hours"):
+                    session_manager.cleanup_old_sessions(max_age_hours=24)
+                    st.success("Old sessions cleaned!")
+
+        st.markdown("<div class='step-header'>Step 4: Tools for Analysis</div>", unsafe_allow_html=True)
         # Balanced tool options for sidebar columns
         col1, col2 = st.columns(2)
         
@@ -4084,6 +4195,8 @@ with tab3:
             # Only allow English language questions, not direct Python code
             def get_code_from_llm(question, df, iteration=1, previous_code="", previous_output="", previous_error=None):
                 col_list = list(df.columns)
+                df_head = df.head().to_dict(orient='records')
+                df_summary = df.describe(include='all').to_dict(orient='records')
                 
                 # Base prompt for first iteration
                 if iteration == 1:
@@ -4093,6 +4206,10 @@ You are an expert Python data analyst. The user has provided a pandas dataframe 
 {question}
 
 The dataframe columns are: {col_list}
+
+The first few rows of the dataframe are: {df_head}
+
+The summary statistics of the dataframe are: {df_summary}
 
 You have access to two dataframes:
 1. `df` - A working copy that you can modify as needed for your analysis
@@ -4104,7 +4221,7 @@ Before performing any analysis that requires numeric data (such as correlation h
 - If a categorical column has exactly 2 unique values, convert it to numeric by mapping the most common value to 0 and the least common value to 1. Use the `safe_map_categorical()` function for this conversion and print a message indicating which columns were converted and how.
 - If a categorical column has more than 2 unique values, use one-hot encoding (e.g., `pd.get_dummies(df, columns=[col])`) to create additional columns as needed, and print a message indicating which columns were one-hot encoded.
 - Always check for and handle NaN values in categorical columns before mapping or encoding.
-Do this as a first step in your code if needed.
+Do this as a first step in your code if needed but keep track of the original column names for your final response.
 
 **Important:** The unique values for categorical columns in the current `df` are printed in the previous output/history for your reference. Use this information to correctly identify and handle categorical values.
 
