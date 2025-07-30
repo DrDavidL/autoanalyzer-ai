@@ -3873,54 +3873,102 @@ with tab3:
             # Create a progress bar for iterations
             progress_bar = st.progress(0)
             iteration_status = st.empty()
-
             # Only allow English language questions, not direct Python code
             def get_code_from_llm(question, df, iteration=1, previous_code="", previous_output="", previous_error=None):
-                col_list = list(df.columns)
-                
+                sampled_df = utils.create_sampled_header(df, n=5)
                 # Base prompt for first iteration
                 if iteration == 1:
                     prompt = f"""
-You are an expert Python data analyst. The user has provided a pandas dataframe called `df` and asked the following question:
+You are an expert Python data analyst. The user has asked the following question:
 
 {question}
 
-The dataframe columns are: {col_list}
+You are provided with two Pandas DataFrames:
+1. `df` – This is your working copy. Modify it freely for analysis.
+2. `original_df` – Read-only original version. Use only for comparison or reset operations.
 
-You have access to two dataframes:
-1. `df` - A working copy that you can modify as needed for your analysis. **Use this dataframe for all your analysis unless you need to start from scratch.**
-2. `original_df` - The original unmodified dataframe (read-only reference).
+## 🧾 Column Overview (Privacy-Preserved Sample)
+The following anonymized sample of 5 random values from each column is **row-independent** (i.e., no row-level relationships):
+{sampled_df}
 
-If the user refers to a column name using a synonym or in a different case (e.g., 'glucose' instead of 'Glucose' or 'sodium' for 'Na'), always match it to the correct intended column name in the dataframe, ignoring case. For example, if the user says 'glucose', use 'Glucose' if that is the actual column name.
+Use this snapshot to infer **data types** and **value patterns** in each column.
 
-Before performing any analysis that requires numeric data (such as correlation heatmaps, PCA, or regression), always check for categorical columns (object dtype or string values). 
-- If a categorical column has exactly 2 unique values, convert it to numeric by mapping the **most frequent value to 0 and the least frequent value to 1**. Use the `safe_map_categorical()` function for this conversion and print a message indicating which columns were converted and how.
-- If a categorical column has more than 2 unique values, use one-hot encoding (e.g., `pd.get_dummies(df, columns=[col])`) to create additional columns as needed, and print a message indicating which columns were one-hot encoded.
-- Always check for and handle NaN values in categorical columns before mapping or encoding.
-Do this as a first step in your code if needed.
+---
 
-**Important:** The unique values for categorical columns in the current `df` are printed in the previous output/history for your reference. Use this information to correctly identify and handle categorical values.
+## 🔎 Column Reference Logic
+- Always match column references from the user's question **case-insensitively** and **semantically**.
+  - Examples:
+    - If user writes "glucose" but actual column is "Glucose", map accordingly.
+    - If user says "sodium", match to "Na" if contextually appropriate.
+  - Use synonym-aware matching where applicable (e.g., glucose → Glucose, sodium → Na).
 
-At the top of your code, always include:
-import matplotlib.pyplot as plt
-import seaborn as sns
+---
+
+## 🧼 Preprocessing Rules (Run First if Analysis Involves Numeric Computation)
+Before correlation, PCA, regression, or any numeric transformation:
+
+1. **Identify categorical columns:**
+   - Object-type or string-based values.
+
+2. **Handle categorical columns:**
+   - If exactly 2 unique values:
+     - Use `safe_map_categorical()` to convert to numeric:
+       - Most frequent → 0
+       - Least frequent → 1
+     - Print which columns were mapped and how.
+   - If >2 unique values:
+     - Use `pd.get_dummies(df, columns=[col])` for one-hot encoding.
+     - Print which columns were one-hot encoded.
+   - Always handle `NaN` values **before** mapping or encoding.
+
+3. **Refer to previously printed unique values** for correct mapping decisions.
+
+---
+
+## 📊 Visualization Policy
+Unless the user request is **strictly non-visual** (e.g., “show column names” or “print shape”), always include at least one plot to illustrate the answer:
+- Choose from: histogram, boxplot, scatterplot, heatmap, etc.
+- If ambiguous, use your judgment to generate a useful plot.
+- If no plot is possible, insert a code comment explaining why.
+
+**Save plots as:**
+```python
+plt.savefig(f"{st.session_state.outputs_path}/gpt_plot_{iteration}.png")
+plt.close()
+````
+
+* **Do NOT** use `plt.show()`.
+
+---
+
+## ✅ Coding Standards
+
+* Begin every script with the following imports:
+
+```python
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+```
 
-**Very important:** Unless the user's question is strictly non-visual (such as "show me the column names" or "print the shape of the dataframe"), your code should always generate at least one relevant figure (such as a histogram, boxplot, scatterplot, or other plot) that helps answer or illustrate the user's query. If the question is ambiguous, make a reasonable choice of a plot that is most likely to be helpful. If it is not possible to generate a relevant plot, add a comment in the code explaining why.
+* Modify and analyze `df` (not `original_df`, unless resetting).
+* Display all **numeric results** clearly using `print()`.
+* Output any **tables** using `print(df.head())` or similar.
+* **Do not** output natural language explanations—only Python code.
 
-Write Python code to answer the question. 
-- Feel free to modify the `df` dataframe as needed (filter, transform, etc.). **This is the current dataframe and should be used for analysis.**
-- If you need to reference the original unmodified data, use `original_df`
-- If a plot is needed, save it to '{st.session_state.outputs_path}/gpt_plot_{iteration}.png' using plt.savefig and then call plt.close().
-- Do not use plt.show().
-- Do not print explanations, only print results or tables. If you calculate a specific number, print it out clearly.
-- Do not return any text or explanation, only the code.
-- If the question is ambiguous, make reasonable assumptions and proceed.
-- If the question is not answerable, raise an Exception with a helpful message.
-Return only the code, nothing else.
-Respond ONLY with valid Python code, not with natural language or explanations.
-"""
+If the question is **ambiguous**, make reasonable assumptions.
+If the question is **unanswerable**, raise an `Exception` with a clear explanation.
+
+---
+
+## 🚫 Final Output Rules
+
+* Return **valid Python code only**
+* No markdown, no comments except inline code comments when necessary
+* No explanatory text outside of the code
+  """
+
                 # Refinement prompt for subsequent iterations
                 else:
                     error_info = f"\nThe previous code generated this error: {previous_error}" if previous_error else ""
@@ -3930,7 +3978,8 @@ You are an expert Python data analyst. The user has provided a pandas dataframe 
 
 {question}
 
-The dataframe columns are: {col_list}
+The table below contains the column names and a random, anonymized sample of 5 values from each column.
+The dataframe columns are: {sampled_df}
 
 You have access to two dataframes:
 1. `df` - This is your working copy of the dataframe. It reflects any modifications made in previous steps of this analysis. You can modify this dataframe as needed (filter, transform, create new columns, etc.).

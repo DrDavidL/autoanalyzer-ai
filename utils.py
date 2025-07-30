@@ -7,6 +7,8 @@ import streamlit as st
 import openai
 import random
 import io
+import pandas as pd
+import numpy as np
 
 def is_valid_api_key(api_key):
     openai.api_key = api_key
@@ -64,3 +66,40 @@ def generate_regression_equation(intercept, coef, x_cols):
     terms = [f"{coef[i]:.4f}*{x}" for i, x in enumerate(x_cols)]
     equation = f"y = {' + '.join(terms)} + {intercept:.4f}"
     return equation
+
+def create_sampled_header(df: pd.DataFrame, n: int = 5) -> pd.DataFrame:
+    """
+    Creates a DataFrame with the original headers but with randomly sampled 
+    values from each corresponding column, completely decorrelating the data.
+
+    This is useful for providing a privacy-preserving sample of a dataset's 
+    structure and value types to an LLM.
+
+    Args:
+        df (pd.DataFrame): The original DataFrame.
+        n (int): The number of random samples to draw from each column.
+
+    Returns:
+        pd.DataFrame: A new DataFrame where each column contains 'n' random 
+                      samples from the original column.
+    """
+    # Create a dictionary to hold the sampled data
+    sampled_data = {}
+    
+    # Iterate over each column in the original DataFrame
+    for col in df.columns:
+        # Drop missing values and get the unique values from the column
+        unique_vals = df[col].dropna().unique()
+        
+        # If the column has no non-null unique values, fill with NaN
+        if len(unique_vals) == 0:
+            samples = [np.nan] * n
+        else:
+            # Randomly choose 'n' values from the unique values.
+            # 'replace=True' allows sampling even if n > number of unique values.
+            samples = np.random.choice(unique_vals, size=n, replace=True)
+            
+        sampled_data[col] = samples
+        
+    # Create and return the new DataFrame from the sampled data
+    return pd.DataFrame(sampled_data)
