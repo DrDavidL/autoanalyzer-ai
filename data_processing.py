@@ -37,7 +37,6 @@ def all_numerical(df):
 
 def filter_dataframe(df):
     columns = df.columns
-    dtypes = df.dtypes
     excluded_columns = st.multiselect("Exclude Columns", columns)
     filtered_df = df.copy()
     filtered_df = filtered_df.drop(excluded_columns, axis=1)

@@ -368,19 +368,19 @@ def assess_data_readiness(df):
             readiness_summary["missing_values"] = {}
             readiness_summary["data_ready"] = False
             return readiness_summary
-    except:
+    except Exception:
         st.warning("Dataframe not yet amenable to empty analysis.")
 
     try:
         columns = {col: str(df[col].dtype) for col in df.columns}
         readiness_summary["columns"] = columns
-    except:
+    except Exception:
         st.warning("Dataframe not yet amenable to column analysis.")
 
     try:
         missing_columns = df.columns[df.isnull().all()].tolist()
         readiness_summary["missing_columns"] = missing_columns
-    except:
+    except Exception:
         st.warning("Dataframe not yet amenable to missing column analysis.")
 
     try:
@@ -391,13 +391,13 @@ def assess_data_readiness(df):
                 inconsistent_data_types.append(col)
         readiness_summary["inconsistent_data_types"] = inconsistent_data_types
 
-    except:
+    except Exception:
         st.warning("Dataframe not yet amenable to data type analysis.")
 
     try:
         missing_values = df.isnull().sum().to_dict()
         readiness_summary["missing_values"] = missing_values
-    except:
+    except Exception:
         st.warning("Dataframe not yet amenable to specific missing value analysis.")
 
     try:
@@ -408,7 +408,7 @@ def assess_data_readiness(df):
             readiness_summary["data_ready"] = True
 
         return readiness_summary
-    except:
+    except Exception:
         st.warning("Dataframe not yet amenable to overall data readiness analysis.")
 
 
@@ -1396,8 +1396,6 @@ def plot_pie(df, col_name):
 
 # Function to summarize categorical data
 
-import pandas as pd
-
 
 def summarize_categorical(df):
     try:
@@ -1487,16 +1485,14 @@ def run_ttest(df, numeric_col, group_col):
         groups = df[group_col].dropna().unique()
         if len(groups) != 2:
             st.warning("T-test requires exactly 2 groups.")
-            return None
-        group1 = df[df[group_col] == groups[0]][numeric_col].dropna()
-        group2 = df[df[group_col] == groups[1]][numeric_col].dropna()
+            return None, None
         t_stat, p_val = stats.run_ttest(df, numeric_col, group_col)
         st.write(f"T-test between {groups[0]} and {groups[1]} for {numeric_col}:")
         st.write(f"t-statistic = {t_stat:.3f}, p-value = {p_val:.3g}")
         return t_stat, p_val
     except Exception as e:
         st.warning(f"Could not run t-test: {e}")
-        return None
+        return None, None
 
 
 def run_anova(df, numeric_col, group_col):
@@ -1507,14 +1503,14 @@ def run_anova(df, numeric_col, group_col):
         ]
         if len(groups) < 2:
             st.warning("ANOVA requires at least 2 groups.")
-            return None
+            return None, None
         f_stat, p_val = stats.run_anova(df, numeric_col, group_col)
         st.write(f"ANOVA for {numeric_col} by {group_col}:")
         st.write(f"F-statistic = {f_stat:.3f}, p-value = {p_val:.3g}")
         return f_stat, p_val
     except Exception as e:
         st.warning(f"Could not run ANOVA: {e}")
-        return None
+        return None, None
 
 
 def run_mannwhitney(df, numeric_col, group_col):
@@ -1522,9 +1518,7 @@ def run_mannwhitney(df, numeric_col, group_col):
         groups = df[group_col].dropna().unique()
         if len(groups) != 2:
             st.warning("Mann-Whitney U test requires exactly 2 groups.")
-            return None
-        group1 = df[df[group_col] == groups[0]][numeric_col].dropna()
-        group2 = df[df[group_col] == groups[1]][numeric_col].dropna()
+            return None, None
         u_stat, p_val = stats.run_mannwhitney(df, numeric_col, group_col)
         st.write(
             f"Mann-Whitney U test between {groups[0]} and {groups[1]} for {numeric_col}:"
@@ -1533,7 +1527,7 @@ def run_mannwhitney(df, numeric_col, group_col):
         return u_stat, p_val
     except Exception as e:
         st.warning(f"Could not run Mann-Whitney U test: {e}")
-        return None
+        return None, None
 
 
 def run_kruskal(df, numeric_col, group_col):
@@ -1544,19 +1538,18 @@ def run_kruskal(df, numeric_col, group_col):
         ]
         if len(groups) < 2:
             st.warning("Kruskal-Wallis test requires at least 2 groups.")
-            return None
+            return None, None
         h_stat, p_val = stats.run_kruskal(df, numeric_col, group_col)
         st.write(f"Kruskal-Wallis test for {numeric_col} by {group_col}:")
         st.write(f"H-statistic = {h_stat:.3f}, p-value = {p_val:.3g}")
         return h_stat, p_val
     except Exception as e:
         st.warning(f"Could not run Kruskal-Wallis test: {e}")
-        return None
+        return None, None
 
 
 def run_chi2(df, col1, col2):
     try:
-        table = pd.crosstab(df[col1], df[col2])
         chi2, p, dof, expected = stats.run_chi2(df, col1, col2)
         st.write(f"Chi-square test for {col1} vs {col2}:")
         st.write(f"Chi2 = {chi2:.3f}, p-value = {p:.3g}, dof = {dof}")
@@ -1565,7 +1558,10 @@ def run_chi2(df, col1, col2):
         return chi2, p, dof, expected
     except Exception as e:
         st.warning(f"Could not run Chi-square test: {e}")
-        return None
+        return None, None, None, None
+
+
+def run_simple_linear_regression(df, x_col, y_col):
     try:
         x = df[x_col].values.reshape(-1, 1)
         y = df[y_col].values
@@ -1598,10 +1594,10 @@ def run_chi2(df, col1, col2):
 
 def run_crosstab(df, col1, col2):
     try:
-        table = pd.crosstab(df[col1], df[col2])
+        crosstab_table = pd.crosstab(df[col1], df[col2])
         st.write(f"Crosstabulation of {col1} and {col2}:")
-        st.write(table)
-        return table
+        st.write(crosstab_table)
+        return crosstab_table
     except Exception as e:
         st.warning(f"Could not create crosstab: {e}")
         return None
@@ -2959,8 +2955,9 @@ plt.show()
                     st.success("The data is ready for analysis!")
                 else:
                     st.warning("The data is not fully ready for analysis.")
-        except:
-            st.write("The DataFrame is isn't yet ready for readiness assessment. :)  ")
+        except Exception as e:
+            st.write("The DataFrame isn't yet ready for readiness assessment. :)  ")
+            st.write(f"Error details: {e}")
             # st.info("Check if you need to preprocess data")
             # missing_values, outliers, data_types, skewness, cardinality = analyze_dataframe(df)
             # st.write("Missing values")
@@ -3407,7 +3404,7 @@ with tab2:
             normalization_option = "No Normalization"
 
             # User selection for scaling option
-            if scaling_or_norm == True:
+            if scaling_or_norm:
                 scaling_option = st.selectbox(
                     "Select Scaling Option", list(scaling_options.keys())
                 )
@@ -3434,7 +3431,7 @@ with tab2:
                 X, y, test_size=0.2, random_state=42
             )
             # pca_check = st.checkbox("PCA?", value=False, key="pca_check-10")
-            # if pca_check == True:
+            # if pca_check:
             #     n_neighbors = 3
             #     random_state = 0
             #     dim = len(X[0])
@@ -3511,7 +3508,7 @@ with tab2:
         perform_shapley = st.checkbox(
             "Attempt to Explain Model", value=False, key="perform_shapley-10"
         )
-        if perform_shapley == True:
+        if perform_shapley:
             st.warning(
                 "Model explanation is computationally expensive and may not work well with all model types (like Ridge Classifier or KNN). Please be patient."
             )

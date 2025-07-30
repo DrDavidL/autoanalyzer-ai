@@ -354,7 +354,7 @@ def generate_gpt_analysis_docx(
         doc.add_heading("Code used for analysis", level=1)
         code_block_style = create_code_block_style(doc)
         for line in code.strip().split("\n"):
-            p = doc.add_paragraph(line, style=code_block_style)
+            doc.add_paragraph(line, style=code_block_style)
 
     # Helper: parse markdown-style bold/italic in a string and add to a paragraph
     # This is the function being improved.
