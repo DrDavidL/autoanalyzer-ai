@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler, normalize 
+from sklearn.preprocessing import StandardScaler, normalize
 from sklearn.linear_model import LogisticRegression, RidgeClassifier, Lasso
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.naive_bayes import GaussianNB
@@ -13,7 +13,14 @@ from sklearn import svm
 from xgboost import XGBClassifier
 from sklearn.neural_network import MLPClassifier
 from sklearn.metrics import (
-    accuracy_score, f1_score, roc_auc_score, precision_recall_curve, auc, confusion_matrix, ConfusionMatrixDisplay, roc_curve
+    accuracy_score,
+    f1_score,
+    roc_auc_score,
+    precision_recall_curve,
+    auc,
+    confusion_matrix,
+    ConfusionMatrixDisplay,
+    roc_curve,
 )
 import matplotlib.pyplot as plt
 import shap
@@ -28,7 +35,7 @@ def display_metrics(y_true, y_pred, y_scores, set_name="Test"):
         f1 = f1_score(y_true, y_pred)
         accuracy = accuracy_score(y_true, y_pred)
         roc_auc = roc_auc_score(y_true, y_scores)
-        
+
         # Handle precision-recall curve with proper pos_label
         unique_labels = np.unique(y_true)
         if len(unique_labels) == 2:
@@ -39,13 +46,15 @@ def display_metrics(y_true, y_pred, y_scores, set_name="Test"):
                 pos_label = max(unique_labels)
             else:
                 pos_label = sorted(unique_labels)[1]  # Use second label alphabetically
-            
-            precision, recall, _ = precision_recall_curve(y_true, y_scores, pos_label=pos_label)
+
+            precision, recall, _ = precision_recall_curve(
+                y_true, y_scores, pos_label=pos_label
+            )
         else:
             precision, recall, _ = precision_recall_curve(y_true, y_scores)
-        
+
         pr_auc = auc(recall, precision)
-        
+
         # Display classification metrics
         st.info(
             f"**Your Model Metrics ({set_name} Set):** F1 score: {f1:.2f}, Accuracy: {accuracy:.2f}, ROC AUC: {roc_auc:.2f}, PR AUC: {pr_auc:.2f}"
@@ -54,18 +63,18 @@ def display_metrics(y_true, y_pred, y_scores, set_name="Test"):
         # If we get a ValueError, it's likely because we're using a regression model
         is_regression = True
         from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
-        
+
         # Compute regression metrics
         mse = mean_squared_error(y_true, y_pred)
         rmse = np.sqrt(mse)
         mae = mean_absolute_error(y_true, y_pred)
         r2 = r2_score(y_true, y_pred)
-        
+
         # Display regression metrics
         st.info(
             f"**Your Model Metrics ({set_name} Set):** RMSE: {rmse:.2f}, MAE: {mae:.2f}, R²: {r2:.2f}"
         )
-    
+
     with st.expander("Explanations for the Metrics"):
         if is_regression:
             st.write(
@@ -88,7 +97,7 @@ def display_metrics(y_true, y_pred, y_scores, set_name="Test"):
             )
     # Confusion matrix, ROC, and PR curves are now shown in the main ML tab for clarity.
     # ROC curve is now shown only once per set, outside this function.
-    
+
     return is_regression
 
 
@@ -103,11 +112,13 @@ def plot_pr_curve(y_true, y_scores):
             pos_label = max(unique_labels)
         else:
             pos_label = sorted(unique_labels)[1]  # Use second label alphabetically
-        
-        precision, recall, _ = precision_recall_curve(y_true, y_scores, pos_label=pos_label)
+
+        precision, recall, _ = precision_recall_curve(
+            y_true, y_scores, pos_label=pos_label
+        )
     else:
         precision, recall, _ = precision_recall_curve(y_true, y_scores)
-    
+
     pr_auc = auc(recall, precision)
 
     fig, ax = plt.subplots(figsize=(8, 6))
@@ -238,7 +249,7 @@ def run_ml_pipeline(
     test_size=0.2,
     random_state=42,
     feature_cols=None,
-    perform_shapley=False
+    perform_shapley=False,
 ):
     """
     Modular ML pipeline for classification/regression.
@@ -258,10 +269,10 @@ def run_ml_pipeline(
         feature_cols = [col for col in df.columns if col != target_col]
     X = df[feature_cols].copy()
     y = df[target_col].copy()
-    
+
     # Handle target variable encoding if it's categorical
     target_label_mapping = None
-    if y.dtype == 'object' or pd.api.types.is_categorical_dtype(y):
+    if y.dtype == "object" or pd.api.types.is_categorical_dtype(y):
         unique_labels = y.unique()
         if len(unique_labels) == 2:
             # Binary classification - create mapping
@@ -270,12 +281,18 @@ def run_ml_pipeline(
         else:
             # Multi-class classification - use label encoding
             from sklearn.preprocessing import LabelEncoder
+
             label_encoder = LabelEncoder()
             y = label_encoder.fit_transform(y)
-            target_label_mapping = dict(zip(label_encoder.classes_, label_encoder.transform(label_encoder.classes_)))
-    
+            target_label_mapping = dict(
+                zip(
+                    label_encoder.classes_,
+                    label_encoder.transform(label_encoder.classes_),
+                )
+            )
+
     # Handle categorical variables in features
-    for col in X.select_dtypes(include=['object', 'category']).columns:
+    for col in X.select_dtypes(include=["object", "category"]).columns:
         unique_vals = X[col].nunique()
         if unique_vals == 2:
             # Binary encode
@@ -287,14 +304,14 @@ def run_ml_pipeline(
 
     # Store feature names before any transformations that might convert to numpy arrays
     feature_names = list(X.columns)
-    
+
     # Normalization/scaling
-    if normalization_option == 'StandardScaler':
+    if normalization_option == "StandardScaler":
         scaler = StandardScaler()
         X_scaled = scaler.fit_transform(X)
         # Keep as DataFrame to preserve column names for SHAP
         X = pd.DataFrame(X_scaled, columns=feature_names, index=X.index)
-    elif normalization_option in ['l1', 'l2']:
+    elif normalization_option in ["l1", "l2"]:
         X_normalized = normalize(X, norm=normalization_option)
         # Keep as DataFrame to preserve column names for SHAP
         X = pd.DataFrame(X_normalized, columns=feature_names, index=X.index)
@@ -338,7 +355,9 @@ def run_ml_pipeline(
     model.fit(X_train, y_train)
     predictions = model.predict(X_test)
     if hasattr(model, "predict_proba"):
-        y_scores = model.predict_proba(X_test)[:, 1] if len(np.unique(y_train)) == 2 else None
+        y_scores = (
+            model.predict_proba(X_test)[:, 1] if len(np.unique(y_train)) == 2 else None
+        )
     elif hasattr(model, "decision_function"):
         y_scores = model.decision_function(X_test)
     else:
@@ -351,38 +370,52 @@ def run_ml_pipeline(
 
     if len(np.unique(y_train)) == 2:
         # Binary classification metrics
-        metrics['accuracy'] = accuracy_score(y_test, predictions)
-        metrics['f1'] = f1_score(y_test, predictions)
+        metrics["accuracy"] = accuracy_score(y_test, predictions)
+        metrics["f1"] = f1_score(y_test, predictions)
         if y_scores is not None:
             try:
-                metrics['roc_auc'] = roc_auc_score(y_test, y_scores)
-                
+                metrics["roc_auc"] = roc_auc_score(y_test, y_scores)
+
                 # Handle precision-recall curve with proper pos_label
                 unique_labels = np.unique(y_test)
                 if np.issubdtype(y_test.dtype, np.number):
                     pos_label = max(unique_labels)
                 else:
-                    pos_label = sorted(unique_labels)[1]  # Use second label alphabetically
-                
-                precision, recall, _ = precision_recall_curve(y_test, y_scores, pos_label=pos_label)
-                metrics['pr_auc'] = auc(recall, precision)
+                    pos_label = sorted(unique_labels)[
+                        1
+                    ]  # Use second label alphabetically
+
+                precision, recall, _ = precision_recall_curve(
+                    y_test, y_scores, pos_label=pos_label
+                )
+                metrics["pr_auc"] = auc(recall, precision)
             except Exception:
-                metrics['roc_auc'] = None
-                metrics['pr_auc'] = None
-        metrics['confusion_matrix'] = confusion_matrix(y_test, predictions)
+                metrics["roc_auc"] = None
+                metrics["pr_auc"] = None
+        metrics["confusion_matrix"] = confusion_matrix(y_test, predictions)
     else:
         # Regression metrics (add more as needed)
-        metrics['accuracy'] = model.score(X_test, y_test)
+        metrics["accuracy"] = model.score(X_test, y_test)
 
     if perform_shapley:
         # Reduce background sample size to improve performance
         # Use shap.sample to get a smaller representative sample
         if X_train.shape[0] > 100:
-            background_sample = shap.sample(X_train, 100)  # Use 100 samples instead of 50 for better representation
+            background_sample = shap.sample(
+                X_train, 100
+            )  # Use 100 samples instead of 50 for better representation
         else:
             background_sample = X_train
-            
-        if isinstance(model, (DecisionTreeClassifier, RandomForestClassifier, GradientBoostingClassifier, XGBClassifier)):
+
+        if isinstance(
+            model,
+            (
+                DecisionTreeClassifier,
+                RandomForestClassifier,
+                GradientBoostingClassifier,
+                XGBClassifier,
+            ),
+        ):
             explainer = shap.TreeExplainer(model)
             shap_values = explainer.shap_values(X_test)
         else:
@@ -390,8 +423,10 @@ def run_ml_pipeline(
             # Remove the l1_reg limitation to allow all features to be explained
             try:
                 # First try with predict_proba for classification models
-                if hasattr(model, 'predict_proba') and len(np.unique(y_train)) == 2:
-                    explainer = shap.KernelExplainer(model.predict_proba, background_sample)
+                if hasattr(model, "predict_proba") and len(np.unique(y_train)) == 2:
+                    explainer = shap.KernelExplainer(
+                        model.predict_proba, background_sample
+                    )
                     shap_values = explainer.shap_values(X_test)
                     # For binary classification, take the positive class SHAP values
                     if isinstance(shap_values, list) and len(shap_values) == 2:
@@ -401,25 +436,29 @@ def run_ml_pipeline(
                     explainer = shap.KernelExplainer(model.predict, background_sample)
                     shap_values = explainer.shap_values(X_test)
             except Exception as e:
-                st.warning(f"SHAP analysis failed: {e}. Trying with reduced sample size.")
+                st.warning(
+                    f"SHAP analysis failed: {e}. Trying with reduced sample size."
+                )
                 try:
                     # Fallback: use smaller sample and limit features if needed
                     smaller_background = shap.sample(X_train, 25)
                     explainer = shap.KernelExplainer(model.predict, smaller_background)
-                    shap_values = explainer.shap_values(X_test[:10])  # Analyze only first 10 test samples
+                    shap_values = explainer.shap_values(
+                        X_test[:10]
+                    )  # Analyze only first 10 test samples
                 except Exception as e2:
                     st.warning(f"SHAP analysis failed completely: {e2}")
                     explainer = None
                     shap_values = None
 
     return {
-        'model': model,
-        'metrics': metrics,
-        'predictions': predictions,
-        'y_test': y_test,
-        'y_scores': y_scores,
-        'X_test': X_test,
-        'explainer': explainer,
-        'shap_values': shap_values,
-        'feature_names': feature_names
+        "model": model,
+        "metrics": metrics,
+        "predictions": predictions,
+        "y_test": y_test,
+        "y_scores": y_scores,
+        "X_test": X_test,
+        "explainer": explainer,
+        "shap_values": shap_values,
+        "feature_names": feature_names,
     }

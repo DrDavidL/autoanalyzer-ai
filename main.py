@@ -1,27 +1,13 @@
 import streamlit as st
 import streamlit.components.v1 as components
 import tempfile
-from sklearn.linear_model import LogisticRegression, RidgeClassifier, Lasso
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.naive_bayes import GaussianNB
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
-from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
-from sklearn import svm
-from xgboost import XGBClassifier
 import os
 import warnings
 from explanations.explanations import (
     shapley_explanation,
-    mult_linear_reg_explanation,
-    cox,
-    kaplan_meier,
 )
 from prompts import (
     csv_prefix_gpt4,
-    data_analysis_prompt,
-    plot_generation_prompt,
-    quick_analysis_prompt,
     tool_explanations,
 )
 from markdown_to_docx import generate_gpt_analysis_docx
@@ -151,6 +137,7 @@ def make_sweet_report(df):
     # Suppress deprecation warnings from sweetviz's internal use of pkg_resources
     import warnings
     import sweetviz as sv
+
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", category=DeprecationWarning)
         return sv.analyze(df)
@@ -161,6 +148,7 @@ def make_pandas_report(df, title):
     # Suppress deprecation warnings from ydata-profiling's internal use of pkg_resources
     import warnings
     from ydata_profiling import ProfileReport
+
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", category=DeprecationWarning)
         return ProfileReport(df, title=title)
@@ -175,7 +163,7 @@ if "outputs_path" not in st.session_state:
 # Use utils.generate_regression_equation if needed (move to utils if not already)
 
 
-def plot_mult_linear_reg(df, x, y):
+def plot_mult_linear_reg(x, y):
     # with sklearn
     regr = linear_model.LinearRegression()
     regr.fit(x, y)
@@ -186,13 +174,12 @@ def plot_mult_linear_reg(df, x, y):
     x = sm.add_constant(x)  # adding a constant
 
     model = sm.OLS(y, x).fit()
-    predictions = model.predict(x)
 
     print_model = model.summary2()
     st.write(print_model)
     try:
         df_mlr_output = print_model.tables[1]
-    except:
+    except Exception:
         st.write("couldn't generate dataframe version")
     return print_model, df_mlr_output, regr.intercept_, regr.coef_
 
@@ -236,10 +223,10 @@ def generate_2x2_table(df, var1, var2):
     return table
 
 
-# Use plotting.plot_mult_linear_reg instead of local definition
-def plot_mult_linear_reg(df, x, y):
-    # Note: Replaced with call to plotting.plot_mult_linear_reg
-    return plotting.plot_mult_linear_reg(df, x, y)
+# # Use plotting.plot_mult_linear_reg instead of local definition
+# def plot_mult_linear_reg(df, x, y):
+#     # Note: Replaced with call to plotting.plot_mult_linear_reg
+#     return plotting.plot_mult_linear_reg(df, x, y)
 
 
 # Use plotting.plot_survival_curve instead of local definition
@@ -252,6 +239,8 @@ def plot_survival_curve(df, time_col, event_col):
 def calculate_rr_arr_nnt(tn, fp, fn, tp):
     # Note: Replaced with call to stats.calculate_rr_arr_nnt
     return stats.calculate_rr_arr_nnt(tn, fp, fn, tp)
+
+
 #     try:
 #         # Attempt to retrieve the API key as a secret
 #         api_key = st.secrets["openai-api-key"]
@@ -286,7 +275,7 @@ def check_password(widget_key_suffix="") -> bool:
     """
     Check if the entered password is correct and manage login state.
     Also resets the app when a user successfully logs in.
-    
+
     Args:
         widget_key_suffix: A suffix to add to the widget key to avoid duplicate widget IDs
     """
@@ -302,7 +291,7 @@ def check_password(widget_key_suffix="") -> bool:
 
     # Create a unique key for this password input
     password_key_name = f"password_{widget_key_suffix}"
-    
+
     def password_entered() -> None:
         """Callback function when password is entered."""
         entered_password = st.session_state[password_key_name]
@@ -317,7 +306,10 @@ def check_password(widget_key_suffix="") -> bool:
     # Check if password is correct
     if not st.session_state.password_correct:
         st.text_input(
-            "Password", type="password", on_change=password_entered, key=password_key_name
+            "Password",
+            type="password",
+            on_change=password_entered,
+            key=password_key_name,
         )
 
         if st.session_state.login_attempts > 0:
@@ -354,13 +346,16 @@ Remember to structure the code such that it is properly indented and formatted a
 
 def assess_data_readiness(df):
     import missingno as msno
+
     readiness_summary = {}
     st.write("White horizontal lines (if present) show missing data")
     try:
         missing_matrix = msno.matrix(df)
         st.pyplot(missing_matrix.figure)
     except Exception as e:
-        st.warning(f'Dataframe not yet amenable to missing for "missingno" library analysis. Exception: {e}')
+        st.warning(
+            f'Dataframe not yet amenable to missing for "missingno" library analysis. Exception: {e}'
+        )
 
     # Check if the DataFrame is empty
 
@@ -461,10 +456,37 @@ def process_model_output(output):
 def safety_check(code):
     # Basic check for dangerous keywords in code
     dangerous_keywords = [
-        " exec", " eval", " open", " sys", " subprocess", " del", " delete", " remove", " os",
-        " shutil", " pip", " conda", " st.write", " exit", " quit", " globals", " locals", " dir",
-        " reload", " lambda", " setattr", " getattr", " delattr", " yield", " assert", " break",
-        " continue", " raise", " try", "compile", "__import__",
+        " exec",
+        " eval",
+        " open",
+        " sys",
+        " subprocess",
+        " del",
+        " delete",
+        " remove",
+        " os",
+        " shutil",
+        " pip",
+        " conda",
+        " st.write",
+        " exit",
+        " quit",
+        " globals",
+        " locals",
+        " dir",
+        " reload",
+        " lambda",
+        " setattr",
+        " getattr",
+        " delattr",
+        " yield",
+        " assert",
+        " break",
+        " continue",
+        " raise",
+        " try",
+        "compile",
+        "__import__",
     ]
     for keyword in dangerous_keywords:
         if keyword in code:
@@ -650,8 +672,6 @@ def start_plot_gpt4(df, question, max_retries=5, delay=3):
     return model_output
 
 
-
-
 async def start_plot_gpt4_async(df, question, progress_bar, max_retries=5, delay=2):
     callback_handler = llm_integration.StreamlitAsyncCallbackHandler(progress_bar)
 
@@ -809,6 +829,7 @@ def generate_df(columns, n_rows, selected_model):
     Generates a synthetic dataframe based on column names and number of rows using an LLM.
     """
     from prompts import dataframe_generation_system_prompt
+
     system_prompt = dataframe_generation_system_prompt
 
     user_prompt = f"columns : {columns}, number : {n_rows}"
@@ -819,7 +840,7 @@ def generate_df(columns, n_rows, selected_model):
         api_version=st.secrets["api_version"],
         azure_endpoint=openai_base_url,
         api_key=openai_api_key,
-        temperature=0.5, # Use a slightly higher temperature for data generation creativity
+        temperature=0.5,  # Use a slightly higher temperature for data generation creativity
         max_tokens=4000,
         timeout=None,
         max_retries=2,
@@ -836,9 +857,11 @@ def generate_df(columns, n_rows, selected_model):
     try:
         # Invoke the LLM
         response = llm.invoke(messages)
-        
+
         # Extract the content from the response
-        generated_content = response.content if hasattr(response, "content") else str(response)
+        generated_content = (
+            response.content if hasattr(response, "content") else str(response)
+        )
 
         # Use StringIO to convert the string data into file-like object
         data = io.StringIO(generated_content)
@@ -850,8 +873,8 @@ def generate_df(columns, n_rows, selected_model):
             df = pd.read_csv(data, sep=",")
             # Basic check if columns match, otherwise try reading without headers
             if not all(col in df.columns for col in columns):
-                 data.seek(0) # Reset StringIO position
-                 df = pd.read_csv(data, sep=",", skiprows=1, header=None, names=columns)
+                data.seek(0)  # Reset StringIO position
+                df = pd.read_csv(data, sep=",", skiprows=1, header=None, names=columns)
 
         except Exception as e:
             st.warning(f"Failed to parse generated data: {e}")
@@ -1063,27 +1086,27 @@ def display_metrics(y_true, y_pred, y_scores, set_name="Test"):
         roc_auc = roc_auc_score(y_true, y_scores)
         precision, recall, _ = precision_recall_curve(y_true, y_scores)
         pr_auc = auc(recall, precision)
-        
+
         # Display classification metrics
         st.info(
             f"**Your Model Metrics ({set_name} Set):** F1 score: {f1:.2f}, Accuracy: {accuracy:.2f}, ROC AUC: {roc_auc:.2f}, PR AUC: {pr_auc:.2f}"
         )
-    except ValueError as e:
+    except ValueError:
         # If we get a ValueError, it's likely because we're using a regression model
         is_regression = True
         from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
-        
+
         # Compute regression metrics
         mse = mean_squared_error(y_true, y_pred)
         rmse = np.sqrt(mse)
         mae = mean_absolute_error(y_true, y_pred)
         r2 = r2_score(y_true, y_pred)
-        
+
         # Display regression metrics
         st.info(
             f"**Your Model Metrics ({set_name} Set):** RMSE: {rmse:.2f}, MAE: {mae:.2f}, R²: {r2:.2f}"
         )
-    
+
     with st.expander("Explanations for the Metrics"):
         if is_regression:
             st.write(
@@ -1106,7 +1129,7 @@ def display_metrics(y_true, y_pred, y_scores, set_name="Test"):
             )
     # Confusion matrix, ROC, and PR curves are now shown in the main ML tab for clarity.
     # ROC curve is now shown only once per set, outside this function.
-    
+
     return is_regression
 
 
@@ -1249,7 +1272,12 @@ def create_scatterplot(df, scatter_x, scatter_y):
             try:
                 slope, intercept = np.polyfit(df[scatter_x], df[scatter_y], 1)
                 # Add the slope and intercept as a text annotation on the plot
-                ax.text(0.05, 0.95, f"y={slope:.2f}x+{intercept:.2f}", transform=ax.transAxes)
+                ax.text(
+                    0.05,
+                    0.95,
+                    f"y={slope:.2f}x+{intercept:.2f}",
+                    transform=ax.transAxes,
+                )
             except Exception:
                 pass
 
@@ -1450,7 +1478,9 @@ def plot_corr(df):
         st.warning(f"Could not plot correlation heatmap: {e}")
         return None
 
+
 # --- New Statistical Test Functions ---
+
 
 def run_ttest(df, numeric_col, group_col):
     try:
@@ -1468,9 +1498,13 @@ def run_ttest(df, numeric_col, group_col):
         st.warning(f"Could not run t-test: {e}")
         return None
 
+
 def run_anova(df, numeric_col, group_col):
     try:
-        groups = [df[df[group_col] == g][numeric_col].dropna() for g in df[group_col].dropna().unique()]
+        groups = [
+            df[df[group_col] == g][numeric_col].dropna()
+            for g in df[group_col].dropna().unique()
+        ]
         if len(groups) < 2:
             st.warning("ANOVA requires at least 2 groups.")
             return None
@@ -1482,6 +1516,7 @@ def run_anova(df, numeric_col, group_col):
         st.warning(f"Could not run ANOVA: {e}")
         return None
 
+
 def run_mannwhitney(df, numeric_col, group_col):
     try:
         groups = df[group_col].dropna().unique()
@@ -1491,16 +1526,22 @@ def run_mannwhitney(df, numeric_col, group_col):
         group1 = df[df[group_col] == groups[0]][numeric_col].dropna()
         group2 = df[df[group_col] == groups[1]][numeric_col].dropna()
         u_stat, p_val = stats.run_mannwhitney(df, numeric_col, group_col)
-        st.write(f"Mann-Whitney U test between {groups[0]} and {groups[1]} for {numeric_col}:")
+        st.write(
+            f"Mann-Whitney U test between {groups[0]} and {groups[1]} for {numeric_col}:"
+        )
         st.write(f"U-statistic = {u_stat:.3f}, p-value = {p_val:.3g}")
         return u_stat, p_val
     except Exception as e:
         st.warning(f"Could not run Mann-Whitney U test: {e}")
         return None
 
+
 def run_kruskal(df, numeric_col, group_col):
     try:
-        groups = [df[df[group_col] == g][numeric_col].dropna() for g in df[group_col].dropna().unique()]
+        groups = [
+            df[df[group_col] == g][numeric_col].dropna()
+            for g in df[group_col].dropna().unique()
+        ]
         if len(groups) < 2:
             st.warning("Kruskal-Wallis test requires at least 2 groups.")
             return None
@@ -1511,6 +1552,7 @@ def run_kruskal(df, numeric_col, group_col):
     except Exception as e:
         st.warning(f"Could not run Kruskal-Wallis test: {e}")
         return None
+
 
 def run_chi2(df, col1, col2):
     try:
@@ -1529,17 +1571,17 @@ def run_chi2(df, col1, col2):
         y = df[y_col].values
         model = linear_model.LinearRegression()
         model.fit(x, y)
-        
+
         # Get the equation components
         intercept = model.intercept_
         slope = model.coef_[0]
         equation = f"{y_col} = {intercept:.3f} + {slope:.3f} × {x_col}"
-        
+
         st.write(f"Simple linear regression: {y_col} ~ {x_col}")
         st.write(f"Intercept: {intercept:.3f}")
         st.write(f"Slope: {slope:.3f}")
         st.info(f"**Equation**: {equation}")
-        
+
         fig, ax = plt.subplots()
         ax.scatter(df[x_col], df[y_col], label="Data")
         ax.plot(df[x_col], model.predict(x), color="red", label="Fit")
@@ -1553,6 +1595,7 @@ def run_chi2(df, col1, col2):
         st.warning(f"Could not run simple linear regression: {e}")
         return None
 
+
 def run_crosstab(df, col1, col2):
     try:
         table = pd.crosstab(df[col1], df[col2])
@@ -1562,6 +1605,7 @@ def run_crosstab(df, col1, col2):
     except Exception as e:
         st.warning(f"Could not create crosstab: {e}")
         return None
+
 
 def plot_time_series(df, time_col, value_col):
     try:
@@ -1576,8 +1620,10 @@ def plot_time_series(df, time_col, value_col):
         st.warning(f"Could not plot time series: {e}")
         return None
 
+
 def plot_missing_data(df):
     import missingno as msno
+
     try:
         fig = msno.matrix(df)
         st.pyplot(fig.figure)
@@ -1587,27 +1633,27 @@ def plot_missing_data(df):
         return None
 
 
-
 def plot_enhanced_association_heatmap(df, title="Enhanced Association Heatmap"):
     # Import associations from dython if available
     try:
         from dython.nominal import associations
     except ImportError:
-        st.warning("dython is not installed. Please install it to use enhanced association heatmap.")
+        st.warning(
+            "dython is not installed. Please install it to use enhanced association heatmap."
+        )
         return None
 
     assoc = associations(
         df,
-        theil_u=True,         # asymmetric measure for categorical vars
+        theil_u=True,  # asymmetric measure for categorical vars
         plot=True,
         return_results=True,
-        nominal_columns='auto',
+        nominal_columns="auto",
         figsize=(14, 12),
         mark_columns=True,
-        title=title
+        title=title,
     )
     return assoc
-
 
 
 # @st.cache_resource
@@ -1657,7 +1703,8 @@ def plot_numeric(df, col_name):
 
 
 # Custom CSS for better styling
-st.markdown("""
+st.markdown(
+    """
 <style>
     .main-title {
         font-size: 3rem !important;
@@ -1688,11 +1735,16 @@ st.markdown("""
         border-left: 5px solid #1E88E5;
     }
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 # Main title with custom styling
 st.markdown("<h1 class='main-title'>📊 AutoAnalyzer</h1>", unsafe_allow_html=True)
-st.markdown("<p class='subtitle'>Interactive data exploration and machine learning for healthcare data</p>", unsafe_allow_html=True)
+st.markdown(
+    "<p class='subtitle'>Interactive data exploration and machine learning for healthcare data</p>",
+    unsafe_allow_html=True,
+)
 
 if "model_output1" not in st.session_state:
     st.session_state.model_output1 = ""
@@ -1705,7 +1757,7 @@ if "full_gpt_response" not in st.session_state:
 
 st.markdown(
     "<div class='highlight-box'>Welcome to the AutoAnalyzer! Use the left sidebar to upload your data or select a demo dataset. Then, follow the steps to explore your data.</div>",
-    unsafe_allow_html=True
+    unsafe_allow_html=True,
 )
 
 with st.expander("📚 Getting Started: Using AutoAnalyzer"):
@@ -1722,7 +1774,9 @@ Follow the steps listed in the sidebar on the left. After your exploratory analy
     )
     st.write("Last updated 5/4/25")
 
-tab1, tab2, tab3 = st.tabs(["📊 Data Exploration", "🧠 Machine Learning", "🤖 Analyze with GPT"])
+tab1, tab2, tab3 = st.tabs(
+    ["📊 Data Exploration", "🧠 Machine Learning", "🤖 Analyze with GPT"]
+)
 # fetch_api_key()
 # gpt_version = st.sidebar.radio("Select GPT model:", ("GPT-3.5 ($)", "GPT-4 ($$$$)"), index=0)
 # if gpt_version == "GPT-3.5 ($)":
@@ -1739,8 +1793,11 @@ tab1, tab2, tab3 = st.tabs(["📊 Data Exploration", "🧠 Machine Learning", "�
 with tab1:
     # st.sidebar.subheader("Upload your data")
 
-    st.sidebar.markdown("<div class='step-header'>Step 1: Upload your data or view a demo dataset</div>", unsafe_allow_html=True)
-    
+    st.sidebar.markdown(
+        "<div class='step-header'>Step 1: Upload your data or view a demo dataset</div>",
+        unsafe_allow_html=True,
+    )
+
     demo_or_custom = st.sidebar.selectbox(
         "Upload a CSV or Excel file. NO PHI - use only anonymized data",
         (
@@ -1755,11 +1812,15 @@ with tab1:
         ),
         index=0,
     )
-    
+
     # Add a message in the main area if CSV/Excel upload is selected
     if demo_or_custom == "📁 CSV or Excel Upload":
-        st.info("Please use the file uploader that appeared in the sidebar on the left.")
-        uploaded_file = st.sidebar.file_uploader("Choose a CSV or Excel file", type=["csv", "xlsx"])
+        st.info(
+            "Please use the file uploader that appeared in the sidebar on the left."
+        )
+        uploaded_file = st.sidebar.file_uploader(
+            "Choose a CSV or Excel file", type=["csv", "xlsx"]
+        )
         if uploaded_file:
             if uploaded_file.name.endswith(".csv"):
                 st.session_state.df = load_data(uploaded_file)
@@ -1815,8 +1876,8 @@ with tab1:
         # Removed authentication info message as requested
         st.sidebar.markdown("Enter column names on the main page ➡️")
         # Move input fields and button to main area, but keep the password check
-        if hu_key == "True" or check_password("generate_data"): # Add unique suffix
-            user_input = st.text_area( # Use st.text_area for main area
+        if hu_key == "True" or check_password("generate_data"):  # Add unique suffix
+            user_input = st.text_area(  # Use st.text_area for main area
                 "Enter comma or space separated names for columns, e.g., Na, Cr, WBC, A1c, SPB, Diabetes:"
             )
 
@@ -1829,14 +1890,14 @@ with tab1:
 
             # Remove leading/trailing whitespace from each item in the list
             user_columns = [item.strip() for item in user_list]
-            user_rows = st.number_input( # Use st.number_input for main area
+            user_rows = st.number_input(  # Use st.number_input for main area
                 "Enter approx number of rows (max 100).",
                 min_value=1,
                 max_value=100,
                 value=10,
                 step=1,
             )
-            if st.button("Generate Data"): # Use st.button for main area
+            if st.button("Generate Data"):  # Use st.button for main area
                 # Use a default model if not otherwise set
                 selected_model = "gpt-4o-mini"
                 st.session_state.df, st.session_state.gen_csv = generate_df(
@@ -1872,7 +1933,10 @@ with tab1:
                 mime="text/csv",
                 use_container_width=True,
             )
-        st.markdown("<div class='step-header'>Step 2: Assess Data Readiness</div>", unsafe_allow_html=True)
+        st.markdown(
+            "<div class='step-header'>Step 2: Assess Data Readiness</div>",
+            unsafe_allow_html=True,
+        )
 
         check_preprocess = st.checkbox(
             "🔍 Assess dataset readiness", key="Preprocess now needed"
@@ -1885,13 +1949,19 @@ with tab1:
             key="Filter data",
         )
 
-        st.markdown("<div class='step-header'>Step 3: Tools for Analysis</div>", unsafe_allow_html=True)
+        st.markdown(
+            "<div class='step-header'>Step 3: Tools for Analysis</div>",
+            unsafe_allow_html=True,
+        )
         # Balanced tool options for sidebar columns
         col1, col2 = st.columns(2)
-        
+
         # Add category headers
-        st.markdown("<div class='tool-category'>Basic Analysis Tools</div>", unsafe_allow_html=True)
-        
+        st.markdown(
+            "<div class='tool-category'>Basic Analysis Tools</div>",
+            unsafe_allow_html=True,
+        )
+
         # Re-balance: move three tools from col2_tools to col1_tools for better balance
         col1_tools = [
             "📋 Show header (top 5 rows of data)",
@@ -1928,87 +1998,139 @@ with tab1:
         # Use explicit keys for each checkbox to ensure correct mapping
         with col1:
             header = st.checkbox(
-                col1_tools[0], key="show_header", help=tool_explanations.get(col1_tools[0], "")
+                col1_tools[0],
+                key="show_header",
+                help=tool_explanations.get(col1_tools[0], ""),
             )
             summary = st.checkbox(
-                col1_tools[1], key="show_data", help=tool_explanations.get(col1_tools[1], "")
+                col1_tools[1],
+                key="show_data",
+                help=tool_explanations.get(col1_tools[1], ""),
             )
             summary_cat = st.checkbox(
-                col1_tools[2], key="show_summary_cat", help=tool_explanations.get(col1_tools[2], "")
+                col1_tools[2],
+                key="show_summary_cat",
+                help=tool_explanations.get(col1_tools[2], ""),
             )
             show_table = st.checkbox(
-                col1_tools[3], key="show_table", help=tool_explanations.get(col1_tools[3], "")
+                col1_tools[3],
+                key="show_table",
+                help=tool_explanations.get(col1_tools[3], ""),
             )
             show_scatter = st.checkbox(
-                col1_tools[4], key="show_scatter", help=tool_explanations.get(col1_tools[4], "")
+                col1_tools[4],
+                key="show_scatter",
+                help=tool_explanations.get(col1_tools[4], ""),
             )
             view_full_df = st.checkbox(
-                col1_tools[5], key="view_full_df", help=tool_explanations.get(col1_tools[5], "")
+                col1_tools[5],
+                key="view_full_df",
+                help=tool_explanations.get(col1_tools[5], ""),
             )
             barchart = st.checkbox(
-                col1_tools[6], key="show_barchart", help=tool_explanations.get(col1_tools[6], "")
+                col1_tools[6],
+                key="show_barchart",
+                help=tool_explanations.get(col1_tools[6], ""),
             )
             histogram = st.checkbox(
-                col1_tools[7], key="show_histogram", help=tool_explanations.get(col1_tools[7], "")
+                col1_tools[7],
+                key="show_histogram",
+                help=tool_explanations.get(col1_tools[7], ""),
             )
             piechart = st.checkbox(
-                col1_tools[8], key="show_piechart", help=tool_explanations.get(col1_tools[8], "")
+                col1_tools[8],
+                key="show_piechart",
+                help=tool_explanations.get(col1_tools[8], ""),
             )
             show_corr = st.checkbox(
-                col1_tools[9], key="show_corr", help=tool_explanations.get(col1_tools[9], "")
+                col1_tools[9],
+                key="show_corr",
+                help=tool_explanations.get(col1_tools[9], ""),
             )
             box_plot = st.checkbox(
-                col1_tools[10], key="show_box", help=tool_explanations.get(col1_tools[10], "")
+                col1_tools[10],
+                key="show_box",
+                help=tool_explanations.get(col1_tools[10], ""),
             )
             violin_plot = st.checkbox(
-                col1_tools[11], key="show_violin", help=tool_explanations.get(col1_tools[11], "")
+                col1_tools[11],
+                key="show_violin",
+                help=tool_explanations.get(col1_tools[11], ""),
             )
             ttest = st.checkbox(
-                col1_tools[12], key="ttest", help=tool_explanations.get(col1_tools[12], "")
+                col1_tools[12],
+                key="ttest",
+                help=tool_explanations.get(col1_tools[12], ""),
             )
             anova = st.checkbox(
-                col1_tools[13], key="anova", help=tool_explanations.get(col1_tools[13], "")
+                col1_tools[13],
+                key="anova",
+                help=tool_explanations.get(col1_tools[13], ""),
             )
 
         with col2:
             mannwhitney = st.checkbox(
-                col2_tools[0], key="mannwhitney", help=tool_explanations.get(col2_tools[0], "")
+                col2_tools[0],
+                key="mannwhitney",
+                help=tool_explanations.get(col2_tools[0], ""),
             )
             kruskal = st.checkbox(
-                col2_tools[1], key="kruskal", help=tool_explanations.get(col2_tools[1], "")
+                col2_tools[1],
+                key="kruskal",
+                help=tool_explanations.get(col2_tools[1], ""),
             )
             chi2 = st.checkbox(
                 col2_tools[2], key="chi2", help=tool_explanations.get(col2_tools[2], "")
             )
             crosstab = st.checkbox(
-                col2_tools[3], key="crosstab", help=tool_explanations.get(col2_tools[3], "")
+                col2_tools[3],
+                key="crosstab",
+                help=tool_explanations.get(col2_tools[3], ""),
             )
             simple_linreg = st.checkbox(
-                col2_tools[4], key="simple_linreg", help=tool_explanations.get(col2_tools[4], "")
+                col2_tools[4],
+                key="simple_linreg",
+                help=tool_explanations.get(col2_tools[4], ""),
             )
             mult_linear_reg = st.checkbox(
-                col2_tools[5], key="show_mult_linear_reg", help=tool_explanations.get(col2_tools[5], "")
+                col2_tools[5],
+                key="show_mult_linear_reg",
+                help=tool_explanations.get(col2_tools[5], ""),
             )
             perform_pca = st.checkbox(
-                col2_tools[6], key="show_pca", help=tool_explanations.get(col2_tools[6], "")
+                col2_tools[6],
+                key="show_pca",
+                help=tool_explanations.get(col2_tools[6], ""),
             )
             time_series = st.checkbox(
-                col2_tools[7], key="time_series", help=tool_explanations.get(col2_tools[7], "")
+                col2_tools[7],
+                key="time_series",
+                help=tool_explanations.get(col2_tools[7], ""),
             )
             missing_data_vis = st.checkbox(
-                col2_tools[8], key="missing_data_vis", help=tool_explanations.get(col2_tools[8], "")
+                col2_tools[8],
+                key="missing_data_vis",
+                help=tool_explanations.get(col2_tools[8], ""),
             )
             binary_categ_analysis = st.checkbox(
-                col2_tools[9], key="binary_categ_analysis", help=tool_explanations.get(col2_tools[9], "")
+                col2_tools[9],
+                key="binary_categ_analysis",
+                help=tool_explanations.get(col2_tools[9], ""),
             )
             survival_curve = st.checkbox(
-                col2_tools[10], key="show_survival", help=tool_explanations.get(col2_tools[10], "")
+                col2_tools[10],
+                key="show_survival",
+                help=tool_explanations.get(col2_tools[10], ""),
             )
             cox_ph = st.checkbox(
-                col2_tools[11], key="show_cox_ph", help=tool_explanations.get(col2_tools[11], "")
+                col2_tools[11],
+                key="show_cox_ph",
+                help=tool_explanations.get(col2_tools[11], ""),
             )
             full_analysis = st.checkbox(
-                col2_tools[12], key="show_analysis", help=tool_explanations.get("Download a Full Analysis", "")
+                col2_tools[12],
+                key="show_analysis",
+                help=tool_explanations.get("Download a Full Analysis", ""),
             )
 
     if filter_data:
@@ -2021,9 +2143,15 @@ with tab1:
 
     if ttest:
         st.subheader("T-test (2 groups)")
-        numeric_cols, categorical_cols = get_categorical_and_numerical_cols(st.session_state.df)
-        ttest_num = st.selectbox("Select a numerical column:", numeric_cols, key="ttest_num")
-        ttest_cat = st.selectbox("Select a grouping (categorical) column:", categorical_cols, key="ttest_cat")
+        numeric_cols, categorical_cols = get_categorical_and_numerical_cols(
+            st.session_state.df
+        )
+        ttest_num = st.selectbox(
+            "Select a numerical column:", numeric_cols, key="ttest_num"
+        )
+        ttest_cat = st.selectbox(
+            "Select a grouping (categorical) column:", categorical_cols, key="ttest_cat"
+        )
         if st.button("Run T-test"):
             run_ttest(st.session_state.df, ttest_num, ttest_cat)
         with st.expander("Show code for t-test"):
@@ -2034,13 +2162,21 @@ group1 = df[df["{ttest_cat}"] == df["{ttest_cat}"].unique()[0]]["{ttest_num}"].d
 group2 = df[df["{ttest_cat}"] == df["{ttest_cat}"].unique()[1]]["{ttest_num}"].dropna()
 t_stat, p_val = stats.ttest_ind(group1, group2)
 print("t-statistic:", t_stat, "p-value:", p_val)
-''', language="python")
+''',
+                language="python",
+            )
 
     if anova:
         st.subheader("ANOVA (3+ groups)")
-        numeric_cols, categorical_cols = get_categorical_and_numerical_cols(st.session_state.df)
-        anova_num = st.selectbox("Select a numerical column:", numeric_cols, key="anova_num")
-        anova_cat = st.selectbox("Select a grouping (categorical) column:", categorical_cols, key="anova_cat")
+        numeric_cols, categorical_cols = get_categorical_and_numerical_cols(
+            st.session_state.df
+        )
+        anova_num = st.selectbox(
+            "Select a numerical column:", numeric_cols, key="anova_num"
+        )
+        anova_cat = st.selectbox(
+            "Select a grouping (categorical) column:", categorical_cols, key="anova_cat"
+        )
         if st.button("Run ANOVA"):
             run_anova(st.session_state.df, anova_num, anova_cat)
         with st.expander("Show code for ANOVA"):
@@ -2050,13 +2186,19 @@ print("t-statistic:", t_stat, "p-value:", p_val)
 groups = [df[df["{anova_cat}"] == g]["{anova_num}"].dropna() for g in df["{anova_cat}"].unique()]
 f_stat, p_val = stats.f_oneway(*groups)
 print("F-statistic:", f_stat, "p-value:", p_val)
-''', language="python")
+''',
+                language="python",
+            )
 
     if mannwhitney:
         st.subheader("Mann-Whitney U test (2 groups, nonparametric)")
-        numeric_cols, categorical_cols = get_categorical_and_numerical_cols(st.session_state.df)
+        numeric_cols, categorical_cols = get_categorical_and_numerical_cols(
+            st.session_state.df
+        )
         mw_num = st.selectbox("Select a numerical column:", numeric_cols, key="mw_num")
-        mw_cat = st.selectbox("Select a grouping (categorical) column:", categorical_cols, key="mw_cat")
+        mw_cat = st.selectbox(
+            "Select a grouping (categorical) column:", categorical_cols, key="mw_cat"
+        )
         if st.button("Run Mann-Whitney U test"):
             run_mannwhitney(st.session_state.df, mw_num, mw_cat)
         with st.expander("Show code for Mann-Whitney U test"):
@@ -2067,13 +2209,23 @@ group1 = df[df["{mw_cat}"] == df["{mw_cat}"].unique()[0]]["{mw_num}"].dropna()
 group2 = df[df["{mw_cat}"] == df["{mw_cat}"].unique()[1]]["{mw_num}"].dropna()
 u_stat, p_val = stats.mannwhitneyu(group1, group2)
 print("U-statistic:", u_stat, "p-value:", p_val)
-''', language="python")
+''',
+                language="python",
+            )
 
     if kruskal:
         st.subheader("Kruskal-Wallis test (3+ groups, nonparametric)")
-        numeric_cols, categorical_cols = get_categorical_and_numerical_cols(st.session_state.df)
-        kruskal_num = st.selectbox("Select a numerical column:", numeric_cols, key="kruskal_num")
-        kruskal_cat = st.selectbox("Select a grouping (categorical) column:", categorical_cols, key="kruskal_cat")
+        numeric_cols, categorical_cols = get_categorical_and_numerical_cols(
+            st.session_state.df
+        )
+        kruskal_num = st.selectbox(
+            "Select a numerical column:", numeric_cols, key="kruskal_num"
+        )
+        kruskal_cat = st.selectbox(
+            "Select a grouping (categorical) column:",
+            categorical_cols,
+            key="kruskal_cat",
+        )
         if st.button("Run Kruskal-Wallis test"):
             run_kruskal(st.session_state.df, kruskal_num, kruskal_cat)
         with st.expander("Show code for Kruskal-Wallis test"):
@@ -2083,13 +2235,21 @@ print("U-statistic:", u_stat, "p-value:", p_val)
 groups = [df[df["{kruskal_cat}"] == g]["{kruskal_num}"].dropna() for g in df["{kruskal_cat}"].unique()]
 h_stat, p_val = stats.kruskal(*groups)
 print("H-statistic:", h_stat, "p-value:", p_val)
-''', language="python")
+''',
+                language="python",
+            )
 
     if chi2:
         st.subheader("Chi-square test (categorical)")
-        categorical_cols = st.session_state.df.select_dtypes(include=["object", "category"]).columns.tolist()
-        chi2_col1 = st.selectbox("Select first categorical column:", categorical_cols, key="chi2_col1")
-        chi2_col2 = st.selectbox("Select second categorical column:", categorical_cols, key="chi2_col2")
+        categorical_cols = st.session_state.df.select_dtypes(
+            include=["object", "category"]
+        ).columns.tolist()
+        chi2_col1 = st.selectbox(
+            "Select first categorical column:", categorical_cols, key="chi2_col1"
+        )
+        chi2_col2 = st.selectbox(
+            "Select second categorical column:", categorical_cols, key="chi2_col2"
+        )
         if st.button("Run Chi-square test"):
             run_chi2(st.session_state.df, chi2_col1, chi2_col2)
         with st.expander("Show code for Chi-square test"):
@@ -2100,20 +2260,30 @@ table = pd.crosstab(df["{chi2_col1}"], df["{chi2_col2}"])
 chi2, p, dof, expected = stats.chi2_contingency(table)
 print("Chi2:", chi2, "p-value:", p, "dof:", dof)
 print(table)
-''', language="python")
+''',
+                language="python",
+            )
 
     if crosstab:
         st.subheader("Crosstab/Frequency Table")
-        categorical_cols = st.session_state.df.select_dtypes(include=["object", "category"]).columns.tolist()
-        ct_col1 = st.selectbox("Select first categorical column:", categorical_cols, key="ct_col1")
-        ct_col2 = st.selectbox("Select second categorical column:", categorical_cols, key="ct_col2")
+        categorical_cols = st.session_state.df.select_dtypes(
+            include=["object", "category"]
+        ).columns.tolist()
+        ct_col1 = st.selectbox(
+            "Select first categorical column:", categorical_cols, key="ct_col1"
+        )
+        ct_col2 = st.selectbox(
+            "Select second categorical column:", categorical_cols, key="ct_col2"
+        )
         if st.button("Show Crosstab"):
             run_crosstab(st.session_state.df, ct_col1, ct_col2)
         with st.expander("Show code for crosstab"):
             st.code(
                 f'''table = pd.crosstab(df["{ct_col1}"], df["{ct_col2}"])
 print(table)
-''', language="python")
+''',
+                language="python",
+            )
 
     if simple_linreg:
         st.subheader("Simple linear regression")
@@ -2121,18 +2291,25 @@ print(table)
         slr_x = st.selectbox("Select X (predictor):", numeric_cols, key="slr_x")
         slr_y = st.selectbox("Select Y (outcome):", numeric_cols, key="slr_y")
         if st.button("Run Simple Linear Regression"):
-            coef, intercept = stats.run_simple_linear_regression(st.session_state.df, slr_x, slr_y)
-            st.write(f"Regression equation: {slr_y} = {coef:.4f} * {slr_x} + {intercept:.4f}")
+            coef, intercept = stats.run_simple_linear_regression(
+                st.session_state.df, slr_x, slr_y
+            )
+            st.write(
+                f"Regression equation: {slr_y} = {coef:.4f} * {slr_x} + {intercept:.4f}"
+            )
             # Plot regression line and data points
             x_vals = st.session_state.df[slr_x]
             y_vals = st.session_state.df[slr_y]
             import matplotlib.pyplot as plt
+
             fig, ax = plt.subplots()
-            ax.scatter(x_vals, y_vals, label='Data')
-            ax.plot(x_vals, coef * x_vals + intercept, color='red', label='Regression Line')
+            ax.scatter(x_vals, y_vals, label="Data")
+            ax.plot(
+                x_vals, coef * x_vals + intercept, color="red", label="Regression Line"
+            )
             ax.set_xlabel(slr_x)
             ax.set_ylabel(slr_y)
-            ax.set_title(f'Simple Linear Regression: {slr_y} vs {slr_x}')
+            ax.set_title(f"Simple Linear Regression: {slr_y} vs {slr_x}")
             ax.legend()
             st.pyplot(fig)
             utils.save_image(fig, "simple_linear_regression.png")
@@ -2152,7 +2329,9 @@ plt.xlabel("{slr_x}")
 plt.ylabel("{slr_y}")
 plt.title("{slr_y} vs {slr_x}")
 plt.show()
-''', language="python")
+''',
+                language="python",
+            )
 
     if time_series:
         st.subheader("Time series plot")
@@ -2170,18 +2349,22 @@ plt.xlabel("{time_col}")
 plt.ylabel("{value_col}")
 plt.title("Time Series: {value_col} over {time_col}")
 plt.show()
-''', language="python")
+''',
+                language="python",
+            )
 
     if missing_data_vis:
         st.subheader("Visualize missing data")
         plot_missing_data(st.session_state.df)
         with st.expander("Show code for missing data visualization"):
             st.code(
-                '''import missingno as msno
+                """import missingno as msno
 
 msno.matrix(df)
 plt.show()
-''', language="python")
+""",
+                language="python",
+            )
 
     if mult_linear_reg:
         st.subheader("Multiple Linear Regression")
@@ -2196,39 +2379,49 @@ plt.show()
             x_col = st.multiselect(
                 "Select the columns for x",
                 numeric_columns_mlr,
-                default=[numeric_columns_mlr[1]]
+                default=[numeric_columns_mlr[1]],
             )
         else:
-            x_col = st.multiselect(
-                "Select the columns for x",
-                numeric_columns_mlr
-            )
+            x_col = st.multiselect("Select the columns for x", numeric_columns_mlr)
 
-        y_col = st.selectbox("Select the column for y", numeric_columns_mlr if numeric_columns_mlr else [""])
+        y_col = st.selectbox(
+            "Select the column for y",
+            numeric_columns_mlr if numeric_columns_mlr else [""],
+        )
 
         if st.button("Run Multiple Linear Regression"):
             if not x_col or not y_col:
-                st.warning("Please select at least one column for x and one column for y.")
+                st.warning(
+                    "Please select at least one column for x and one column for y."
+                )
             else:
                 try:
-                    regr, intercept, coef, summary, summary_table = stats.run_multiple_linear_regression(temp_df_mlr, x_col, y_col)
+                    regr, intercept, coef, summary, summary_table = (
+                        stats.run_multiple_linear_regression(temp_df_mlr, x_col, y_col)
+                    )
                     st.session_state.mlr_summary_table = summary_table
-                    st.session_state.mlr_fig, *_ = plotting.plot_multiple_linear_regression(temp_df_mlr, x_col, y_col)
+                    st.session_state.mlr_fig, *_ = (
+                        plotting.plot_multiple_linear_regression(
+                            temp_df_mlr, x_col, y_col
+                        )
+                    )
                     st.session_state.mlr_ran = True
                     st.session_state.mlr_x_col = x_col
                     st.session_state.mlr_y_col = y_col
 
-
                 except Exception as e:
                     st.error(f"An error occurred while running regression: {e}")
                     st.session_state.mlr_ran = False
-        
+
         if st.session_state.get("mlr_ran"):
             st.pyplot(st.session_state.mlr_fig)
             utils.save_image(st.session_state.mlr_fig, "multiple_linear_regression.png")
             st.write("Download your coefficients and intercept below.")
             if st.session_state.mlr_summary_table is not None:
-                ui.df_download_options(st.session_state.mlr_summary_table, "Your Multiple Linear Regression")
+                ui.df_download_options(
+                    st.session_state.mlr_summary_table,
+                    "Your Multiple Linear Regression",
+                )
             else:
                 st.warning("No summary table available for download.")
 
@@ -2243,10 +2436,13 @@ regr = LinearRegression()
 regr.fit(X, y)
 print("Intercept:", regr.intercept_)
 print("Coefficients:", regr.coef_)
-''', language="python")
+''',
+                    language="python",
+                )
 
             with st.expander("What is a Multiple Linear Regression?"):
                 from prompts import mult_linear_reg_text
+
                 st.write(mult_linear_reg_text)
 
     if cox_ph:
@@ -2271,6 +2467,7 @@ print("Coefficients:", regr.coef_)
             else:
                 cph_data = df[selected_columns_cox + [event_col] + [duration_col]]
                 from lifelines import CoxPHFitter
+
                 cph = CoxPHFitter(penalizer=0.1)
                 cph.fit(cph_data, duration_col=duration_col, event_col=event_col)
                 summary_cox = cph.summary
@@ -2287,13 +2484,16 @@ print("Coefficients:", regr.coef_)
 cph = CoxPHFitter(penalizer=0.1)
 cph.fit(df[{selected_columns_cox + [event_col] + [duration_col]}], duration_col="{duration_col}", event_col="{event_col}")
 print(cph.summary)
-''', language="python")
+''',
+                        language="python",
+                    )
         else:
             st.text("Select columns & hit 'Analyze'.")
         if st.session_state.df_to_download is not None:
             ui.df_download_options(st.session_state.df_to_download, "cox_ph_summary")
         with st.expander("What is a Cox Proportional Hazards Analysis?"):
             from prompts import cox_text
+
             st.write(cox_text)
 
     if survival_curve:
@@ -2322,10 +2522,13 @@ ax.set_xlabel("Time")
 ax.set_ylabel("Survival Probability")
 ax.set_title("Survival Curve")
 plt.show()
-''', language="python")
+''',
+                language="python",
+            )
         utils.save_image(surv_curve, "survival_curve.png")
         with st.expander("What is a Kaplan-Meier Curve?"):
             from prompts import kaplan_meier_text
+
             st.write(kaplan_meier_text)
 
     if binary_categ_analysis:
@@ -2399,7 +2602,7 @@ plt.show()
                 fn = table.iloc[1, 0]
                 tp = table.iloc[1, 1]
                 results = calculate_rr_arr_nnt(tn, fp, fn, tp)
-                rr, arr, nnt = results['RR'], results['ARR'], results['NNT']
+                rr, arr, nnt = results["RR"], results["ARR"], results["NNT"]
 
                 # Display the 2x2 table and analysis results
                 st.subheader("2x2 Table")
@@ -2459,10 +2662,12 @@ plt.show()
         st.write(sum_num_data)
         with st.expander("Show code for summary (describe)"):
             st.code(
-                '''# Show summary statistics for numerical columns
+                """# Show summary statistics for numerical columns
 summary = df.describe()
 print(summary)
-''', language="python")
+""",
+                language="python",
+            )
         st.session_state.df_to_download = sum_num_data
         if st.session_state.df_to_download is not None:
             ui.df_download_options(
@@ -2474,23 +2679,27 @@ print(summary)
         st.write(st.session_state.df.head())
         with st.expander("Show code for displaying first 5 rows"):
             st.code(
-                '''# Show the first 5 rows of the dataframe
+                """# Show the first 5 rows of the dataframe
 print(df.head())
-''', language="python")
+""",
+                language="python",
+            )
 
     if full_analysis:
         # Suppress all deprecation warnings during full analysis
         import warnings
-        
+
         full_analysis_method = st.radio(
             "Choose a method for full analysis", ("Pandas Profiling", "Sweetviz")
         )
 
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=DeprecationWarning)
-            
+
             if full_analysis_method == "Sweetviz":
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".html") as temp_file:
+                with tempfile.NamedTemporaryFile(
+                    delete=False, suffix=".html"
+                ) as temp_file:
                     st.info(
                         "Full analysis of data using [*Sweetviz*](https://github.com/fbdesignpro/sweetviz)"
                     )
@@ -2517,7 +2726,9 @@ print(df.head())
                 st.info(
                     "Full analysis of data using [*Pandas Profiling*](https://github.com/ydataai/ydata-profiling). Check out *alerts*!"
                 )
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".html") as temp_file:
+                with tempfile.NamedTemporaryFile(
+                    delete=False, suffix=".html"
+                ) as temp_file:
                     report_path = temp_file.name
                     with st.spinner("Generating the report..."):
                         report = make_pandas_report(
@@ -2555,7 +2766,9 @@ plt.title("Distribution for {selected_col}")
 plt.xlabel("{selected_col}")
 plt.ylabel("Frequency")
 plt.show()
-''', language="python")
+''',
+                    language="python",
+                )
         utils.save_image(plt, "histogram.png")
 
     if barchart:
@@ -2578,7 +2791,9 @@ plt.xlabel("{cat_selected_col}")
 plt.ylabel("Frequency")
 plt.title("Frequency of Categories for {cat_selected_col}")
 plt.show()
-''', language="python")
+''',
+                    language="python",
+                )
         utils.save_image(plt, "bar_chart.png")
         with st.expander("Expand for Python|Streamlit Code"):
             st.code("""
@@ -2626,7 +2841,7 @@ plt.show()
         st.pyplot(plt)
         with st.expander("Show code for correlation heatmap"):
             st.code(
-                '''import seaborn as sns
+                """import seaborn as sns
 import matplotlib.pyplot as plt
 
 # Convert binary categorical columns to numeric if needed
@@ -2642,10 +2857,13 @@ plt.figure(figsize=(12, 10))
 sns.heatmap(corr, annot=True, cmap="coolwarm", cbar=True)
 plt.title("Correlation Heatmap")
 plt.show()
-''', language="python")
+""",
+                language="python",
+            )
         utils.save_image(plt, "heatmap.png")
         with st.expander("What is a correlation heatmap?"):
             from prompts import correlation_heatmap_text
+
             st.write(correlation_heatmap_text)
 
     if summary_cat:
@@ -2654,7 +2872,7 @@ plt.show()
         st.write(summary)
         with st.expander("Show code for summary of categorical data"):
             st.code(
-                '''# Summarize categorical columns
+                """# Summarize categorical columns
 cat_df = df.select_dtypes(include=["object", "category"])
 summary_data = []
 for col in cat_df.columns:
@@ -2669,10 +2887,14 @@ for col in cat_df.columns:
     })
 summary = pd.DataFrame(summary_data).set_index("column")
 print(summary)
-''', language="python")
+""",
+                language="python",
+            )
         st.session_state.df_to_download = summary
         if st.session_state.df_to_download is not None:
-            ui.df_download_options(st.session_state.df_to_download, "categorical_summary")
+            ui.df_download_options(
+                st.session_state.df_to_download, "categorical_summary"
+            )
 
     if piechart:
         st.info("Pie chart for categorical data")
@@ -2693,7 +2915,9 @@ print(summary)
 df["{cat_selected_col}"].value_counts().plot(kind="pie", autopct="%1.1f%%")
 plt.title("Distribution for {cat_selected_col}")
 plt.show()
-''', language="python")
+''',
+                    language="python",
+                )
         utils.save_image(plt, "pie_chart.png")
 
     if check_preprocess:
@@ -2821,7 +3045,9 @@ import matplotlib.pyplot as plt
 sns.regplot(x="{scatter_x}", y="{scatter_y}", data=df)
 plt.title("Scatter Plot for {scatter_y} vs {scatter_x}")
 plt.show()
-''', language="python")
+''',
+                    language="python",
+                )
             utils.save_image(scatterplot, "custom_scatterplot.png")
 
     if box_plot:
@@ -2848,10 +3074,13 @@ import matplotlib.pyplot as plt
 sns.boxplot(x="{categorical_col}", y="{numeric_col}", data=df, notch=True)
 plt.title("Box Plot of {numeric_col} by {categorical_col}")
 plt.show()
-''', language="python")
+''',
+                language="python",
+            )
         utils.save_image(mybox, "box_plot.png")
         with st.expander("What is a box plot?"):
             from prompts import box_plot_text
+
             st.write(box_plot_text)
 
     if violin_plot:
@@ -2867,7 +3096,9 @@ plt.show()
             "Select a categorical column:", categorical_cols, key="violin_category"
         )
 
-        violin = plotting.create_violinplot(st.session_state.df, numeric_col, categorical_col)
+        violin = plotting.create_violinplot(
+            st.session_state.df, numeric_col, categorical_col
+        )
         with st.expander("Show code for violin plot"):
             st.code(
                 f'''import seaborn as sns
@@ -2877,10 +3108,13 @@ import matplotlib.pyplot as plt
 sns.violinplot(x="{categorical_col}", y="{numeric_col}", data=df)
 plt.title("Violin Plot of {numeric_col} by {categorical_col}")
 plt.show()
-''', language="python")
+''',
+                language="python",
+            )
         utils.save_image(violin, "violin_plot.png")
         with st.expander("What is a violin plot?"):
             from prompts import violin_plot_text
+
             st.write(violin_plot_text)
 
     if view_full_df:
@@ -2938,7 +3172,9 @@ mytable = TableOne(
     pval=True,
 )
 print(mytable.tabulate(tablefmt="github"))
-''', language="python")
+''',
+                    language="python",
+                )
             st.write(table.tabulate(tablefmt="github"))
             st.write("-------")
             st.info("""Courtesy of TableOne: Tom J Pollard, Alistair E W Johnson, Jesse D Raffa, Roger G Mark;
@@ -2993,7 +3229,7 @@ https://doi.org/10.1093/jamiaopen/ooy012""")
         pca_fig2 = perform_pca_plot(st.session_state.df)
         with st.expander("Show code for PCA plot"):
             st.code(
-                '''from sklearn.decomposition import PCA
+                """from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -3014,12 +3250,14 @@ ax.set_ylabel("Principal Component 2")
 ax.set_title("2 component PCA")
 ax.scatter(principalDf["PC1"], principalDf["PC2"])
 plt.show()
-''', language="python")
+""",
+                language="python",
+            )
         utils.save_image(pca_fig2, f"./{st.session_state.outputs_path}/pca_plot.png")
         scree_plot = create_scree_plot(st.session_state.df)
         with st.expander("Show code for scree plot"):
             st.code(
-                '''from sklearn.decomposition import PCA
+                """from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
 
@@ -3034,8 +3272,12 @@ plt.title("Cumulative Explained Variance")
 plt.xlabel("Number of Components")
 plt.ylabel("Cumulative Explained Variance Ratio")
 plt.show()
-''', language="python")
-        utils.save_image(scree_plot, f"./{st.session_state.outputs_path}/scree_plot.png")
+""",
+                language="python",
+            )
+        utils.save_image(
+            scree_plot, f"./{st.session_state.outputs_path}/scree_plot.png"
+        )
 
         with st.expander("What is PCA?"):
             st.write("""Principal Component Analysis, or PCA, is a method used to highlight important information in datasets that have many variables and to bring out strong patterns in a dataset. It's a way of identifying underlying structure in data.
@@ -3051,12 +3293,15 @@ Each Principal Component represents a combination of original features (like gen
 Finally, PCA can be particularly useful in visualizing high-dimensional data. By focusing on the first two or three principal components, we can create a scatterplot of our data, potentially highlighting clusters or outliers. However, remember that this visualization doesn't capture all the variability in the data—only the variability best captured by the first few principal components.""")
 
 with tab2:
-    st.markdown("""
+    st.markdown(
+        """
     <div style="background-color: #E3F2FD; padding: 15px; border-radius: 5px; border-left: 5px solid #1E88E5;">
         <h3 style="margin-top: 0; color: #1976D2;">Machine Learning Playground</h3>
         <p>This section shows a glimpse of what's possible with machine learning on your data. Any model shown is not yet optimized and requires ML and domain expertise. This is a good starting point to explore predictive modeling with your dataset.</p>
     </div>
-    """, unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )
     try:
         x = st.session_state.df
     except NameError:
@@ -3156,11 +3401,11 @@ with tab2:
             scaling_or_norm = st.checkbox(
                 "Scaling or Normalization?", value=False, key="scaling_or_norm-10"
             )
-            
+
             # Initialize variables with default values
             scaling_option = "No Scaling"
             normalization_option = "No Normalization"
-            
+
             # User selection for scaling option
             if scaling_or_norm == True:
                 scaling_option = st.selectbox(
@@ -3272,15 +3517,25 @@ with tab2:
             )
         if st.button("Predict"):
             # Import ML functions from ml.py
-            from ml import run_ml_pipeline, display_metrics, plot_roc_curve, plot_pr_curve, plot_confusion_matrix
-            
+            from ml import (
+                run_ml_pipeline,
+                display_metrics,
+                plot_roc_curve,
+                plot_pr_curve,
+                plot_confusion_matrix,
+            )
+
             # Use modified_df if present and not empty, else df
-            df_to_use = st.session_state.modified_df if (
-                "modified_df" in st.session_state and 
-                st.session_state.modified_df is not None and 
-                not st.session_state.modified_df.empty
-            ) else st.session_state.df
-            
+            df_to_use = (
+                st.session_state.modified_df
+                if (
+                    "modified_df" in st.session_state
+                    and st.session_state.modified_df is not None
+                    and not st.session_state.modified_df.empty
+                )
+                else st.session_state.df
+            )
+
             # Run ML pipeline using the modular function from ml.py
             with st.spinner("Running ML Pipeline..."):
                 try:
@@ -3288,40 +3543,48 @@ with tab2:
                         df=df_to_use,
                         target_col=target_col,
                         model_option=model_option,
-                        normalization_option=normalization_option if scaling_or_norm else None,
+                        normalization_option=normalization_option
+                        if scaling_or_norm
+                        else None,
                         feature_cols=final_columns if final_columns else None,
-                        perform_shapley=perform_shapley
+                        perform_shapley=perform_shapley,
                     )
-                    
+
                     # Extract results
-                    model = result['model']
-                    metrics = result['metrics']
-                    predictions = result['predictions']
-                    y_test = result['y_test']
-                    y_scores = result['y_scores']
-                    X_test = result['X_test']
-                    explainer = result.get('explainer')
-                    shap_values = result.get('shap_values')
-                    feature_names_for_equation = result.get('feature_names')
-                    
+                    model = result["model"]
+                    metrics = result["metrics"]
+                    predictions = result["predictions"]
+                    y_test = result["y_test"]
+                    y_scores = result["y_scores"]
+                    X_test = result["X_test"]
+                    explainer = result.get("explainer")
+                    shap_values = result.get("shap_values")
+                    feature_names_for_equation = result.get("feature_names")
+
                     # Display metrics using the modular function
                     st.subheader("Test Set Performance (most important)")
-                    is_regression = display_metrics(y_test, predictions, y_scores, "Test")
-                    
+                    is_regression = display_metrics(
+                        y_test, predictions, y_scores, "Test"
+                    )
+
                     # Show confusion matrix if classification
-                    if 'confusion_matrix' in metrics and not is_regression:
+                    if "confusion_matrix" in metrics and not is_regression:
                         st.subheader("Confusion Matrix (Test Set)")
                         fig = plot_confusion_matrix(y_test, predictions)
                         st.pyplot(fig)
                         plt.close()
-                    
+
                     # Show ROC curve if classification and y_scores available
-                    if not is_regression and y_scores is not None and metrics.get('roc_auc') is not None:
+                    if (
+                        not is_regression
+                        and y_scores is not None
+                        and metrics.get("roc_auc") is not None
+                    ):
                         st.subheader("ROC Curve (Test Set)")
                         fig = plot_roc_curve(y_test, y_scores)
                         st.pyplot(fig)
                         plt.close()
-                        
+
                         with st.expander("What is an ROC curve?"):
                             st.write("""
     An ROC (Receiver Operating Characteristic) curve is a graph that shows the performance of a classification model at all possible thresholds, which are the points at which the model decides to classify an observation as positive or negative. 
@@ -3349,12 +3612,16 @@ with tab2:
     Therefore, while the ROC curve and AUC are very useful tools, they should be interpreted in the context of the costs and benefits of different types of errors in the specific medical scenario you are dealing with.""")
 
                     # Show PR curve if classification and y_scores available
-                    if not is_regression and y_scores is not None and metrics.get('pr_auc') is not None:
+                    if (
+                        not is_regression
+                        and y_scores is not None
+                        and metrics.get("pr_auc") is not None
+                    ):
                         st.subheader("Precision-Recall (PR) Curve (Test Set)")
                         fig = plot_pr_curve(y_test, y_scores)
                         st.pyplot(fig)
                         plt.close()
-                        
+
                         with st.expander("What is a PR curve?"):
                             st.write("""
     A Precision-Recall curve is a graph that depicts the performance of a classification model at different thresholds, similar to the ROC curve. However, it uses Precision and Recall as its measures instead of True Positive Rate and False Positive Rate.
@@ -3389,9 +3656,13 @@ with tab2:
                             "XGBoost": "XGBoost is an optimized gradient boosting framework designed for speed and performance.",
                             "Linear Discriminant Analysis (LDA)": "LDA finds a linear combination of features that characterizes or separates two or more classes.",
                             "Support Vector Machines (SVMs)": "SVM finds the optimal hyperplane that separates different classes with maximum margin.",
-                            "Neural Network": "Neural networks are computing systems inspired by biological neural networks, capable of learning complex patterns."
+                            "Neural Network": "Neural networks are computing systems inspired by biological neural networks, capable of learning complex patterns.",
                         }
-                        st.write(model_explanations.get(model_option, "No explanation available for this model."))
+                        st.write(
+                            model_explanations.get(
+                                model_option, "No explanation available for this model."
+                            )
+                        )
 
                     # Show code for model training
                     with st.expander("Show code for model training"):
@@ -3420,27 +3691,41 @@ with tab2:
                     if is_regression:
                         metrics_data = {
                             "Model": model_option,
-                            "R²": metrics.get('accuracy', 'N/A'),  # For regression, accuracy is R²
+                            "R²": metrics.get(
+                                "accuracy", "N/A"
+                            ),  # For regression, accuracy is R²
                         }
                     else:
                         metrics_data = {
                             "Model": model_option,
-                            "F1 Score": metrics.get('f1', 'N/A'),
-                            "Accuracy": metrics.get('accuracy', 'N/A'),
-                            "ROC AUC": metrics.get('roc_auc', 'N/A'),
-                            "PR AUC": metrics.get('pr_auc', 'N/A'),
+                            "F1 Score": metrics.get("f1", "N/A"),
+                            "Accuracy": metrics.get("accuracy", "N/A"),
+                            "ROC AUC": metrics.get("roc_auc", "N/A"),
+                            "PR AUC": metrics.get("pr_auc", "N/A"),
                         }
                     metrics_df = pd.DataFrame([metrics_data])
                     st.table(metrics_df)
 
                     # Show equation for linear models
-                    if model_option in ["Logistic Regression", "Ridge Classifier", "Lasso Regression"]:
+                    if model_option in [
+                        "Logistic Regression",
+                        "Ridge Classifier",
+                        "Lasso Regression",
+                    ]:
                         try:
-                            if hasattr(model, 'coef_') and hasattr(model, 'intercept_'):
-                                coeff = model.coef_[0] if len(model.coef_.shape) > 1 else model.coef_
+                            if hasattr(model, "coef_") and hasattr(model, "intercept_"):
+                                coeff = (
+                                    model.coef_[0]
+                                    if len(model.coef_.shape) > 1
+                                    else model.coef_
+                                )
                                 # Use actual feature names from ml.py output
                                 features = feature_names_for_equation
-                                intercept = model.intercept_[0] if hasattr(model.intercept_, "__len__") else model.intercept_
+                                intercept = (
+                                    model.intercept_[0]
+                                    if hasattr(model.intercept_, "__len__")
+                                    else model.intercept_
+                                )
                                 equation = f"{model.__class__.__name__} Equation: y = {intercept:.3f}"
                                 for c, feature in zip(coeff, features):
                                     equation += f" + {c:.3f} * {feature}"
@@ -3452,32 +3737,44 @@ with tab2:
                     # SHAP Analysis (if performed)
                     if perform_shapley and shap_values is not None:
                         from explanations.explanations import shapley_explanation
+
                         with st.expander("What is a Shapley Force Plot?"):
                             st.markdown(shapley_explanation)
-                        
+
                         st.subheader("SHAP Analysis")
-                        
+
                         # Handle different model types for SHAP
                         if model_option == "K-Nearest Neighbors (KNN)":
-                            st.info("For KNN models, SHAP analysis uses permutation importance instead of SHAP values")
-                            
-                            from sklearn.inspection import permutation_importance
-                            perm_result = permutation_importance(
-                                model, X_test, y_test, 
-                                n_repeats=10, 
-                                random_state=42
+                            st.info(
+                                "For KNN models, SHAP analysis uses permutation importance instead of SHAP values"
                             )
-                            
+
+                            from sklearn.inspection import permutation_importance
+
+                            perm_result = permutation_importance(
+                                model, X_test, y_test, n_repeats=10, random_state=42
+                            )
+
                             # Create a DataFrame for visualization
-                            perm_importance_df = pd.DataFrame({
-                                'Feature': [f"Feature_{i}" for i in range(X_test.shape[1])],
-                                'Importance': perm_result.importances_mean
-                            }).sort_values('Importance', ascending=False)
-                            
+                            perm_importance_df = pd.DataFrame(
+                                {
+                                    "Feature": [
+                                        f"Feature_{i}" for i in range(X_test.shape[1])
+                                    ],
+                                    "Importance": perm_result.importances_mean,
+                                }
+                            ).sort_values("Importance", ascending=False)
+
                             # Plot permutation importance
                             fig, ax = plt.subplots(figsize=(10, 6))
                             import seaborn as sns
-                            sns.barplot(x='Importance', y='Feature', data=perm_importance_df, ax=ax)
+
+                            sns.barplot(
+                                x="Importance",
+                                y="Feature",
+                                data=perm_importance_df,
+                                ax=ax,
+                            )
                             ax.set_title("Feature Importance (Permutation Method)")
                             st.pyplot(fig)
                             plt.close()
@@ -3487,55 +3784,78 @@ with tab2:
                                 st.subheader("SHAP Feature Importance")
                                 try:
                                     import shap
+
                                     # Handle different SHAP value formats and ensure proper data types
                                     if isinstance(shap_values, list):
                                         # For binary classification, use the positive class (index 1)
-                                        shap_values_to_plot = shap_values[1] if len(shap_values) > 1 else shap_values[0]
+                                        shap_values_to_plot = (
+                                            shap_values[1]
+                                            if len(shap_values) > 1
+                                            else shap_values[0]
+                                        )
                                     else:
                                         shap_values_to_plot = shap_values
-                                    
+
                                     # Convert to numpy array if needed and ensure proper shape
-                                    if hasattr(shap_values_to_plot, 'values'):
+                                    if hasattr(shap_values_to_plot, "values"):
                                         shap_values_to_plot = shap_values_to_plot.values
                                     shap_values_to_plot = np.array(shap_values_to_plot)
-                                    
+
                                     # Handle the case where we have 3D array (samples, features, classes)
                                     if len(shap_values_to_plot.shape) == 3:
                                         # Take the positive class (last dimension, index 1)
-                                        shap_values_to_plot = shap_values_to_plot[:, :, 1]
-                                    elif len(shap_values_to_plot.shape) == 2 and shap_values_to_plot.shape[1] == 2:
+                                        shap_values_to_plot = shap_values_to_plot[
+                                            :, :, 1
+                                        ]
+                                    elif (
+                                        len(shap_values_to_plot.shape) == 2
+                                        and shap_values_to_plot.shape[1] == 2
+                                    ):
                                         # This might be (features, classes) - take the positive class
                                         shap_values_to_plot = shap_values_to_plot[:, 1]
-                                    
+
                                     # Ensure we have the right shape: (n_samples, n_features)
                                     if len(shap_values_to_plot.shape) == 1:
                                         # If we have a 1D array, it might be for a single sample
-                                        shap_values_to_plot = shap_values_to_plot.reshape(1, -1)
-                                    
+                                        shap_values_to_plot = (
+                                            shap_values_to_plot.reshape(1, -1)
+                                        )
+
                                     # Ensure X_test is in the right format and shape
-                                    if hasattr(X_test, 'values'):
+                                    if hasattr(X_test, "values"):
                                         X_test_values = X_test.values
                                     else:
                                         X_test_values = np.array(X_test)
-                                    
+
                                     # Make sure X_test_values is 2D
                                     if len(X_test_values.shape) == 1:
                                         X_test_values = X_test_values.reshape(1, -1)
-                                    
+
                                     # Get proper feature names
                                     if final_columns:
                                         feature_names = final_columns
-                                    elif hasattr(X_test, 'columns'):
+                                    elif hasattr(X_test, "columns"):
                                         feature_names = list(X_test.columns)
                                     else:
-                                        feature_names = [f"Feature_{i}" for i in range(shap_values_to_plot.shape[1])]
-                                    
+                                        feature_names = [
+                                            f"Feature_{i}"
+                                            for i in range(shap_values_to_plot.shape[1])
+                                        ]
+
                                     # Ensure we have the right number of feature names
-                                    if len(feature_names) != shap_values_to_plot.shape[1]:
-                                        feature_names = [f"Feature_{i}" for i in range(shap_values_to_plot.shape[1])]
-                                    
+                                    if (
+                                        len(feature_names)
+                                        != shap_values_to_plot.shape[1]
+                                    ):
+                                        feature_names = [
+                                            f"Feature_{i}"
+                                            for i in range(shap_values_to_plot.shape[1])
+                                        ]
+
                                     # Create SHAP summary plot (bar chart) - show ALL features
-                                    plt.figure(figsize=(12, max(8, len(feature_names) * 0.4)))
+                                    plt.figure(
+                                        figsize=(12, max(8, len(feature_names) * 0.4))
+                                    )
                                     try:
                                         shap.summary_plot(
                                             shap_values_to_plot,
@@ -3543,149 +3863,255 @@ with tab2:
                                             feature_names=feature_names,
                                             plot_type="bar",
                                             show=False,
-                                            max_display=len(feature_names)  # Show all features, not just 15
+                                            max_display=len(
+                                                feature_names
+                                            ),  # Show all features, not just 15
                                         )
                                         st.pyplot(plt.gcf())
                                         plt.close()
                                     except Exception as e:
                                         st.warning(f"Could not create bar plot: {e}")
                                         # Fallback: simple bar plot of mean absolute SHAP values
-                                        mean_shap = np.mean(np.abs(shap_values_to_plot), axis=0)
-                                        plt.figure(figsize=(12, max(8, len(feature_names) * 0.4)))
+                                        mean_shap = np.mean(
+                                            np.abs(shap_values_to_plot), axis=0
+                                        )
+                                        plt.figure(
+                                            figsize=(
+                                                12,
+                                                max(8, len(feature_names) * 0.4),
+                                            )
+                                        )
                                         plt.barh(range(len(feature_names)), mean_shap)
-                                        plt.yticks(range(len(feature_names)), feature_names)
-                                        plt.xlabel('Mean |SHAP value|')
-                                        plt.title('Feature Importance (Mean Absolute SHAP Values)')
+                                        plt.yticks(
+                                            range(len(feature_names)), feature_names
+                                        )
+                                        plt.xlabel("Mean |SHAP value|")
+                                        plt.title(
+                                            "Feature Importance (Mean Absolute SHAP Values)"
+                                        )
                                         plt.tight_layout()
                                         st.pyplot(plt.gcf())
                                         plt.close()
-                                    
+
                                     # Create SHAP summary plot (beeswarm) - show ALL features
                                     st.subheader("SHAP Feature Impact (Beeswarm Plot)")
-                                    plt.figure(figsize=(12, max(8, len(feature_names) * 0.4)))
+                                    plt.figure(
+                                        figsize=(12, max(8, len(feature_names) * 0.4))
+                                    )
                                     try:
                                         shap.summary_plot(
                                             shap_values_to_plot,
                                             X_test_values,
                                             feature_names=feature_names,
                                             show=False,
-                                            max_display=len(feature_names)  # Show all features, not just 15
+                                            max_display=len(
+                                                feature_names
+                                            ),  # Show all features, not just 15
                                         )
                                         st.pyplot(plt.gcf())
                                         plt.close()
                                     except Exception as e:
-                                        st.warning(f"Could not create beeswarm plot: {e}")
+                                        st.warning(
+                                            f"Could not create beeswarm plot: {e}"
+                                        )
                                         # Fallback: violin plot
-                                        plt.figure(figsize=(12, max(8, len(feature_names) * 0.4)))
-                                        shap_df = pd.DataFrame(shap_values_to_plot, columns=feature_names)
-                                        shap_df_melted = shap_df.melt(var_name='Feature', value_name='SHAP_value')
+                                        plt.figure(
+                                            figsize=(
+                                                12,
+                                                max(8, len(feature_names) * 0.4),
+                                            )
+                                        )
+                                        shap_df = pd.DataFrame(
+                                            shap_values_to_plot, columns=feature_names
+                                        )
+                                        shap_df_melted = shap_df.melt(
+                                            var_name="Feature", value_name="SHAP_value"
+                                        )
                                         import seaborn as sns
-                                        sns.violinplot(data=shap_df_melted, y='Feature', x='SHAP_value')
-                                        plt.title('SHAP Value Distribution by Feature')
+
+                                        sns.violinplot(
+                                            data=shap_df_melted,
+                                            y="Feature",
+                                            x="SHAP_value",
+                                        )
+                                        plt.title("SHAP Value Distribution by Feature")
                                         plt.tight_layout()
                                         st.pyplot(plt.gcf())
                                         plt.close()
-                                    
+
                                     # Add SHAP Force Plot for individual predictions
-                                    st.subheader("SHAP Force Plot (Individual Predictions)")
-                                    st.info("Force plots show how each feature contributes to individual predictions. Select a sample to analyze:")
-                                    
+                                    st.subheader(
+                                        "SHAP Force Plot (Individual Predictions)"
+                                    )
+                                    st.info(
+                                        "Force plots show how each feature contributes to individual predictions. Select a sample to analyze:"
+                                    )
+
                                     # Let user select which sample to analyze
                                     sample_idx = st.selectbox(
                                         "Select sample index for force plot:",
                                         options=list(range(min(10, len(X_test)))),
-                                        index=0
+                                        index=0,
                                     )
-                                    
+
                                     try:
                                         # Create force plot for selected sample
-                                        if hasattr(explainer, 'expected_value'):
+                                        if hasattr(explainer, "expected_value"):
                                             expected_value = explainer.expected_value
-                                            if isinstance(expected_value, (list, np.ndarray)):
-                                                expected_value = expected_value[1] if len(expected_value) > 1 else expected_value[0]
+                                            if isinstance(
+                                                expected_value, (list, np.ndarray)
+                                            ):
+                                                expected_value = (
+                                                    expected_value[1]
+                                                    if len(expected_value) > 1
+                                                    else expected_value[0]
+                                                )
                                         else:
-                                            expected_value = 0.5  # Default for binary classification
-                                        
+                                            expected_value = (
+                                                0.5  # Default for binary classification
+                                            )
+
                                         # Get original feature names from the dataset
                                         if final_columns:
                                             feature_names = final_columns
                                         else:
-                                            feature_names = [f"Feature_{i}" for i in range(len(shap_values_to_plot[sample_idx]))]
-                                        
+                                            feature_names = [
+                                                f"Feature_{i}"
+                                                for i in range(
+                                                    len(shap_values_to_plot[sample_idx])
+                                                )
+                                            ]
+
                                         # Generate force plot using HTML rendering (not matplotlib)
                                         force_plot = shap.force_plot(
                                             expected_value,
                                             shap_values_to_plot[sample_idx],
-                                            X_test[sample_idx] if hasattr(X_test, '__getitem__') else X_test.iloc[sample_idx],
+                                            X_test[sample_idx]
+                                            if hasattr(X_test, "__getitem__")
+                                            else X_test.iloc[sample_idx],
                                             feature_names=feature_names,
                                             matplotlib=False,  # Use HTML rendering instead
-                                            show=False
+                                            show=False,
                                         )
-                                        
+
                                         # Display the force plot using Streamlit components
                                         import streamlit.components.v1 as components
-                                        components.html(shap.save_html(force_plot), height=400)
-                                        
+
+                                        components.html(
+                                            shap.save_html(force_plot), height=400
+                                        )
+
                                         # Show prediction details
-                                        prediction_prob = y_scores[sample_idx] if y_scores is not None else predictions[sample_idx]
+                                        prediction_prob = (
+                                            y_scores[sample_idx]
+                                            if y_scores is not None
+                                            else predictions[sample_idx]
+                                        )
                                         st.write(f"**Sample {sample_idx} Details:**")
-                                        st.write(f"- Predicted probability: {prediction_prob:.3f}")
-                                        st.write(f"- Actual label: {y_test.iloc[sample_idx] if hasattr(y_test, 'iloc') else y_test[sample_idx]}")
-                                        st.write(f"- Base value (expected): {expected_value:.3f}")
-                                        
+                                        st.write(
+                                            f"- Predicted probability: {prediction_prob:.3f}"
+                                        )
+                                        st.write(
+                                            f"- Actual label: {y_test.iloc[sample_idx] if hasattr(y_test, 'iloc') else y_test[sample_idx]}"
+                                        )
+                                        st.write(
+                                            f"- Base value (expected): {expected_value:.3f}"
+                                        )
+
                                     except Exception as e:
-                                        st.warning(f"Could not generate force plot: {e}")
-                                        st.info("Showing waterfall plot as alternative:")
-                                        
+                                        st.warning(
+                                            f"Could not generate force plot: {e}"
+                                        )
+                                        st.info(
+                                            "Showing waterfall plot as alternative:"
+                                        )
+
                                         # Alternative: Waterfall plot for single sample
                                         try:
                                             # Get original feature names
                                             if final_columns:
                                                 feature_names = final_columns
                                             else:
-                                                feature_names = [f"Feature_{i}" for i in range(len(shap_values_to_plot[sample_idx]))]
-                                            
+                                                feature_names = [
+                                                    f"Feature_{i}"
+                                                    for i in range(
+                                                        len(
+                                                            shap_values_to_plot[
+                                                                sample_idx
+                                                            ]
+                                                        )
+                                                    )
+                                                ]
+
                                             plt.figure(figsize=(10, 6))
-                                            
+
                                             # Create SHAP Explanation object for single sample
                                             explanation = shap.Explanation(
                                                 values=shap_values_to_plot[sample_idx],
                                                 base_values=expected_value,
-                                                data=X_test[sample_idx] if hasattr(X_test, '__getitem__') else X_test.iloc[sample_idx],
-                                                feature_names=feature_names
+                                                data=X_test[sample_idx]
+                                                if hasattr(X_test, "__getitem__")
+                                                else X_test.iloc[sample_idx],
+                                                feature_names=feature_names,
                                             )
-                                            
+
                                             shap.waterfall_plot(explanation, show=False)
                                             st.pyplot(plt.gcf())
                                             plt.close()
                                         except Exception as e2:
-                                            st.warning(f"Could not generate waterfall plot either: {e2}")
-                                    
+                                            st.warning(
+                                                f"Could not generate waterfall plot either: {e2}"
+                                            )
+
                                     # Add option to show multiple force plots
-                                    if st.checkbox("Show force plots for multiple samples"):
+                                    if st.checkbox(
+                                        "Show force plots for multiple samples"
+                                    ):
                                         st.subheader("Multiple Sample Force Plots")
-                                        num_samples = st.slider("Number of samples to show:", 2, min(10, len(X_test)), 5)
-                                        
+                                        num_samples = st.slider(
+                                            "Number of samples to show:",
+                                            2,
+                                            min(10, len(X_test)),
+                                            5,
+                                        )
+
                                         try:
                                             # Create force plot for multiple samples
                                             force_plot_multi = shap.force_plot(
                                                 expected_value,
                                                 shap_values_to_plot[:num_samples],
-                                                X_test[:num_samples] if hasattr(X_test, '__getitem__') else X_test.iloc[:num_samples],
-                                                feature_names=feature_names if 'feature_names' in locals() else (final_columns if final_columns else [f"Feature_{i}" for i in range(shap_values_to_plot.shape[1])]),
+                                                X_test[:num_samples]
+                                                if hasattr(X_test, "__getitem__")
+                                                else X_test.iloc[:num_samples],
+                                                feature_names=feature_names
+                                                if "feature_names" in locals()
+                                                else (
+                                                    final_columns
+                                                    if final_columns
+                                                    else [
+                                                        f"Feature_{i}"
+                                                        for i in range(
+                                                            shap_values_to_plot.shape[1]
+                                                        )
+                                                    ]
+                                                ),
                                                 matplotlib=True,
-                                                show=False
+                                                show=False,
                                             )
                                             st.pyplot(plt.gcf())
                                             plt.close()
                                         except Exception as e:
-                                            st.warning(f"Could not generate multiple force plots: {e}")
-                                    
+                                            st.warning(
+                                                f"Could not generate multiple force plots: {e}"
+                                            )
+
                                 except Exception as e:
                                     st.warning(f"Could not generate SHAP plots: {e}")
                             else:
-                                st.info("SHAP analysis was requested but no SHAP values were generated.")
-                    
+                                st.info(
+                                    "SHAP analysis was requested but no SHAP values were generated."
+                                )
+
                 except Exception as e:
                     st.error(f"An error occurred during machine learning analysis: {e}")
                     st.write("Please check your data and try again.")
@@ -3695,24 +4121,33 @@ with tab3:
     if hu_key == "True" or check_password("analyze_gpt"):
         # Add max iterations slider to sidebar
         with st.sidebar:
-            st.markdown("<div class='step-header'>GPT Analysis Settings</div>", unsafe_allow_html=True)
-            max_iterations = st.slider(
-                "Maximum iterations for GPT analysis", 
-                min_value=1, 
-                max_value=10, 
-                value=5, 
-                help="Maximum number of times GPT will refine its answer to ensure accuracy"
+            st.markdown(
+                "<div class='step-header'>GPT Analysis Settings</div>",
+                unsafe_allow_html=True,
             )
-        
+            max_iterations = st.slider(
+                "Maximum iterations for GPT analysis",
+                min_value=1,
+                max_value=10,
+                value=5,
+                help="Maximum number of times GPT will refine its answer to ensure accuracy",
+            )
+
         # Use container to ensure proper scrolling
         container = st.container()
         with container:
-            st.markdown("<h1 style='color: #1E88E5;'>🤖 Analyze with GPT (AutoAnalyzer AI)</h1>", unsafe_allow_html=True)
-            st.markdown("""
+            st.markdown(
+                "<h1 style='color: #1E88E5;'>🤖 Analyze with GPT (AutoAnalyzer AI)</h1>",
+                unsafe_allow_html=True,
+            )
+            st.markdown(
+                """
             <div style="background-color: #E3F2FD; padding: 15px; border-radius: 5px; border-left: 5px solid #1E88E5;">
                 <h3 style="margin-top: 0; color: #1976D2;">AI-Powered Data Analysis</h3>
                 <p>Ask any question about your data in plain English. The AI will generate and execute Python code using your dataframe as <code>df</code>. Results and plots will appear below.</p>
-                <p>The AI will iterate up to <strong>""" + str(max_iterations) + """</strong> times to refine its answer if needed.</p>
+                <p>The AI will iterate up to <strong>"""
+                + str(max_iterations)
+                + """</strong> times to refine its answer if needed.</p>
                 <p><strong>Example questions:</strong></p>
                 <ul>
                     <li>Show me the relationship between age and blood pressure with a regression line</li>
@@ -3721,7 +4156,9 @@ with tab3:
                     <li>Is there a significant difference in cholesterol levels between diabetic and non-diabetic patients?</li>
                 </ul>
             </div>
-            """, unsafe_allow_html=True)
+            """,
+                unsafe_allow_html=True,
+            )
 
         # File uploader
         data_source = st.radio(
@@ -3743,13 +4180,15 @@ with tab3:
                     st.session_state.df = pd.read_csv(uploaded_file_gpt)
                 else:
                     st.session_state.df = pd.read_excel(uploaded_file_gpt)
-        
+
         # Ensure gpt_working_df reflects the current main dataframe or newly uploaded file
         st.session_state.gpt_working_df = st.session_state.df.copy()
 
         # Display the current dataframe being used for analysis
         # This could be the initially loaded df or the gpt_working_df from a previous run
-        current_analysis_df = st.session_state.get("gpt_working_df", st.session_state.df)
+        current_analysis_df = st.session_state.get(
+            "gpt_working_df", st.session_state.df
+        )
 
         n_rows, n_cols = current_analysis_df.shape
         st.write(f"Current DataFrame shape: {n_rows} rows × {n_cols} columns")
@@ -3757,11 +4196,14 @@ with tab3:
         with st.expander("View the current dataframe", expanded=True):
             st.write("### Current Data Frame")
             if current_analysis_df.empty:
-                st.info("No dataframe loaded. Please select a demo dataset or upload a file in the 'Data Exploration' tab, or upload a new file above.")
+                st.info(
+                    "No dataframe loaded. Please select a demo dataset or upload a file in the 'Data Exploration' tab, or upload a new file above."
+                )
             else:
                 st.dataframe(current_analysis_df, height=200)
 
         import matplotlib
+
         matplotlib.use("Agg")  # Ensure non-GUI backend for matplotlib
 
         from langchain_openai import AzureChatOpenAI
@@ -3790,24 +4232,26 @@ with tab3:
         if "model_output1" not in st.session_state:
             st.session_state.model_output1 = ""
 
-        st.markdown("<h3 style='color: #1976D2; margin-top: 20px;'>Ask a Question About Your Data!</h3>", unsafe_allow_html=True)
+        st.markdown(
+            "<h3 style='color: #1976D2; margin-top: 20px;'>Ask a Question About Your Data!</h3>",
+            unsafe_allow_html=True,
+        )
         agent_question = st.text_area(
             "Type your question in plain English:",
             placeholder="Example: Create a boxplot comparing blood glucose levels between diabetic and non-diabetic patients",
             height=100,
-            key="agent_question_input" # Add a key to manage state
+            key="agent_question_input",  # Add a key to manage state
         )
 
         # Import necessary modules at the top level to ensure they're available
         import re
         import io
-        import sys
         import glob
         import os
         import traceback
         import time
         from contextlib import redirect_stdout
-        
+
         # Initialize persistent storage if needed
         if "persistent_gpt_code" not in st.session_state:
             st.session_state.persistent_gpt_code = {}
@@ -3817,9 +4261,11 @@ with tab3:
             st.session_state.persistent_gpt_images = {}
         if "iteration_history" not in st.session_state:
             st.session_state.iteration_history = {}
-        if "last_agent_question" not in st.session_state: # Initialize session state for the question
+        if (
+            "last_agent_question" not in st.session_state
+        ):  # Initialize session state for the question
             st.session_state.last_agent_question = ""
-            
+
         if st.button("🚀 Analyze My Data", use_container_width=True):
             # Always start from the original dataframe for each new analysis
             st.session_state.gpt_working_df = st.session_state.df.copy()
@@ -3837,20 +4283,22 @@ with tab3:
             if not st.session_state.df.empty:
                 repl = PythonREPL()
                 # Initialize REPL globals with the current dataframe and common libraries
-                repl.globals.update({
-                    "df": st.session_state.df.copy(), # Use a copy of the loaded df as the initial working df
-                    "original_df": st.session_state.df, # Keep a reference to the original df
-                    "plt": plt,
-                    "sns": sns,
-                    "np": np,
-                    "pd": pd,
-                })
+                repl.globals.update(
+                    {
+                        "df": st.session_state.df.copy(),  # Use a copy of the loaded df as the initial working df
+                        "original_df": st.session_state.df,  # Keep a reference to the original df
+                        "plt": plt,
+                        "sns": sns,
+                        "np": np,
+                        "pd": pd,
+                    }
+                )
                 # Store the initial working df in session state
                 st.session_state.gpt_working_df = st.session_state.df.copy()
 
                 # Store the current question in session state
                 st.session_state.last_agent_question = agent_question
-                
+
                 # Remove any prior plot images in the output directory
                 image_exts = ["png", "jpg", "jpeg", "svg", "pdf"]
                 outputs_path = st.session_state.outputs_path
@@ -3864,17 +4312,25 @@ with tab3:
             st.session_state.gpt_analysis_code = ""
             st.session_state.gpt_analysis_images = []
             st.session_state.model_output1 = ""
-            
+
             # Reset categorical mappings and working dataframe for new analysis
             st.session_state.categorical_mappings = {}
             if "gpt_working_df" in st.session_state:
                 st.session_state.gpt_working_df = st.session_state.df.copy()
-            
+
             # Create a progress bar for iterations
             progress_bar = st.progress(0)
             iteration_status = st.empty()
+
             # Only allow English language questions, not direct Python code
-            def get_code_from_llm(question, df, iteration=1, previous_code="", previous_output="", previous_error=None):
+            def get_code_from_llm(
+                question,
+                df,
+                iteration=1,
+                previous_code="",
+                previous_output="",
+                previous_error=None,
+            ):
                 sampled_df = utils.create_sampled_header(df, n=5)
                 # Base prompt for first iteration
                 if iteration == 1:
@@ -3971,8 +4427,12 @@ If the question is **unanswerable**, raise an `Exception` with a clear explanati
 
                 # Refinement prompt for subsequent iterations
                 else:
-                    error_info = f"\nThe previous code generated this error: {previous_error}" if previous_error else ""
-                    
+                    error_info = (
+                        f"\nThe previous code generated this error: {previous_error}"
+                        if previous_error
+                        else ""
+                    )
+
                     prompt = f"""
 You are an expert Python data analyst. The user has provided a pandas dataframe called `df` and asked the following question:
 
@@ -4028,12 +4488,20 @@ Return only the improved code, nothing else.
 Respond ONLY with valid Python code, not with natural language or explanations.
 """
 
-                with st.spinner(f"Generating code (iteration {iteration}/{max_iterations})..."):
+                with st.spinner(
+                    f"Generating code (iteration {iteration}/{max_iterations})..."
+                ):
                     response = llm.invoke(prompt)
-                code = response.content if hasattr(response, "content") else str(response)
-                code = re.sub(r"^```python|^```|```$", "", code, flags=re.MULTILINE).strip()
+                code = (
+                    response.content if hasattr(response, "content") else str(response)
+                )
+                code = re.sub(
+                    r"^```python|^```|```$", "", code, flags=re.MULTILINE
+                ).strip()
                 # If the code does not look like Python, return an empty string to avoid exec errors
-                if not any(x in code for x in ("import ", "plt.", "sns.", "df.", "pd.")):
+                if not any(
+                    x in code for x in ("import ", "plt.", "sns.", "df.", "pd.")
+                ):
                     return ""
                 return code
 
@@ -4041,26 +4509,28 @@ Respond ONLY with valid Python code, not with natural language or explanations.
             def run_code_and_capture(code):
                 f = io.StringIO()
                 images_before = set(glob.glob(f"{st.session_state.outputs_path}/*.png"))
-                
+
                 # Ensure the working copy of the dataframe exists and is used
                 if "gpt_working_df" not in st.session_state:
                     st.session_state.gpt_working_df = st.session_state.df.copy()
 
                 # Ensure the REPL globals are updated with the current working df state
                 # This is crucial for subsequent iterations
-                repl.globals.update({
-                    "df": st.session_state.gpt_working_df,
-                    "original_df": st.session_state.df, # Ensure original_df is always the initial df
-                    # Other globals (plt, sns, np, pd) are already set during repl initialization
-                })
-                
+                repl.globals.update(
+                    {
+                        "df": st.session_state.gpt_working_df,
+                        "original_df": st.session_state.df,  # Ensure original_df is always the initial df
+                        # Other globals (plt, sns, np, pd) are already set during repl initialization
+                    }
+                )
+
                 # Initialize a dictionary to store categorical variable mappings
                 if "categorical_mappings" not in st.session_state:
                     st.session_state.categorical_mappings = {}
-                
+
                 # Store the original map method at function scope
                 original_map = pd.Series.map
-                
+
                 # Add code to track categorical variable mappings and print unique values
                 tracking_code = """
 # Track categorical variable mappings
@@ -4099,7 +4569,7 @@ for col in df.select_dtypes(include=['object', 'category']).columns:
         print(f"Could not get unique values for column '{col}': {e}")
 print("---------------------------------")
 """
-                
+
                 # Add safe mapping helper function
                 safe_mapping_code = """
 # Helper function for safe categorical mapping
@@ -4139,7 +4609,7 @@ def safe_map_categorical(series, mapping, default=None):
 
                 # Prepend the tracking code and safe mapping helper to the user's code
                 full_code = tracking_code + "\n" + safe_mapping_code + "\n" + code
-                
+
                 try:
                     with redirect_stdout(f):
                         exec(full_code, repl.globals)
@@ -4148,12 +4618,12 @@ def safe_map_categorical(series, mapping, default=None):
 
                     # Update the working dataframe with the state after execution
                     # Only update if execution was successful
-                    if 'df' in repl.globals:
-                        st.session_state.gpt_working_df = repl.globals['df'].copy()
+                    if "df" in repl.globals:
+                        st.session_state.gpt_working_df = repl.globals["df"].copy()
 
                     # Capture any categorical mappings that were created
-                    if 'categorical_mappings' in repl.globals:
-                        mappings = repl.globals['categorical_mappings']
+                    if "categorical_mappings" in repl.globals:
+                        mappings = repl.globals["categorical_mappings"]
                         if mappings:
                             # Store mappings in session state
                             if "categorical_mappings" not in st.session_state:
@@ -4161,7 +4631,9 @@ def safe_map_categorical(series, mapping, default=None):
                             st.session_state.categorical_mappings.update(mappings)
 
                             # Add mapping information to the output
-                            mapping_output = "\n\n--- Categorical Variable Encodings ---\n"
+                            mapping_output = (
+                                "\n\n--- Categorical Variable Encodings ---\n"
+                            )
                             for col, mapping in mappings.items():
                                 mapping_output += f"\nColumn '{col}' encoded as:\n"
                                 for original, encoded in mapping.items():
@@ -4179,12 +4651,15 @@ def safe_map_categorical(series, mapping, default=None):
                     pd.Series.map = original_map
                     # Do NOT update st.session_state.gpt_working_df if there was an error
                     # This preserves the state from the last successful iteration
-                
+
                 images_after = set(glob.glob(f"{st.session_state.outputs_path}/*.png"))
                 new_images = list(images_after - images_before)
                 new_images = sorted(new_images, key=os.path.getmtime)
                 if not new_images:
-                    all_pngs = sorted(glob.glob(f"{st.session_state.outputs_path}/*.png"), key=os.path.getmtime)
+                    all_pngs = sorted(
+                        glob.glob(f"{st.session_state.outputs_path}/*.png"),
+                        key=os.path.getmtime,
+                    )
                     if all_pngs and len(images_before) < len(images_after):
                         new_images = [all_pngs[-1]]
                 # Limit image size to ensure scrolling works
@@ -4205,62 +4680,75 @@ def safe_map_categorical(series, mapping, default=None):
             timestamp = str(int(time.time()))
             st.session_state.current_analysis_timestamp = timestamp
             st.session_state.iteration_history[timestamp] = []
-            
+
             final_code = ""
             final_output = ""
             final_error = None
             final_images = []
-            
+
             # Initialize variables for the iterative process
             code_to_run = ""
             output = ""
             error = None
             new_images = []
-            
+
             # Make sure we have a clean working dataframe at the start
-            if "gpt_working_df" not in st.session_state or st.session_state.gpt_working_df is None:
+            if (
+                "gpt_working_df" not in st.session_state
+                or st.session_state.gpt_working_df is None
+            ):
                 st.session_state.gpt_working_df = st.session_state.df.copy()
-            
+
             # Run up to max_iterations
             for iteration in range(1, max_iterations + 1):
                 # Update progress bar
                 progress_bar.progress(iteration / (max_iterations + 1))
-                iteration_status.info(f"Running iteration {iteration}/{max_iterations}...")
-                
+                iteration_status.info(
+                    f"Running iteration {iteration}/{max_iterations}..."
+                )
+
                 # Generate code based on previous results
                 if iteration == 1:
-                    code_to_run = get_code_from_llm(agent_question, st.session_state.gpt_working_df, iteration)
+                    code_to_run = get_code_from_llm(
+                        agent_question, st.session_state.gpt_working_df, iteration
+                    )
                 else:
-                    code_to_run = get_code_from_llm(agent_question, st.session_state.gpt_working_df, iteration, 
-                                                   previous_code=final_code, 
-                                                   previous_output=final_output,
-                                                   previous_error=final_error)
-                
+                    code_to_run = get_code_from_llm(
+                        agent_question,
+                        st.session_state.gpt_working_df,
+                        iteration,
+                        previous_code=final_code,
+                        previous_output=final_output,
+                        previous_error=final_error,
+                    )
+
                 # Run the code
                 output, error, new_images = run_code_and_capture(code_to_run)
-                
+
                 # Store this iteration's results
                 iteration_result = {
                     "iteration": iteration,
                     "code": code_to_run,
                     "output": output,
                     "error": error,
-                    "images": new_images.copy()
+                    "images": new_images.copy(),
                 }
                 st.session_state.iteration_history[timestamp].append(iteration_result)
-                
+
                 # Update final results
                 final_code = code_to_run
                 final_output = output
                 final_error = error
                 final_images = new_images
-                
+
                 # If there's an error but we haven't reached max iterations, continue to next iteration
                 # to let the model fix the error
                 if error and iteration < max_iterations:
-                    iteration_status.warning(f"Error in iteration {iteration}, attempting to fix in next iteration...")
+                    iteration_status.warning(
+                        f"Error in iteration {iteration}, attempting to fix in next iteration..."
+                    )
                     continue
-                
+
                 # If there's no error and we've reached max iterations, or if we're at the last iteration
                 if not error and iteration < max_iterations:
                     # Ask LLM if the answer is complete
@@ -4280,63 +4768,86 @@ Produced this output:
 
 Does this completely and correctly answer the user's question? Answer with ONLY "YES" if the answer is complete and correct, or "NO" if further iterations could improve the answer.
 """
-                    with st.spinner(f"Evaluating completeness of answer (iteration {iteration}/{max_iterations})..."):
+                    with st.spinner(
+                        f"Evaluating completeness of answer (iteration {iteration}/{max_iterations})..."
+                    ):
                         completion_response = llm.invoke(completion_check_prompt)
-                    completion_answer = completion_response.content if hasattr(completion_response, "content") else str(completion_response)
-                    
+                    completion_answer = (
+                        completion_response.content
+                        if hasattr(completion_response, "content")
+                        else str(completion_response)
+                    )
+
                     # If the answer is complete, break the loop
-                    if "YES" in completion_answer.upper() and not "NO" in completion_answer.upper():
-                        iteration_status.success(f"Answer complete after {iteration} iterations!")
+                    if (
+                        "YES" in completion_answer.upper()
+                        and "NO" not in completion_answer.upper()
+                    ):
+                        iteration_status.success(
+                            f"Answer complete after {iteration} iterations!"
+                        )
                         break
-                
+
                 # If this is the last iteration, use what we have
                 if iteration == max_iterations:
                     if error:
-                        iteration_status.warning(f"Completed all {iteration} iterations with errors in the final iteration")
+                        iteration_status.warning(
+                            f"Completed all {iteration} iterations with errors in the final iteration"
+                        )
                     else:
                         iteration_status.info(f"Completed all {iteration} iterations")
-            
+
             # Complete the progress bar
             progress_bar.progress(1.0)
-            
+
             # If the final result has an error, try to find the last successful iteration
             if final_error and len(st.session_state.iteration_history[timestamp]) > 1:
                 # Look for the most recent iteration without errors
-                for i in range(len(st.session_state.iteration_history[timestamp])-2, -1, -1):
+                for i in range(
+                    len(st.session_state.iteration_history[timestamp]) - 2, -1, -1
+                ):
                     prev_iteration = st.session_state.iteration_history[timestamp][i]
                     if not prev_iteration["error"]:
                         # Use this iteration's results instead
                         final_code = prev_iteration["code"]
                         final_output = prev_iteration["output"]
                         final_images = prev_iteration["images"]
-                        st.warning(f"Using results from iteration {i+1} because the final iteration had errors.")
-                        
+                        st.warning(
+                            f"Using results from iteration {i + 1} because the final iteration had errors."
+                        )
+
                         # Also restore the working dataframe state from that iteration if possible
                         if i > 0 and "gpt_working_df" in st.session_state:
                             # We need to re-run the code up to this point to get the correct dataframe state
                             temp_repl = PythonREPL()
-                            temp_repl.globals.update({
-                                "df": st.session_state.df.copy(),
-                                "original_df": st.session_state.df,
-                                "plt": plt,
-                                "sns": sns,
-                                "np": np,
-                                "pd": pd,
-                            })
-                            
+                            temp_repl.globals.update(
+                                {
+                                    "df": st.session_state.df.copy(),
+                                    "original_df": st.session_state.df,
+                                    "plt": plt,
+                                    "sns": sns,
+                                    "np": np,
+                                    "pd": pd,
+                                }
+                            )
+
                             # Run all successful iterations up to this point
-                            for j in range(i+1):
-                                iter_code = st.session_state.iteration_history[timestamp][j]["code"]
+                            for j in range(i + 1):
+                                iter_code = st.session_state.iteration_history[
+                                    timestamp
+                                ][j]["code"]
                                 try:
                                     exec(iter_code, temp_repl.globals)
                                     # If this was the last successful iteration, save its dataframe
                                     if j == i:
-                                        st.session_state.gpt_working_df = temp_repl.globals["df"].copy()
+                                        st.session_state.gpt_working_df = (
+                                            temp_repl.globals["df"].copy()
+                                        )
                                 except Exception:
                                     # If any error occurs, stop trying to restore the dataframe
                                     break
                         break
-            
+
             # Generate a summary of the findings for busy researchers
             with st.spinner("Generating research summary..."):
                 # Create a prompt for the summary
@@ -4356,7 +4867,7 @@ The code that generated this analysis is:
 ```
 
 The analysis generated {len(final_images)} visualizations. Based on the code, these visualizations include:
-{', '.join([f"'{os.path.basename(img)}'" for img in final_images]) if final_images else "No visualizations were generated"}
+{", ".join([f"'{os.path.basename(img)}'" for img in final_images]) if final_images else "No visualizations were generated"}
 
 Please provide:
 1. A clear, concise summary of the key findings (3-5 bullet points)
@@ -4366,16 +4877,20 @@ Please provide:
 Your summary should be written in professional academic language suitable for a busy researcher.
 """
                 summary_response = llm.invoke(summary_prompt)
-                research_summary = summary_response.content if hasattr(summary_response, "content") else str(summary_response)
-                
+                research_summary = (
+                    summary_response.content
+                    if hasattr(summary_response, "content")
+                    else str(summary_response)
+                )
+
                 # Store the summary in session state
                 st.session_state.research_summary = research_summary
-            
+
             # Save the final results to session state
             st.session_state.gpt_analysis_code = final_code
             st.session_state.model_output1 = final_output
             st.session_state.gpt_analysis_images = final_images
-            
+
             # Store in persistent storage
             st.session_state.persistent_gpt_code[timestamp] = final_code
             st.session_state.persistent_gpt_output[timestamp] = final_output
@@ -4384,106 +4899,139 @@ Your summary should be written in professional academic language suitable for a 
 
             if final_error:
                 st.error(f"Error in final code: {final_error}")
-                st.info("The system has attempted to recover by using the last successful iteration's results. You can view the iteration history to see all attempts.")
-            
+                st.info(
+                    "The system has attempted to recover by using the last successful iteration's results. You can view the iteration history to see all attempts."
+                )
+
         # Display results if they exist in session state
         if st.session_state.model_output1 or st.session_state.gpt_analysis_code:
             # Get the current timestamp
             timestamp = st.session_state.get("current_analysis_timestamp", "")
-            
+
             # Display the user's question
             if st.session_state.last_agent_question:
-                st.markdown(f"## Your Question:")
+                st.markdown("## Your Question:")
                 st.write(st.session_state.last_agent_question)
                 st.markdown("---")
 
             # Display research summary if available
-            if hasattr(st.session_state, 'research_summary') and st.session_state.research_summary:
+            if (
+                hasattr(st.session_state, "research_summary")
+                and st.session_state.research_summary
+            ):
                 st.markdown("## 📋 Research Summary")
                 st.markdown(st.session_state.research_summary)
                 st.markdown("---")
-                
+
             # Display output if available
             if st.session_state.model_output1:
                 st.write("**Detailed Output:**")
                 st.code(st.session_state.model_output1)
-                
+
             # Check if the working dataframe was modified and is different from the original
-            if "gpt_working_df" in st.session_state and st.session_state.gpt_working_df is not None:
+            if (
+                "gpt_working_df" in st.session_state
+                and st.session_state.gpt_working_df is not None
+            ):
                 try:
                     # Check if dataframes are different (ignoring index)
                     original_df_reset = st.session_state.df.reset_index(drop=True)
-                    working_df_reset = st.session_state.gpt_working_df.reset_index(drop=True)
-                    
+                    working_df_reset = st.session_state.gpt_working_df.reset_index(
+                        drop=True
+                    )
+
                     # Compare columns first to avoid errors with different column sets
-                    columns_same = set(original_df_reset.columns) == set(working_df_reset.columns)
-                    
-                    if not columns_same or not working_df_reset.equals(original_df_reset):
+                    columns_same = set(original_df_reset.columns) == set(
+                        working_df_reset.columns
+                    )
+
+                    if not columns_same or not working_df_reset.equals(
+                        original_df_reset
+                    ):
                         with st.expander("View modified dataframe", expanded=False):
-                            st.write("The analysis modified the dataframe. Here's the result:")
+                            st.write(
+                                "The analysis modified the dataframe. Here's the result:"
+                            )
                             st.dataframe(st.session_state.gpt_working_df)
-                                
+
                             # Add option to use this as the new dataframe
-                            if st.button("Use this modified dataframe for future analyses"):
-                                st.session_state.modified_df = st.session_state.gpt_working_df.copy()
-                                st.success("Modified dataframe saved! Select 'Modified Dataframe' in the sidebar to use it.")
+                            if st.button(
+                                "Use this modified dataframe for future analyses"
+                            ):
+                                st.session_state.modified_df = (
+                                    st.session_state.gpt_working_df.copy()
+                                )
+                                st.success(
+                                    "Modified dataframe saved! Select 'Modified Dataframe' in the sidebar to use it."
+                                )
                 except Exception as e:
                     st.warning(f"Could not compare dataframes: {e}")
-                
+
             # Display code if available
             if st.session_state.gpt_analysis_code:
                 with st.expander("Show code used for this analysis", expanded=False):
                     st.code(st.session_state.gpt_analysis_code, language="python")
-            
+
             # Show iteration history if available
-            if timestamp in st.session_state.iteration_history and len(st.session_state.iteration_history[timestamp]) > 1:
+            if (
+                timestamp in st.session_state.iteration_history
+                and len(st.session_state.iteration_history[timestamp]) > 1
+            ):
                 with st.expander("Show iteration history", expanded=False):
-                    for i, iteration in enumerate(st.session_state.iteration_history[timestamp]):
-                        st.subheader(f"Iteration {i+1}")
-                        
+                    for i, iteration in enumerate(
+                        st.session_state.iteration_history[timestamp]
+                    ):
+                        st.subheader(f"Iteration {i + 1}")
+
                         # Show if there was an error
                         if iteration["error"]:
                             st.error(f"Error: {iteration['error']}")
-                        
+
                         # Show code
                         st.write("Code:")
                         st.code(iteration["code"], language="python")
-                        
+
                         # Show output
                         st.write("Output:")
                         st.code(iteration["output"])
-                        
+
                         # Show images if any
                         if iteration["images"]:
                             st.write("Generated images:")
                             for img_path in iteration["images"]:
                                 if os.path.exists(img_path):
                                     try:
-                                        st.image(img_path, 
-                                                caption=f"Iteration {i+1}: {os.path.basename(img_path)}", 
-                                                use_column_width=True)
+                                        st.image(
+                                            img_path,
+                                            caption=f"Iteration {i + 1}: {os.path.basename(img_path)}",
+                                            use_column_width=True,
+                                        )
                                     except Exception as e:
-                                        st.warning(f"Could not display image {img_path}: {e}")
-                        
+                                        st.warning(
+                                            f"Could not display image {img_path}: {e}"
+                                        )
+
                         st.markdown("---")
-            
+
             # Display images if available
             shown = set()
             images_to_show = []
-            
+
             # First try to get images from persistent storage
             if timestamp and timestamp in st.session_state.persistent_gpt_images:
                 images_to_show = st.session_state.persistent_gpt_images[timestamp]
             # Fallback to session state images
             elif st.session_state.gpt_analysis_images:
                 images_to_show = st.session_state.gpt_analysis_images
-                
+
             for img_path in images_to_show:
                 if img_path not in shown and os.path.exists(img_path):
                     try:
-                        st.image(img_path, 
-                                caption=f"Generated Plot: {os.path.basename(img_path)}", 
-                                use_column_width=True)
+                        st.image(
+                            img_path,
+                            caption=f"Generated Plot: {os.path.basename(img_path)}",
+                            use_column_width=True,
+                        )
                         shown.add(img_path)
                     except Exception as e:
                         st.warning(f"Could not display image {img_path}: {e}")
@@ -4491,41 +5039,66 @@ Your summary should be written in professional academic language suitable for a 
             st.write("")
             col1, col2, col3 = st.columns([1, 2, 1])
             with col2:
-                if st.button("Generate Word Doc from Last GPT Analysis", use_container_width=True):
+                if st.button(
+                    "Generate Word Doc from Last GPT Analysis", use_container_width=True
+                ):
                     try:
                         # Gather all relevant content for the docx
-                        timestamp = st.session_state.get("current_analysis_timestamp", "")
+                        timestamp = st.session_state.get(
+                            "current_analysis_timestamp", ""
+                        )
                         # Question - Retrieve from session state
-                        question_for_doc = st.session_state.get("last_agent_question", "")
+                        question_for_doc = st.session_state.get(
+                            "last_agent_question", ""
+                        )
                         # Research summary
-                        if hasattr(st.session_state, 'persistent_research_summary'):
-                            research_summary = st.session_state.persistent_research_summary
-                        elif hasattr(st.session_state, 'research_summary'):
+                        if hasattr(st.session_state, "persistent_research_summary"):
+                            research_summary = (
+                                st.session_state.persistent_research_summary
+                            )
+                        elif hasattr(st.session_state, "research_summary"):
                             research_summary = st.session_state.research_summary
                         else:
                             research_summary = ""
                         # Output
-                        if timestamp and timestamp in st.session_state.persistent_gpt_output:
-                            output_for_doc = st.session_state.persistent_gpt_output[timestamp]
+                        if (
+                            timestamp
+                            and timestamp in st.session_state.persistent_gpt_output
+                        ):
+                            output_for_doc = st.session_state.persistent_gpt_output[
+                                timestamp
+                            ]
                         else:
                             output_for_doc = st.session_state.model_output1
                         # Code
-                        if timestamp and timestamp in st.session_state.persistent_gpt_code:
-                            code_for_doc = st.session_state.persistent_gpt_code[timestamp]
+                        if (
+                            timestamp
+                            and timestamp in st.session_state.persistent_gpt_code
+                        ):
+                            code_for_doc = st.session_state.persistent_gpt_code[
+                                timestamp
+                            ]
                         else:
                             code_for_doc = st.session_state.gpt_analysis_code
                         # Images
-                        if timestamp and timestamp in st.session_state.persistent_gpt_images:
-                            images_for_doc = st.session_state.persistent_gpt_images[timestamp]
+                        if (
+                            timestamp
+                            and timestamp in st.session_state.persistent_gpt_images
+                        ):
+                            images_for_doc = st.session_state.persistent_gpt_images[
+                                timestamp
+                            ]
                         else:
                             images_for_doc = st.session_state.gpt_analysis_images
                         # Categorical mappings
-                        categorical_mappings = getattr(st.session_state, "categorical_mappings", None)
+                        categorical_mappings = getattr(
+                            st.session_state, "categorical_mappings", None
+                        )
 
                         with st.spinner("Creating Word document..."):
                             docx_file = generate_gpt_analysis_docx(
                                 "gpt_analysis",
-                                question_for_doc, # Use the question from session state
+                                question_for_doc,  # Use the question from session state
                                 research_summary,
                                 code_for_doc,
                                 output_for_doc,
@@ -4547,6 +5120,10 @@ Your summary should be written in professional academic language suitable for a 
                             except Exception as e:
                                 st.warning(f"Could not remove temporary file: {e}")
                         else:
-                            st.error("Failed to create Word document. Please try again.")
+                            st.error(
+                                "Failed to create Word document. Please try again."
+                            )
                     except Exception as e:
-                        st.error(f"An error occurred while creating the DOCX file: {str(e)}")
+                        st.error(
+                            f"An error occurred while creating the DOCX file: {str(e)}"
+                        )

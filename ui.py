@@ -1,10 +1,9 @@
 # Streamlit UI helper functions for AutoAnalyzer
 
 import streamlit as st
-import pandas as pd
+
 
 def df_download_options(df, report_type):
-    import random
     format = st.radio(
         "Select the format for your report:",
         ("csv", "json", "html"),

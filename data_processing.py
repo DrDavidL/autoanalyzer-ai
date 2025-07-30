@@ -1,17 +1,20 @@
 # Data processing functions for AutoAnalyzer
 
 import numpy as np
-import pandas as pd
 import streamlit as st
+
 
 def all_categorical(df):
     categ_cols = df.select_dtypes(include=["object"]).columns.tolist()
     numeric_cols = [
-        col for col in df.columns if df[col].nunique() == 2 and df[col].dtype != "object"
+        col
+        for col in df.columns
+        if df[col].nunique() == 2 and df[col].dtype != "object"
     ]
     filtered_categorical_cols = [col for col in categ_cols if df[col].nunique() <= 15]
     all_categ = filtered_categorical_cols + numeric_cols
     return all_categ
+
 
 def all_numerical(df):
     numerical_cols = df.select_dtypes(include="number").columns.tolist()
@@ -31,6 +34,7 @@ def all_numerical(df):
                 numerical_cols.append(col)
     return numerical_cols
 
+
 def filter_dataframe(df):
     columns = df.columns
     dtypes = df.dtypes
@@ -40,7 +44,8 @@ def filter_dataframe(df):
     filtered_columns = filtered_df.columns
     filtered_dtypes = filtered_df.dtypes
     numerical_columns = [
-        col for col, dtype in zip(filtered_columns, filtered_dtypes)
+        col
+        for col, dtype in zip(filtered_columns, filtered_dtypes)
         if dtype in ["int64", "float64"]
     ]
     for col in numerical_columns:
@@ -51,9 +56,12 @@ def filter_dataframe(df):
             "", min_val, max_val, (min_val, max_val), key=col
         )
         if min_range > min_val or max_range < max_val:
-            filtered_df = filtered_df[(filtered_df[col] >= min_range) & (filtered_df[col] <= max_range)]
+            filtered_df = filtered_df[
+                (filtered_df[col] >= min_range) & (filtered_df[col] <= max_range)
+            ]
     categorical_columns = [
-        col for col, dtype in zip(filtered_columns, filtered_dtypes)
+        col
+        for col, dtype in zip(filtered_columns, filtered_dtypes)
         if dtype == "object"
     ]
     for col in categorical_columns:

@@ -7,6 +7,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 import category_encoders as ce
 
+
 def preprocess_for_pca(df):
     included_cols = []
     excluded_cols = []
