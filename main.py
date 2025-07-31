@@ -22,6 +22,8 @@ import datagov_integration
 import pandas as pd
 import numpy as np
 from tableone import TableOne
+from langchain_openai import AzureChatOpenAI
+from langchain_experimental.utilities import PythonREPL
 import matplotlib.pyplot as plt
 import seaborn as sns
 import io
@@ -4209,8 +4211,7 @@ with tab3:
 
         matplotlib.use("Agg")  # Ensure non-GUI backend for matplotlib
 
-        from langchain_openai import AzureChatOpenAI
-        from langchain_experimental.utilities import PythonREPL
+
 
         # Set up the LLM (Azure)
         llm = AzureChatOpenAI(
