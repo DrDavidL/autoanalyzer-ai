@@ -18,6 +18,7 @@ import stats
 import llm_integration
 import ui
 from data_processing import filter_dataframe
+import datagov_integration
 import pandas as pd
 import numpy as np
 from tableone import TableOne
@@ -1804,6 +1805,7 @@ with tab1:
             "🧠 Demo 5 (stroke)",
             "✨ Generate Data",
             "📁 CSV or Excel Upload",
+            "🏛️ Data.gov CSV Files",
             "🔄 Modified Dataframe",
         ),
         index=0,
@@ -1918,6 +1920,10 @@ with tab1:
             "[About Demo 5 dataset](https://www.kaggle.com/fedesoriano/stroke-prediction-dataset)"
         )
         st.session_state.df = load_data(file_path)
+
+    if demo_or_custom == "🏛️ Data.gov CSV Files":
+        # Render the Data.gov interface
+        datagov_integration.render_datagov_interface()
 
     with st.sidebar:
         if st.session_state.gen_csv is not None:
