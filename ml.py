@@ -1,6 +1,9 @@
 import numpy as np
 import pandas as pd
 import streamlit as st
+import data_validation
+import monitoring
+import utils
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, normalize
 from sklearn.linear_model import LogisticRegression, RidgeClassifier, Lasso
@@ -203,7 +206,7 @@ def preprocess(df, target_col):
                     least_freq = df[col].value_counts().idxmin()
 
                     # Update the mapping to include 'F' as 0 and 'M' as 1
-                    df[col] = df[col].map({most_freq: 0, least_freq: 1, "F": 0})
+                    df.loc[:, col] = df[col].map({most_freq: 0, least_freq: 1, "F": 0})
 
                     included_cols.append(col)
                 else:  # Multivariate case
@@ -211,7 +214,7 @@ def preprocess(df, target_col):
             elif df[col].dtype in ["int64", "float64"]:  # Numerical case
                 if df[col].isnull().values.any():
                     mean_imputer = SimpleImputer(strategy="mean")
-                    df[col] = mean_imputer.fit_transform(df[[col]])
+                    df.loc[:, col] = mean_imputer.fit_transform(df[[col]]).ravel()
                     st.write(f"Imputed missing values in {col} with mean.")
 
                 included_cols.append(col)
@@ -229,14 +232,14 @@ def preprocess_old(df, target_col):
                 if len(df[col].unique()) == 2:  # Bivariate case
                     most_freq = df[col].value_counts().idxmax()
                     least_freq = df[col].value_counts().idxmin()
-                    df[col] = df[col].map({most_freq: 0, least_freq: 1})
+                    df.loc[:, col] = df[col].map({most_freq: 0, least_freq: 1})
                     included_cols.append(col)
                 else:  # Multivariate case
                     excluded_cols.append(col)
             elif df[col].dtype in ["int64", "float64"]:  # Numerical case
                 if df[col].isnull().values.any():
                     mean_imputer = SimpleImputer(strategy="mean")
-                    df[col] = mean_imputer.fit_transform(df[[col]])
+                    df.loc[:, col] = mean_imputer.fit_transform(df[[col]]).ravel()
                     st.write(f"Imputed missing values in {col} with mean.")
                 included_cols.append(col)
 
@@ -261,9 +264,19 @@ def run_ml_pipeline(
         test_size: float
         random_state: int
         feature_cols: list or None
+        perform_shapley: bool, whether to perform SHAP analysis
     Returns:
         dict with model, metrics, predictions, etc.
     """
+    # Validate input data
+    is_valid, message = data_validation.check_data_size(df, "ml_input_data")
+    if not is_valid:
+        st.error(f"ML pipeline data validation failed: {message}")
+        return None
+    
+    # Log data size for monitoring
+    monitoring.log_dataframe_size(df, "ml_input_data")
+    
     # Feature/target selection updates
     if feature_cols is None:
         feature_cols = [col for col in df.columns if col != target_col]
@@ -272,7 +285,7 @@ def run_ml_pipeline(
 
     # Handle target variable encoding if it's categorical
     target_label_mapping = None
-    if y.dtype == "object" or pd.api.types.is_categorical_dtype(y):
+    if y.dtype == "object" or isinstance(y.dtype, pd.CategoricalDtype):
         unique_labels = y.unique()
         if len(unique_labels) == 2:
             # Binary classification - create mapping
@@ -292,15 +305,14 @@ def run_ml_pipeline(
             )
 
     # Handle categorical variables in features
-    for col in X.select_dtypes(include=["object", "category"]).columns:
-        unique_vals = X[col].nunique()
-        if unique_vals == 2:
-            # Binary encode
-            vals = X[col].unique()
-            X[col] = X[col].map({vals[0]: 0, vals[1]: 1})
-        else:
-            # One-hot encode
-            X = pd.get_dummies(X, columns=[col], drop_first=True)
+    # Process categorical variables using the utility function
+    X, mapping_definitions = utils.preprocess_categorical_vars(X, track_mapping=True)
+    
+    # Handle remaining categorical variables (non-binary)
+    categorical_cols = X.select_dtypes(include=["object", "category"]).columns.tolist()
+    for col in categorical_cols:
+        # One-hot encode
+        X = pd.get_dummies(X, columns=[col], drop_first=True)
 
     # Store feature names before any transformations that might convert to numpy arrays
     feature_names = list(X.columns)
@@ -451,6 +463,11 @@ def run_ml_pipeline(
                     explainer = None
                     shap_values = None
 
+    # Log results for monitoring
+    monitoring.log_dataframe_size(X_test, "ml_test_features")
+    if y_scores is not None:
+        monitoring.log_dataframe_size(pd.DataFrame(y_scores), "ml_predictions")
+    
     return {
         "model": model,
         "metrics": metrics,

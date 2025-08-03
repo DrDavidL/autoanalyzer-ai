@@ -7,9 +7,7 @@ import requests
 import pandas as pd
 import streamlit as st
 import os
-from typing import List, Dict, Optional, Tuple
-import tempfile
-import time
+from typing import List, Dict, Optional
 
 
 class DataGovAPI:
@@ -435,7 +433,7 @@ def render_datagov_interface():
                         size_bytes = int(resource['size'])
                         size_mb = size_bytes / (1024 * 1024)
                         size_info = f" ({size_mb:.1f} MB)"
-                    except:
+                    except Exception:
                         pass
                 
                 with st.container():
@@ -515,7 +513,7 @@ def is_datagov_available() -> bool:
     try:
         response = requests.get("https://catalog.data.gov/api/3/action/status_show", timeout=5)
         return response.status_code == 200
-    except:
+    except Exception:
         return False
 
 

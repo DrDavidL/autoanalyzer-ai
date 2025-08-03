@@ -3,6 +3,7 @@
 import streamlit as st
 import matplotlib.pyplot as plt
 import seaborn as sns
+import utils
 
 
 def create_boxplot(df, numeric_col, categorical_col, show_points=False):
@@ -30,9 +31,24 @@ def create_scatterplot(df, scatter_x, scatter_y):
 
 
 def plot_corr(df):
-    fig, ax = plt.subplots()
-    corr = df.corr()
-    sns.heatmap(corr, annot=True, fmt=".2f", cmap="coolwarm", ax=ax)
+    # Process categorical variables using the utility function
+    df_processed = utils.preprocess_categorical_vars(df, track_mapping=False)
+    
+    fig, ax = plt.subplots(figsize=(10, 8))  # Set figure size to control overall size
+    corr = df_processed.corr()
+    
+    # Create heatmap with smaller font size to prevent overlap
+    sns.heatmap(corr, annot=True, fmt=".2f", cmap="coolwarm", ax=ax,
+                annot_kws={"size": 8},  # Smaller font size for annotations
+                cbar_kws={"shrink": 0.8})  # Smaller color bar
+    
+    # Rotate labels for better readability
+    plt.xticks(rotation=45, ha='right')
+    plt.yticks(rotation=0)
+    
+    # Adjust layout to prevent cutting off labels
+    plt.tight_layout()
+    
     st.pyplot(fig)
     return fig
 

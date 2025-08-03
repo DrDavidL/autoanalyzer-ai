@@ -2,6 +2,9 @@
 
 import numpy as np
 import streamlit as st
+import data_validation
+import utils
+import pandas as pd
 
 
 def all_categorical(df):
@@ -18,20 +21,21 @@ def all_categorical(df):
 
 def all_numerical(df):
     numerical_cols = df.select_dtypes(include="number").columns.tolist()
-    for col in df.select_dtypes(include="object").columns:
-        if df[col].nunique() == 2:
-            unique_values = df[col].unique()
-            if 0 in unique_values and 1 in unique_values:
-                continue
-            value_counts = df[col].value_counts()
-            most_frequent_value = value_counts.idxmax()
-            least_frequent_value = value_counts.idxmin()
-            if most_frequent_value != 0 and least_frequent_value != 1:
-                df[col] = np.where(df[col] == most_frequent_value, 0, 1)
-                st.write(
-                    f"Replaced most frequent value '{most_frequent_value}' with 0 and least frequent value '{least_frequent_value}' with 1 in column '{col}'."
-                )
-                numerical_cols.append(col)
+    
+    # Process categorical variables using the utility function
+    df_processed, mapping_definitions = utils.preprocess_categorical_vars(df, track_mapping=True)
+    
+    # Add binary categorical columns that were converted to numerical columns list
+    if 'binary' in mapping_definitions:
+        for col, mapping in mapping_definitions['binary'].items():
+            numerical_cols.append(col)
+            # Display mapping information
+            most_frequent_value = [k for k, v in mapping.items() if v == 0][0]
+            least_frequent_value = [k for k, v in mapping.items() if v == 1][0]
+            st.write(
+                f"Replaced most frequent value '{most_frequent_value}' with 0 and least frequent value '{least_frequent_value}' with 1 in column '{col}'."
+            )
+    
     return numerical_cols
 
 
@@ -68,4 +72,10 @@ def filter_dataframe(df):
         selected_values = st.multiselect(col, unique_values, unique_values)
         if len(selected_values) < len(unique_values):
             filtered_df = filtered_df[filtered_df[col].isin(selected_values)]
+    
+    # Validate filtered data
+    if not data_validation.validate_uploaded_data(filtered_df, "filtered_data"):
+        st.warning("Filtered data exceeds size limits. Please apply more restrictive filters.")
+        return df  # Return original dataframe if validation fails
+    
     return filtered_df

@@ -3,6 +3,7 @@ import streamlit.components.v1 as components
 import tempfile
 import os
 import warnings
+import logging
 from explanations.explanations import (
     shapley_explanation,
 )
@@ -21,6 +22,8 @@ from data_processing import filter_dataframe
 import datagov_integration
 import pandas as pd
 import numpy as np
+import monitoring
+import data_validation
 from tableone import TableOne
 from langchain_openai import AzureChatOpenAI
 from langchain_experimental.utilities import PythonREPL
@@ -51,6 +54,10 @@ from sklearn.metrics import (
 )
 from sklearn.impute import SimpleImputer
 from statsmodels.imputation import mice
+
+# Configure logging to reduce verbosity
+logging.getLogger().setLevel(logging.WARNING)
+logging.getLogger('streamlit').setLevel(logging.WARNING)
 
 # Suppress specific DeprecationWarnings from seaborn
 warnings.filterwarnings(
@@ -133,6 +140,9 @@ if "research_summary" not in st.session_state:
     st.session_state.research_summary = ""
 if "persistent_research_summary" not in st.session_state:
     st.session_state.persistent_research_summary = ""
+
+# Setup monitoring
+monitoring.setup_monitoring()
 
 
 @st.cache_resource
@@ -616,7 +626,7 @@ def start_chatbot3(df, model):
                 try:
                     exec(decoded_string)
                     image = Image.open(f"{st.session_state.outputs_path}/output.png")
-                    st.image(image, caption="Output", use_column_width=True)
+                    st.image(image, caption="Output", use_container_width=True)
                 except Exception as e:
                     st.write("Error - we noted this was fragile! Try again.", e)
         except Exception:
@@ -816,7 +826,7 @@ def start_plot_gpt4_old2(df):
             #     try:
             #         exec(decoded_string)
             #         image = Image.open(f'./{st.session_state.outputs_path}/output.png')
-            #         st.image(image, caption='Output', use_column_width=True)
+            #         st.image(image, caption='Output', use_container_width=True)
             #     except Exception as e:
             #         st.write('Error - we noted this was fragile! Try again.', e)
         except Exception:
@@ -925,7 +935,7 @@ def preprocess_for_pca(df):
             if unique == 2:
                 most_freq = df[col].value_counts().idxmax()
                 least_freq = df[col].value_counts().idxmin()
-                df[col] = df[col].map({most_freq: 0, least_freq: 1})
+                df.loc[:, col] = df[col].map({most_freq: 0, least_freq: 1})
                 binary_mapping[col] = {
                     most_freq: 0,
                     least_freq: 1,
@@ -1225,7 +1235,7 @@ def preprocess(df, target_col):
                     least_freq = df[col].value_counts().idxmin()
 
                     # Update the mapping to include 'F' as 0 and 'M' as 1
-                    df[col] = df[col].map({most_freq: 0, least_freq: 1, "F": 0})
+                    df.loc[:, col] = df[col].map({most_freq: 0, least_freq: 1, "F": 0})
 
                     included_cols.append(col)
                 else:  # Multivariate case
@@ -1233,7 +1243,7 @@ def preprocess(df, target_col):
             elif df[col].dtype in ["int64", "float64"]:  # Numerical case
                 if df[col].isnull().values.any():
                     mean_imputer = SimpleImputer(strategy="mean")
-                    df[col] = mean_imputer.fit_transform(df[[col]])
+                    df.loc[:, col] = mean_imputer.fit_transform(df[[col]]).ravel()
                     st.write(f"Imputed missing values in {col} with mean.")
 
                 included_cols.append(col)
@@ -1251,14 +1261,14 @@ def preprocess_old(df, target_col):
                 if len(df[col].unique()) == 2:  # Bivariate case
                     most_freq = df[col].value_counts().idxmax()
                     least_freq = df[col].value_counts().idxmin()
-                    df[col] = df[col].map({most_freq: 0, least_freq: 1})
+                    df.loc[:, col] = df[col].map({most_freq: 0, least_freq: 1})
                     included_cols.append(col)
                 else:  # Multivariate case
                     excluded_cols.append(col)
             elif df[col].dtype in ["int64", "float64"]:  # Numerical case
                 if df[col].isnull().values.any():
                     mean_imputer = SimpleImputer(strategy="mean")
-                    df[col] = mean_imputer.fit_transform(df[[col]])
+                    df.loc[:, col] = mean_imputer.fit_transform(df[[col]]).ravel()
                     st.write(f"Imputed missing values in {col} with mean.")
                 included_cols.append(col)
 
@@ -1330,16 +1340,16 @@ def replace_missing_values(df, method):
     if method == "drop":
         df = df.dropna()
     elif method == "zero":
-        df[num_cols] = df[num_cols].fillna(0)
+        df.loc[:, num_cols] = df[num_cols].fillna(0)
     elif method == "mean":
-        df[num_cols] = df[num_cols].fillna(df[num_cols].mean())
+        df.loc[:, num_cols] = df[num_cols].fillna(df[num_cols].mean())
     elif method == "median":
-        df[num_cols] = df[num_cols].fillna(df[num_cols].median())
+        df.loc[:, num_cols] = df[num_cols].fillna(df[num_cols].median())
     elif method == "mode":
-        df[cat_cols] = df[cat_cols].fillna(df[cat_cols].mode().iloc[0])
+        df.loc[:, cat_cols] = df[cat_cols].fillna(df[cat_cols].mode().iloc[0])
     elif method == "mice":
         imp = mice.MICEData(df[num_cols])  # only apply to numerical columns
-        df[num_cols] = imp.data
+        df.loc[:, num_cols] = imp.data
     st.session_state.df = df
     return df
 
@@ -1350,6 +1360,12 @@ def load_data(file_path):
         data = pd.read_csv(file_path)
         if data.empty:
             st.warning("Loaded CSV is empty.")
+            return data
+        
+        # Validate data size
+        if not data_validation.validate_uploaded_data(data, "uploaded_csv"):
+            return pd.DataFrame()
+        
         return data
     except pd.errors.EmptyDataError:
         st.error("The uploaded file is empty or not a valid CSV.")
@@ -1448,36 +1464,6 @@ def summarize_categorical(df):
 # Function to plot correlation heatmap
 
 
-def plot_corr(df):
-    try:
-        df_copy = df.copy()
-
-        for col in df_copy.columns:
-            if df_copy[col].dtype == "object":  # Check if the column is categorical
-                unique_vals = df_copy[col].unique()
-                if (
-                    len(unique_vals) == 2
-                ):  # If the categorical variable has exactly 2 unique values
-                    value_counts = df_copy[col].value_counts()
-                    df_copy[col] = df_copy[col].map(
-                        {value_counts.idxmax(): 0, value_counts.idxmin(): 1}
-                    )
-
-        # Keep only numerical and binary categorical columns
-        df_copy = df_copy.select_dtypes(include=[np.number])
-
-        if df_copy.empty:
-            st.warning("No numeric columns available for correlation heatmap.")
-            return None
-
-        corr = df_copy.corr()  # Compute pairwise correlation of columns
-        plt.figure(figsize=(12, 10))  # Set the size of the plot
-        sns.heatmap(corr, annot=True, cmap="coolwarm", cbar=True)
-        plt.title("Correlation Heatmap")
-        return plt
-    except Exception as e:
-        st.warning(f"Could not plot correlation heatmap: {e}")
-        return None
 
 
 # --- New Statistical Test Functions ---
@@ -1827,6 +1813,9 @@ with tab1:
             else:
                 try:
                     st.session_state.df = pd.read_excel(uploaded_file)
+                    # Validate Excel data
+                    if not data_validation.validate_uploaded_data(st.session_state.df, "uploaded_excel"):
+                        st.session_state.df = pd.DataFrame()
                 except Exception as e:
                     st.warning(f"Failed to load Excel file: {e}")
 
@@ -2136,6 +2125,14 @@ with tab1:
                 key="show_analysis",
                 help=tool_explanations.get("Download a Full Analysis", ""),
             )
+
+    # Add resource monitoring display
+    st.sidebar.markdown(
+        "<div class='step-header'>Resource Monitoring</div>",
+        unsafe_allow_html=True,
+    )
+    if st.sidebar.checkbox("Show Resource Usage"):
+        monitoring.display_resource_usage()
 
     if filter_data:
         current_df = st.session_state.df
@@ -2582,13 +2579,13 @@ plt.show()
             temp_df = st.session_state.df.copy()
 
             # Replace the selected exposure values with 1 and others with 0
-            temp_df[sd_exposure] = temp_df[sd_exposure].apply(
-                lambda x: 1 if x in sd_exposure_values else 0
+            temp_df.loc[:, sd_exposure] = temp_df[sd_exposure].apply(
+                            lambda x: 1 if x in sd_exposure_values else 0
             )
 
             # Replace the selected outcome values with 1 and others with 0
-            temp_df[sd_outcome] = temp_df[sd_outcome].apply(
-                lambda x: 1 if x in sd_outcome_values else 0
+            temp_df.loc[:, sd_outcome] = temp_df[sd_outcome].apply(
+                            lambda x: 1 if x in sd_outcome_values else 0
             )
 
             cohort_or_case = st.radio(
@@ -2841,25 +2838,25 @@ plt.show()
 
     if show_corr:
         st.info("Correlation heatmap")
-        plt = plot_corr(st.session_state.df)
-        st.pyplot(plt)
+        plotting.plot_corr(st.session_state.df)
         with st.expander("Show code for correlation heatmap"):
             st.code(
                 """import seaborn as sns
 import matplotlib.pyplot as plt
+import utils
 
-# Convert binary categorical columns to numeric if needed
-df_copy = df.copy()
-for col in df_copy.columns:
-    if df_copy[col].dtype == "object" and len(df_copy[col].unique()) == 2:
-        value_counts = df_copy[col].value_counts()
-        df_copy[col] = df_copy[col].map({value_counts.idxmax(): 0, value_counts.idxmin(): 1})
+# Process categorical variables using the utility function
+df_processed = utils.preprocess_categorical_vars(df, track_mapping=False)
 
 # Compute correlation matrix and plot
-corr = df_copy.select_dtypes(include=[float, int]).corr()
-plt.figure(figsize=(12, 10))
-sns.heatmap(corr, annot=True, cmap="coolwarm", cbar=True)
+corr = df_processed.corr()
+plt.figure(figsize=(10, 8))
+sns.heatmap(corr, annot=True, fmt=".2f", cmap="coolwarm",
+            annot_kws={"size": 8}, cbar_kws={"shrink": 0.8})
+plt.xticks(rotation=45, ha='right')
+plt.yticks(rotation=0)
 plt.title("Correlation Heatmap")
+plt.tight_layout()
 plt.show()
 """,
                 language="python",
@@ -3147,7 +3144,7 @@ plt.show()
             ).columns.tolist()
             for col in numerical_columns:
                 if df_filtered[col].nunique() == 2:
-                    df_filtered[col] = df_filtered[col].astype(str)
+                    df_filtered.loc[:, col] = df_filtered[col].astype(str)
 
             categorical = df_filtered.select_dtypes(include=[object]).columns.tolist()
 
@@ -3357,8 +3354,8 @@ with tab2:
             df_processed, included_cols, excluded_cols = preprocess(
                 st.session_state.df.drop(columns=[target_col]), target_col
             )
-            df_processed[target_col] = st.session_state.df[
-                target_col
+            df_processed.loc[:, target_col] = st.session_state.df[
+                            target_col
             ]  # Include the target column back into the dataframe
 
             st.subheader("""
@@ -3383,8 +3380,8 @@ with tab2:
                 st.write(f"Unavailable columns for modeling: {excluded_cols}")
 
             # Create binary target variable based on the selected categories
-            df_processed[target_col] = df_processed[target_col].apply(
-                lambda x: 1 if x in categories_to_predict else 0
+            df_processed.loc[:, target_col] = df_processed[target_col].apply(
+                            lambda x: 1 if x in categories_to_predict else 0
             )
             X = df_processed[final_columns]
             # st.write(X.head())
@@ -5008,7 +5005,7 @@ Your summary should be written in professional academic language suitable for a 
                                         st.image(
                                             img_path,
                                             caption=f"Iteration {i + 1}: {os.path.basename(img_path)}",
-                                            use_column_width=True,
+                                            use_container_width=True,
                                         )
                                     except Exception as e:
                                         st.warning(
@@ -5034,7 +5031,7 @@ Your summary should be written in professional academic language suitable for a 
                         st.image(
                             img_path,
                             caption=f"Generated Plot: {os.path.basename(img_path)}",
-                            use_column_width=True,
+                            use_container_width=True,
                         )
                         shown.add(img_path)
                     except Exception as e:

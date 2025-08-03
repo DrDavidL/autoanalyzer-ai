@@ -6,62 +6,24 @@ import matplotlib.pyplot as plt
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 import category_encoders as ce
+import utils
 
 
 def preprocess_for_pca(df):
-    included_cols = []
-    excluded_cols = []
-    binary_mapping = {}  # initialize empty dict for binary mapping
-    binary_encoded_vars = []  # initialize empty list for binary encoded vars
-
-    # Create a binary encoder
-    bin_encoder = ce.BinaryEncoder()
-
-    for col in df.columns:
-        if isinstance(df[col].dtype, pd.CategoricalDtype) or df[col].dtype == "object":
-            unique = df[col].nunique()
-
-            # For binary categorical columns
-            if unique == 2:
-                most_freq = df[col].value_counts().idxmax()
-                least_freq = df[col].value_counts().idxmin()
-                df[col] = df[col].map({most_freq: 0, least_freq: 1})
-                binary_mapping[col] = {
-                    most_freq: 0,
-                    least_freq: 1,
-                }  # add mapping to dict
-                included_cols.append(col)
-
-            # For categorical columns with less than 15 unique values
-            elif 2 < unique <= 15:
-                try:
-                    # Perform binary encoding
-                    df_transformed = bin_encoder.fit_transform(df[col])
-                    # Drop the original column from df
-                    df.drop(columns=[col], inplace=True)
-                    # Join the transformed data to df
-                    df = pd.concat([df, df_transformed], axis=1)
-                    # Add transformed columns to binary encoded vars list and included_cols
-                    transformed_cols = df_transformed.columns.tolist()
-                    binary_encoded_vars.extend(transformed_cols)
-                    included_cols.extend(transformed_cols)
-                except Exception as e:
-                    st.write(f"Failure in encoding {col} due to {str(e)}")
-                    excluded_cols.append(col)
-            else:
-                excluded_cols.append(col)
-        elif np.issubdtype(df[col].dtype, np.number):
-            included_cols.append(col)
-        else:
-            excluded_cols.append(col)
-
-    # Display binary mappings and binary encoded variables in streamlit
-    if binary_mapping:
-        st.write("Binary Mappings: ", binary_mapping)
-    if binary_encoded_vars:
-        st.write("Binary Encoded Variables: ", binary_encoded_vars)
-
-    return df[included_cols], included_cols, excluded_cols
+    # Process categorical variables using the utility function
+    df_processed, mapping_definitions = utils.preprocess_categorical_vars(df, max_onehot_unique=6, track_mapping=True)
+    
+    # Identify included and excluded columns
+    included_cols = df_processed.columns.tolist()
+    excluded_cols = [col for col in df.columns if col not in included_cols]
+    
+    # Display mapping information
+    if 'binary' in mapping_definitions and mapping_definitions['binary']:
+        st.write("Binary Mappings: ", mapping_definitions['binary'])
+    if 'onehot' in mapping_definitions and mapping_definitions['onehot']:
+        st.write("One-Hot Encoded Variables: ", mapping_definitions['onehot'])
+    
+    return df_processed, included_cols, excluded_cols
 
 
 def create_scree_plot(df):

@@ -22,7 +22,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install --system -r requirements.txt
 
 # Copy the main application code and additional necessary files
-COPY main.py prompts.py markdown_to_docx.py data_processing.py llm_integration.py ml.py pca.py plotting.py stats.py ui.py utils.py datagov_integration.py ./
+COPY main.py prompts.py markdown_to_docx.py data_processing.py llm_integration.py ml.py pca.py plotting.py stats.py ui.py utils.py datagov_integration.py monitoring.py data_validation.py ./
 COPY data/ ./data/
 COPY .streamlit/ ./.streamlit/
 COPY explanations/ ./explanations/
