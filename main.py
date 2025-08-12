@@ -141,6 +141,9 @@ if "gen_csv" not in st.session_state:
     st.session_state.gen_csv = None
 if "df_to_download" not in st.session_state:
     st.session_state.df_to_download = None
+if "demo_or_custom_index" not in st.session_state:
+    st.session_state.demo_or_custom_index = 0
+
 
 
 @st.cache_resource
@@ -338,7 +341,7 @@ def filter_dataframe(df):
     if df.memory_usage(deep=True).sum() > 200 * 1024 * 1024:  # 200MB limit
         st.warning("⚠️ Large dataset detected. Consider sampling your data first to avoid performance issues.")
         sample_size = st.number_input("Sample size (rows)", min_value=1000, max_value=min(50000, len(df)), value=min(10000, len(df)))
-        if st.button("Sample Data"):
+        if st.button("Sample Data", key="sample_data_button"):
             df = df.sample(n=sample_size, random_state=42)
             st.success(f"Sampled {sample_size} rows from the dataset.")
     
@@ -838,7 +841,7 @@ def start_chatbot3(df, model):
                 try:
                     exec(decoded_string)
                     image = Image.open(f"{st.session_state.outputs_path}/output.png")
-                    st.image(image, caption="Output", use_column_width=True)
+                    st.image(image, caption="Output", use_container_width=True)
                 except Exception as e:
                     st.write("Error - we noted this was fragile! Try again.", e)
         except Exception:
@@ -1053,7 +1056,7 @@ def start_plot_gpt4_old2(df):
             #     try:
             #         exec(decoded_string)
             #         image = Image.open(f'./{st.session_state.outputs_path}/output.png')
-            #         st.image(image, caption='Output', use_column_width=True)
+            #         st.image(image, caption='Output', use_container_width=True)
             #     except Exception as e:
             #         st.write('Error - we noted this was fragile! Try again.', e)
         except Exception:
@@ -2114,7 +2117,8 @@ with tab1:
             "📁 CSV or Excel Upload",
             "🔄 Modified Dataframe",
         ),
-        index=0,
+        index=st.session_state.demo_or_custom_index, # Use session state for index
+        key="demo_or_custom_selectbox" # Add a key to manage state
     )
     
     # Add a message in the main area if CSV/Excel upload is selected
@@ -2163,7 +2167,6 @@ with tab1:
 
         else:
             st.session_state.df = st.session_state.modified_df
-            # st.sidebar.write("Download the modified dataframe as a CSV file.")
         modified_csv = st.session_state.modified_df.to_csv(index=False)
         st.sidebar.download_button(
             label="Download Modified Dataset!",
@@ -2240,17 +2243,19 @@ with tab1:
                 mime="text/csv",
                 use_container_width=True,
             )
-        st.markdown("<div class='step-header'>Step 2: Assess Data Readiness</div>", unsafe_allow_html=True)
+        st.markdown("<div class='step-header'>Step 2: Data Preparation & Filtering</div>", unsafe_allow_html=True)
 
+        # Simplified data preparation interface
+        st.write("**Prepare your dataset for machine learning:**")
+        
         check_preprocess = st.checkbox(
             "🔍 Assess dataset readiness", key="Preprocess now needed"
         )
         needs_preprocess = st.checkbox(
-            "🛠️ Select if dataset fails readiness", key="Open Preprocess"
+            "🛠️ Process data (automatically creates Modified Dataframe)", key="Open Preprocess"
         )
         filter_data = st.checkbox(
-            "🔎 Filter data if needed (Switch to Modified Dataframe after filtering)",
-            key="Filter data",
+            "🔎 Filter data (applies to Modified Dataframe if available)", key="Filter data"
         )
 
         st.markdown("<div class='step-header'>Step 3: Session Management</div>", unsafe_allow_html=True)
@@ -2401,12 +2406,31 @@ with tab1:
             )
 
     if filter_data:
-        current_df = st.session_state.df
-        st.session_state.modified_df = filter_dataframe(current_df)
-        st.write(
-            "Switch to Modified Dataframe (top left) to see the filtered data below and use in analysis tools."
-        )
-        st.session_state.modified_df
+        st.subheader("Filter Data")
+        
+        # Determine which dataframe to filter
+        if not st.session_state.modified_df.empty:
+            st.info("Filtering the Modified Dataframe (recommended for ML workflow)")
+            df_to_filter = st.session_state.modified_df
+            target_df_name = "Modified Dataframe"
+        else:
+            st.info("Filtering the original dataset. This will create a Modified Dataframe.")
+            df_to_filter = st.session_state.df
+            target_df_name = "original dataset"
+        
+        # Display filter options and get the potentially filtered dataframe
+        temp_filtered_df = filter_dataframe(df_to_filter)
+        
+        if st.button("Apply Filters", key="apply_filter_button"):
+            st.session_state.modified_df = temp_filtered_df
+            st.success(f"✅ Filters applied! Modified Dataframe updated from {target_df_name}")
+            # Automatically update selector to Modified Dataframe
+            st.session_state.demo_or_custom_index = 8
+            st.info("📌 Selector automatically updated to 'Modified Dataframe'")
+            st.rerun()
+        else:
+            st.write(f"Preview of filtered {target_df_name}:")
+            st.dataframe(temp_filtered_df)
 
     if ttest:
         st.subheader("T-test (2 groups)")
@@ -2784,31 +2808,38 @@ plt.show()
             st.subheader("Insufficient categorical variables found in the data.")
 
     if needs_preprocess:
-        st.info(
-            "Data Preprocessing Tools - *Assess Data Readiness **first**. Use only if needed.*"
-        )
-        st.write(
-            "Step 1: Make a copy of your dataset to modify by clicking the button below."
-        )
-        if st.button("Copy dataset"):
-            st.session_state.modified_df = st.session_state.df
-        st.write(
-            "Step 2: Select 'Modified Dataframe' in Step 1 of the sidebar to use the dataframe you just copied."
-        )
-        st.write(
-            "Step 3: Select a method to impute missing values in your dataset. Built in checks to apply only to applicable data types."
-        )
+        st.subheader("Data Preprocessing")
+        
+        # Automatically create modified dataframe if it doesn't exist
+        if st.session_state.modified_df.empty:
+            st.session_state.modified_df = st.session_state.df.copy()
+            st.success("✅ Created Modified Dataframe from your current dataset")
+            # Update the selector to point to Modified Dataframe
+            st.session_state.demo_or_custom_index = 8
+            st.info("📌 Selector automatically updated to 'Modified Dataframe'")
+        
+        st.write("**Select a method to handle missing values:**")
         method = st.selectbox(
             "Choose a method to replace missing values",
             ("Select here!", "drop", "zero", "mean", "median", "mode", "mice"),
         )
-        if st.button("Apply the Method to Replace Missing Values"):
-            st.session_state.modified_df = replace_missing_values(
-                st.session_state.modified_df, method
-            )
-        st.write(
-            "Recheck data readiness to see if you are ready to proceed with analysis."
-        )
+        if st.button("Apply Missing Value Treatment", key="apply_missing_values"):
+            if method != "Select here!":
+                st.session_state.modified_df = replace_missing_values(
+                    st.session_state.modified_df, method
+                )
+                st.success(f"✅ Applied {method} method to handle missing values")
+                st.info("📌 Modified Dataframe has been updated with processed data")
+            else:
+                st.warning("Please select a method first")
+        
+        if not st.session_state.modified_df.empty:
+            st.write("**Current Modified Dataframe status:**")
+            missing_count = st.session_state.modified_df.isnull().sum().sum()
+            if missing_count == 0:
+                st.success(f"✅ No missing values detected - ready for machine learning!")
+            else:
+                st.warning(f"⚠️ {missing_count} missing values still present")
 
     # if activate_chatbot:
 
@@ -3416,25 +3447,36 @@ with tab2:
         <p>This section shows a glimpse of what's possible with machine learning on your data. Any model shown is not yet optimized and requires ML and domain expertise. This is a good starting point to explore predictive modeling with your dataset.</p>
     </div>
     """, unsafe_allow_html=True)
+    
+    # Determine which dataframe to use for ML
+    if not st.session_state.modified_df.empty:
+        ml_df = st.session_state.modified_df
+        df_source = "Modified Dataframe (filtered/processed)"
+        st.success(f"✅ Using {df_source} for machine learning")
+    else:
+        ml_df = st.session_state.df
+        df_source = "original dataset"
+        st.info(f"ℹ️ Using {df_source} for machine learning. Consider using Step 2 to create a Modified Dataframe for better results.")
+    
     try:
-        x = st.session_state.df
+        x = ml_df
     except NameError:
         st.warning(
             "First upload a CSV file or choose a demo dataset from the **Data Exploration** tab"
         )
     else:
         # Filter categorical columns and numerical bivariate columns
-        categorical_cols = st.session_state.df.select_dtypes(
+        categorical_cols = ml_df.select_dtypes(
             include=[object]
         ).columns.tolist()
 
         # Add bivariate numerical columns
         numerical_bivariate_cols = [
             col
-            for col in st.session_state.df.select_dtypes(
+            for col in ml_df.select_dtypes(
                 include=["int64", "float64"]
             ).columns
-            if st.session_state.df[col].nunique() == 2
+            if ml_df[col].nunique() == 2
         ]
 
         # Combine the two lists and sort them
@@ -3442,8 +3484,8 @@ with tab2:
         categorical_cols.sort()  # sort the list of columns
 
         with st.expander("Click to see your current dataset"):
-            st.info("The first 5 rows:")
-            st.write(st.session_state.df.head())
+            st.info(f"The first 5 rows of your {df_source}:")
+            st.write(ml_df.head())
 
         st.subheader("""
         Choose the Target Column
@@ -3458,15 +3500,15 @@ with tab2:
         try:
             categories_to_predict = st.multiselect(
                 "Select one or more categories but not all. You need 2 options to predict a group, i.e, your target versus the rest.:",
-                st.session_state.df[target_col].unique().tolist(),
+                ml_df[target_col].unique().tolist(),
                 key="target_categories-ml",
             )
 
             # Preprocess the data and exclude the target column from preprocessing
             df_processed, included_cols, excluded_cols = preprocess(
-                st.session_state.df.drop(columns=[target_col]), target_col
+                ml_df.drop(columns=[target_col]), target_col
             )
-            df_processed[target_col] = st.session_state.df[
+            df_processed[target_col] = ml_df[
                 target_col
             ]  # Include the target column back into the dataframe
 
@@ -4068,15 +4110,21 @@ with tab3:
                 else:
                     st.session_state.df = pd.read_excel(uploaded_file_gpt)
 
-        # Display the current dataframe being used for analysis
-        # This could be the initially loaded df or the gpt_working_df from a previous run
-        current_analysis_df = st.session_state.get("gpt_working_df", st.session_state.df)
+        # Determine which dataframe to use for GPT analysis
+        if not st.session_state.modified_df.empty:
+            current_analysis_df = st.session_state.modified_df
+            df_source = "Modified Dataframe (filtered/processed)"
+            st.success(f"✅ Using {df_source} for GPT analysis")
+        else:
+            current_analysis_df = st.session_state.df
+            df_source = "original dataset"
+            st.info(f"ℹ️ Using {df_source} for GPT analysis. Consider using Step 2 to create a Modified Dataframe for better results.")
 
         n_rows, n_cols = current_analysis_df.shape
         st.write(f"Current DataFrame shape: {n_rows} rows × {n_cols} columns")
 
         with st.expander("View the current dataframe", expanded=True):
-            st.write("### Current Data Frame")
+            st.write(f"### Current Data Frame ({df_source})")
             st.dataframe(current_analysis_df, height=200)
 
         import matplotlib
@@ -4736,7 +4784,7 @@ Your summary should be written in professional academic language suitable for a 
                                     try:
                                         st.image(img_path, 
                                                 caption=f"Iteration {i+1}: {os.path.basename(img_path)}", 
-                                                use_column_width=True)
+                                                use_container_width=True)
                                     except Exception as e:
                                         st.warning(f"Could not display image {img_path}: {e}")
                         
@@ -4758,7 +4806,7 @@ Your summary should be written in professional academic language suitable for a 
                     try:
                         st.image(img_path, 
                                 caption=f"Generated Plot: {os.path.basename(img_path)}", 
-                                use_column_width=True)
+                                use_container_width=True)
                         shown.add(img_path)
                     except Exception as e:
                         st.warning(f"Could not display image {img_path}: {e}")
