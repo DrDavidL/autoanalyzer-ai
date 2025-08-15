@@ -53,7 +53,8 @@ from sklearn.metrics import (
     ConfusionMatrixDisplay,
 )
 from sklearn.impute import SimpleImputer
-from statsmodels.imputation import mice
+from sklearn.experimental import enable_iterative_imputer
+from sklearn.impute import IterativeImputer
 
 # Configure logging to reduce verbosity
 logging.getLogger().setLevel(logging.WARNING)
@@ -140,6 +141,21 @@ if "research_summary" not in st.session_state:
     st.session_state.research_summary = ""
 if "persistent_research_summary" not in st.session_state:
     st.session_state.persistent_research_summary = ""
+
+# Store original dataframe reference for reset functionality
+if "original_df" not in st.session_state:
+    st.session_state.original_df = pd.DataFrame()
+
+# Set working dataframe logic: use modified_df if available, otherwise use original df
+# This ensures all downstream analyses automatically use the processed dataframe
+if not st.session_state.modified_df.empty:
+    # Make the modified dataframe the working dataframe for all analyses
+    st.session_state.df = st.session_state.modified_df.copy()
+    
+    # Store original if not already stored
+    if st.session_state.original_df.empty and not st.session_state.df.empty:
+        # Find the original dataframe from the demo/upload logic below
+        pass  # This will be set during data loading
 
 # Setup monitoring
 monitoring.setup_monitoring()
@@ -356,6 +372,16 @@ Remember to structure the code such that it is properly indented and formatted a
 
             """
 
+
+def get_current_dataframe():
+    """
+    Helper function to get the current dataframe for analysis.
+    Returns modified_df if it exists and is not empty, otherwise returns the original df.
+    """
+    if not st.session_state.modified_df.empty:
+        return st.session_state.modified_df
+    else:
+        return st.session_state.df
 
 def assess_data_readiness(df):
     import missingno as msno
@@ -1333,25 +1359,54 @@ For medical students, think of scatterplots as a way to visually inspect the cor
 
 
 def replace_missing_values(df, method):
+    # Create a copy to avoid modifying the original dataframe
+    df_copy = df.copy()
+    
     # Differentiate numerical and categorical columns
-    num_cols = df.select_dtypes(include=np.number).columns.tolist()
-    cat_cols = df.select_dtypes(include=["object", "category"]).columns.tolist()
+    num_cols = df_copy.select_dtypes(include=np.number).columns.tolist()
+    cat_cols = df_copy.select_dtypes(include=["object", "category"]).columns.tolist()
 
     if method == "drop":
-        df = df.dropna()
+        df_copy = df_copy.dropna()
     elif method == "zero":
-        df.loc[:, num_cols] = df[num_cols].fillna(0)
+        df_copy.loc[:, num_cols] = df_copy[num_cols].fillna(0)
     elif method == "mean":
-        df.loc[:, num_cols] = df[num_cols].fillna(df[num_cols].mean())
+        df_copy.loc[:, num_cols] = df_copy[num_cols].fillna(df_copy[num_cols].mean())
     elif method == "median":
-        df.loc[:, num_cols] = df[num_cols].fillna(df[num_cols].median())
+        df_copy.loc[:, num_cols] = df_copy[num_cols].fillna(df_copy[num_cols].median())
     elif method == "mode":
-        df.loc[:, cat_cols] = df[cat_cols].fillna(df[cat_cols].mode().iloc[0])
+        if cat_cols:  # Only apply if there are categorical columns
+            for col in cat_cols:
+                mode_val = df_copy[col].mode()
+                if not mode_val.empty:
+                    df_copy.loc[:, col] = df_copy[col].fillna(mode_val.iloc[0])
     elif method == "mice":
-        imp = mice.MICEData(df[num_cols])  # only apply to numerical columns
-        df.loc[:, num_cols] = imp.data
-    st.session_state.df = df
-    return df
+        if num_cols:  # Only apply MICE if there are numerical columns
+            try:
+                # Use sklearn's IterativeImputer (MICE implementation) which is more stable
+                imputer = IterativeImputer(random_state=42, max_iter=10)
+                
+                # Get only the numerical columns with missing values
+                num_data = df_copy[num_cols]
+                
+                # Apply MICE imputation
+                imputed_array = imputer.fit_transform(num_data)
+                
+                # Create DataFrame with imputed data, preserving original index and column names
+                imputed_df = pd.DataFrame(
+                    imputed_array,
+                    index=df_copy.index,
+                    columns=num_cols
+                )
+                
+                # Replace only the numerical columns with imputed data
+                df_copy[num_cols] = imputed_df
+                    
+            except Exception as e:
+                # If MICE fails, fall back to mean imputation for numerical columns
+                df_copy.loc[:, num_cols] = df_copy[num_cols].fillna(df_copy[num_cols].mean())
+    
+    return df_copy
 
 
 # This function will be cached
@@ -1809,13 +1864,19 @@ with tab1:
         )
         if uploaded_file:
             if uploaded_file.name.endswith(".csv"):
-                st.session_state.df = load_data(uploaded_file)
+                loaded_df = load_data(uploaded_file)
+                st.session_state.df = loaded_df
+                st.session_state.original_df = loaded_df.copy()  # Store original
+                st.session_state.modified_df = pd.DataFrame()  # Clear any previous modifications
             else:
                 try:
-                    st.session_state.df = pd.read_excel(uploaded_file)
+                    loaded_df = pd.read_excel(uploaded_file)
                     # Validate Excel data
-                    if not data_validation.validate_uploaded_data(st.session_state.df, "uploaded_excel"):
-                        st.session_state.df = pd.DataFrame()
+                    if not data_validation.validate_uploaded_data(loaded_df, "uploaded_excel"):
+                        loaded_df = pd.DataFrame()
+                    st.session_state.df = loaded_df
+                    st.session_state.original_df = loaded_df.copy()  # Store original
+                    st.session_state.modified_df = pd.DataFrame()  # Clear any previous modifications
                 except Exception as e:
                     st.warning(f"Failed to load Excel file: {e}")
 
@@ -1824,21 +1885,30 @@ with tab1:
         st.sidebar.markdown(
             "[About Demo 1 dataset](https://hbiostat.org/data/repo/diabetes)"
         )
-        st.session_state.df = load_data(file_path)
+        loaded_df = load_data(file_path)
+        st.session_state.df = loaded_df
+        st.session_state.original_df = loaded_df.copy()
+        st.session_state.modified_df = pd.DataFrame()
 
     if demo_or_custom == "🔬 Demo 2 (cancer)":
         file_path = os.path.join("data", "breastcancernew.csv")
         st.sidebar.write(
             "[About Demo 2 dataset](https://archive.ics.uci.edu/dataset/451/breast+cancer+coimbra)"
         )
-        st.session_state.df = load_data(file_path)
+        loaded_df = load_data(file_path)
+        st.session_state.df = loaded_df
+        st.session_state.original_df = loaded_df.copy()
+        st.session_state.modified_df = pd.DataFrame()
 
     if demo_or_custom == "❓ Demo 3 (missing data example)":
         file_path = os.path.join("data", "missing_data.csv")
         st.sidebar.markdown(
             "[About Demo 3 dataset](https://www.lshtm.ac.uk/research/centres-projects-groups/missing-data#dia-missing-data)"
         )
-        st.session_state.df = load_data(file_path)
+        loaded_df = load_data(file_path)
+        st.session_state.df = loaded_df
+        st.session_state.original_df = loaded_df.copy()
+        st.session_state.modified_df = pd.DataFrame()
 
     if demo_or_custom == "Modified Dataframe":
         # st.sidebar.markdown("Using the dataframe from the previous step.")
@@ -1848,18 +1918,22 @@ with tab1:
             st.sidebar.markdown(
                 "[About Demo 1 dataset](https://hbiostat.org/data/repo/diabetes))"
             )
-            st.session_state.df = load_data(file_path)
+            loaded_df = load_data(file_path)
+            st.session_state.df = loaded_df
+            st.session_state.original_df = loaded_df.copy()
 
         else:
             st.session_state.df = st.session_state.modified_df
             # st.sidebar.write("Download the modified dataframe as a CSV file.")
-        modified_csv = st.session_state.modified_df.to_csv(index=False)
-        st.sidebar.download_button(
-            label="Download Modified Dataset!",
-            data=modified_csv,
-            file_name="modified_data.csv",
-            mime="text/csv",
-        )
+        
+        if not st.session_state.modified_df.empty:
+            modified_csv = st.session_state.modified_df.to_csv(index=False)
+            st.sidebar.download_button(
+                label="Download Modified Dataset!",
+                data=modified_csv,
+                file_name="modified_data.csv",
+                mime="text/csv",
+            )
 
     if demo_or_custom == "✨ Generate Data":
         # Removed authentication info message as requested
@@ -1889,9 +1963,12 @@ with tab1:
             if st.button("Generate Data"):  # Use st.button for main area
                 # Use a default model if not otherwise set
                 selected_model = "gpt-4o-mini"
-                st.session_state.df, st.session_state.gen_csv = generate_df(
+                loaded_df, st.session_state.gen_csv = generate_df(
                     user_columns, user_rows, selected_model
                 )
+                st.session_state.df = loaded_df
+                st.session_state.original_df = loaded_df.copy()
+                st.session_state.modified_df = pd.DataFrame()
                 st.info(
                     "Here are the first 5 rows of your generated data. Use the tools in the sidebar to explore your new dataset! And, download and save your new CSV file from the sidebar!"
                 )
@@ -1903,18 +1980,42 @@ with tab1:
         st.sidebar.markdown(
             "[About Demo 4 dataset](https://plos.figshare.com/articles/dataset/Survival_analysis_of_heart_failure_patients_A_case_study/5227684/1)"
         )
-        st.session_state.df = load_data(file_path)
+        loaded_df = load_data(file_path)
+        st.session_state.df = loaded_df
+        st.session_state.original_df = loaded_df.copy()
+        st.session_state.modified_df = pd.DataFrame()
 
     if demo_or_custom == "🧠 Demo 5 (stroke)":
         file_path = os.path.join("data", "healthcare-dataset-stroke-data.csv")
         st.sidebar.markdown(
             "[About Demo 5 dataset](https://www.kaggle.com/fedesoriano/stroke-prediction-dataset)"
         )
-        st.session_state.df = load_data(file_path)
+        loaded_df = load_data(file_path)
+        st.session_state.df = loaded_df
+        st.session_state.original_df = loaded_df.copy()
+        st.session_state.modified_df = pd.DataFrame()
 
     if demo_or_custom == "🏛️ Data.gov CSV Files":
         # Render the Data.gov interface
         datagov_integration.render_datagov_interface()
+
+    # Add clear modified dataframe functionality
+    if not st.session_state.modified_df.empty:
+        st.sidebar.markdown("---")
+        st.sidebar.markdown("**🔄 Modified Dataframe Controls**")
+        st.sidebar.info(f"✅ Using processed dataframe with {st.session_state.modified_df.shape[0]} rows and {st.session_state.modified_df.shape[1]} columns")
+        
+        if st.sidebar.button("🗑️ Clear Modified Dataframe",
+                             help="Reset to original dataset and clear all processing"):
+            # Clear the modified dataframe
+            st.session_state.modified_df = pd.DataFrame()
+            
+            # Reset to original dataframe
+            if not st.session_state.original_df.empty:
+                st.session_state.df = st.session_state.original_df.copy()
+            
+            st.sidebar.success("✅ Reset to original dataframe!")
+            st.rerun()
 
     with st.sidebar:
         if st.session_state.gen_csv is not None:
@@ -1934,13 +2035,40 @@ with tab1:
         check_preprocess = st.checkbox(
             "🔍 Assess dataset readiness", key="Preprocess now needed"
         )
-        needs_preprocess = st.checkbox(
-            "🛠️ Select if dataset fails readiness", key="Open Preprocess"
-        )
-        filter_data = st.checkbox(
-            "🔎 Filter data if needed (Switch to Modified Dataframe after filtering)",
-            key="Filter data",
-        )
+        
+        # Initialize variables to avoid NameError
+        filter_data = False
+        needs_preprocess = False
+        data_is_ready = True  # Default assumption
+        
+        # Show filtering and preprocessing options only if readiness assessment is checked
+        if check_preprocess:
+            st.info("📋 **Workflow Guide:** First assess readiness below. If data needs improvement, use the filtering and preprocessing options that will appear.")
+            
+            # Determine which dataframe to assess
+            if not st.session_state.modified_df.empty:
+                df_to_assess = st.session_state.modified_df
+                df_source = "Modified Dataframe (filtered/processed)"
+            else:
+                df_to_assess = st.session_state.df
+                df_source = "original dataset"
+            
+            # Quick readiness check to determine if we should show workflow options
+            if not df_to_assess.empty:
+                readiness_summary = assess_data_readiness(df_to_assess)
+                data_is_ready = readiness_summary.get("data_ready", True)
+                
+                # Show conditional workflow options when data is not ready
+                if not data_is_ready:
+                    st.warning("⚠️ **Data needs improvement!** Follow these sequential steps:")
+                    
+                    st.markdown("### Step 1: Filter the Data for Optimal Analysis")
+                    st.info("💡 **Recommended first step:** Remove unnecessary rows/columns to focus your analysis")
+                    filter_data = st.checkbox("🔎 Filter data for optimal analysis", key="filter_for_analysis")
+                    
+                    st.markdown("### Step 2: Handle Missing Values")
+                    st.info("💡 **After filtering:** Address any missing data using appropriate imputation methods")
+                    needs_preprocess = st.checkbox("🛠️ Replace missing values", key="replace_missing_values")
 
         st.markdown(
             "<div class='step-header'>Step 3: Tools for Analysis</div>",
@@ -2135,12 +2263,54 @@ with tab1:
         monitoring.display_resource_usage()
 
     if filter_data:
-        current_df = st.session_state.df
-        st.session_state.modified_df = filter_dataframe(current_df)
-        st.write(
-            "Switch to Modified Dataframe (top left) to see the filtered data below and use in analysis tools."
-        )
-        st.session_state.modified_df
+        st.subheader("🔎 Data Filtering")
+        
+        # Determine which dataframe to filter
+        if not st.session_state.modified_df.empty:
+            current_df = st.session_state.modified_df
+            df_source = "Modified Dataframe"
+            st.info(f"ℹ️ Filtering the current {df_source}")
+        else:
+            current_df = st.session_state.df
+            df_source = "original dataset"
+            st.info(f"ℹ️ Filtering the {df_source}")
+        
+        # Apply filtering
+        filtered_df = filter_dataframe(current_df)
+        
+        # Update the modified dataframe
+        st.session_state.modified_df = filtered_df
+        
+        # Show success message and guidance
+        st.success("✅ Data filtering completed!")
+        st.info("💡 **Next Steps:** Switch to 'Modified Dataframe' in Step 1 above to use the filtered data in analysis tools.")
+        
+        # Show filtering results
+        st.subheader("📊 Filtering Results")
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.write("**Original Data:**")
+            st.write(f"• Rows: {current_df.shape[0]:,}")
+            st.write(f"• Columns: {current_df.shape[1]:,}")
+        
+        with col2:
+            st.write("**Filtered Data:**")
+            st.write(f"• Rows: {filtered_df.shape[0]:,}")
+            st.write(f"• Columns: {filtered_df.shape[1]:,}")
+            
+            # Calculate reduction
+            row_reduction = current_df.shape[0] - filtered_df.shape[0]
+            col_reduction = current_df.shape[1] - filtered_df.shape[1]
+            
+            if row_reduction > 0:
+                st.write(f"• Removed {row_reduction:,} rows ({row_reduction/current_df.shape[0]*100:.1f}%)")
+            if col_reduction > 0:
+                st.write(f"• Removed {col_reduction:,} columns")
+        
+        # Show preview of filtered data
+        st.write("**Preview of Filtered Data:**")
+        st.dataframe(filtered_df.head(), use_container_width=True)
 
     if ttest:
         st.subheader("T-test (2 groups)")
@@ -2629,31 +2799,142 @@ plt.show()
             st.subheader("Insufficient categorical variables found in the data.")
 
     if needs_preprocess:
-        st.info(
-            "Data Preprocessing Tools - *Assess Data Readiness **first**. Use only if needed.*"
-        )
-        st.write(
-            "Step 1: Make a copy of your dataset to modify by clicking the button below."
-        )
-        if st.button("Copy dataset"):
-            st.session_state.modified_df = st.session_state.df
-        st.write(
-            "Step 2: Select 'Modified Dataframe' in Step 1 of the sidebar to use the dataframe you just copied."
-        )
-        st.write(
-            "Step 3: Select a method to impute missing values in your dataset. Built in checks to apply only to applicable data types."
-        )
+        st.subheader("🛠️ Missing Data Replacement")
+        
+        # Determine which dataframe to work with
+        if not st.session_state.modified_df.empty:
+            working_df = st.session_state.modified_df
+            df_source = "Modified Dataframe"
+            st.success(f"✅ Working with {df_source}")
+        else:
+            working_df = st.session_state.df
+            df_source = "original dataset"
+            st.info(f"ℹ️ Working with {df_source}. A copy will be created as Modified Dataframe.")
+        
+        # Show missing data summary
+        missing_summary = working_df.isnull().sum()
+        missing_summary = missing_summary[missing_summary > 0]
+        
+        if len(missing_summary) == 0:
+            st.success("✅ No missing values found in the current dataframe!")
+        else:
+            st.write("**Missing Values Summary:**")
+            st.write(missing_summary)
+        
+        st.write("**Choose a method to handle missing values:**")
+        
         method = st.selectbox(
-            "Choose a method to replace missing values",
-            ("Select here!", "drop", "zero", "mean", "median", "mode", "mice"),
+            "Select imputation method:",
+            ("Select a method...", "drop", "zero", "mean", "median", "mode", "mice"),
+            help="Each method has different use cases. See explanations below."
         )
-        if st.button("Apply the Method to Replace Missing Values"):
-            st.session_state.modified_df = replace_missing_values(
-                st.session_state.modified_df, method
-            )
-        st.write(
-            "Recheck data readiness to see if you are ready to proceed with analysis."
-        )
+        
+        # Add detailed explanations for each method
+        if method != "Select a method...":
+            st.markdown("---")
+            st.subheader(f"📖 About the '{method}' method:")
+            
+            method_explanations = {
+                "drop": {
+                    "description": "**Drop Missing Values**: Removes all rows that contain any missing values.",
+                    "when_to_use": "• When you have plenty of data and missing values are random\n• When missing data represents a small percentage of your dataset\n• When you need complete cases for analysis",
+                    "pros": "• Simple and fast\n• No assumptions about missing data\n• Preserves data integrity for remaining cases",
+                    "cons": "• Can significantly reduce dataset size\n• May introduce bias if missing data is not random\n• Loss of potentially valuable information",
+                    "best_for": "Large datasets with <5% missing values randomly distributed"
+                },
+                "zero": {
+                    "description": "**Zero Imputation**: Replaces all missing numerical values with 0.",
+                    "when_to_use": "• When zero is a meaningful value in your context\n• For count data where zero represents 'none'\n• When missing values logically mean 'absence'",
+                    "pros": "• Simple and interpretable\n• Preserves dataset size\n• Fast computation",
+                    "cons": "• Can distort statistical properties\n• May not be appropriate for all variables\n• Can create artificial patterns",
+                    "best_for": "Count variables, binary indicators, or when zero has domain meaning"
+                },
+                "mean": {
+                    "description": "**Mean Imputation**: Replaces missing numerical values with the column mean.",
+                    "when_to_use": "• For normally distributed numerical variables\n• When you want to preserve the overall average\n• As a quick solution for moderate missing data",
+                    "pros": "• Preserves dataset size\n• Maintains the mean of the variable\n• Simple to understand and implement",
+                    "cons": "• Reduces variance in the data\n• Can distort correlations\n• Assumes data is missing at random",
+                    "best_for": "Normally distributed continuous variables with moderate missing data"
+                },
+                "median": {
+                    "description": "**Median Imputation**: Replaces missing numerical values with the column median.",
+                    "when_to_use": "• For skewed numerical distributions\n• When data contains outliers\n• When you want a robust central tendency measure",
+                    "pros": "• Robust to outliers\n• Preserves dataset size\n• Good for skewed distributions",
+                    "cons": "• Reduces variance in the data\n• May not preserve relationships between variables\n• Can create artificial clustering at median value",
+                    "best_for": "Skewed numerical variables or data with outliers"
+                },
+                "mode": {
+                    "description": "**Mode Imputation**: Replaces missing categorical values with the most frequent category.",
+                    "when_to_use": "• For categorical variables\n• When the most common category is a reasonable default\n• For ordinal variables with clear dominant category",
+                    "pros": "• Appropriate for categorical data\n• Preserves dataset size\n• Uses actual observed values",
+                    "cons": "• Can increase bias toward dominant category\n• Reduces variability\n• May not reflect true distribution",
+                    "best_for": "Categorical variables with a clear dominant category"
+                },
+                "mice": {
+                    "description": "**MICE (Multiple Imputation by Chained Equations)**: Advanced method that uses other variables to predict missing values.",
+                    "when_to_use": "• When you have complex missing data patterns\n• When variables are correlated\n• When you need the most sophisticated imputation",
+                    "pros": "• Uses relationships between variables\n• More accurate than simple methods\n• Handles complex missing patterns\n• Preserves uncertainty",
+                    "cons": "• Computationally intensive\n• More complex to understand\n• May not work well with small datasets\n• Only works with numerical variables",
+                    "best_for": "Complex datasets with correlated numerical variables and non-random missing patterns"
+                }
+            }
+            
+            if method in method_explanations:
+                explanation = method_explanations[method]
+                st.markdown(explanation["description"])
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.markdown("**When to use:**")
+                    st.markdown(explanation["when_to_use"])
+                    st.markdown("**Pros:**")
+                    st.markdown(explanation["pros"])
+                
+                with col2:
+                    st.markdown("**Cons:**")
+                    st.markdown(explanation["cons"])
+                    st.markdown("**Best for:**")
+                    st.markdown(explanation["best_for"])
+        
+        # Apply the selected method
+        if method != "Select a method..." and st.button("Apply Missing Data Treatment"):
+            # Create modified dataframe if it doesn't exist
+            if st.session_state.modified_df.empty:
+                st.session_state.modified_df = working_df.copy()
+            
+            # Apply the selected method
+            try:
+                st.session_state.modified_df = replace_missing_values(
+                    st.session_state.modified_df, method
+                )
+                st.success(f"✅ Successfully applied '{method}' method to handle missing values!")
+                st.info("💡 **Next Steps:** Switch to 'Modified Dataframe' in Step 1 above and re-assess data readiness.")
+                
+                # Show before/after comparison
+                st.subheader("📊 Before/After Comparison")
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.write("**Before Treatment:**")
+                    before_missing = working_df.isnull().sum()
+                    before_missing = before_missing[before_missing > 0]
+                    if len(before_missing) > 0:
+                        st.write(before_missing)
+                    else:
+                        st.write("No missing values")
+                
+                with col2:
+                    st.write("**After Treatment:**")
+                    after_missing = st.session_state.modified_df.isnull().sum()
+                    after_missing = after_missing[after_missing > 0]
+                    if len(after_missing) > 0:
+                        st.write(after_missing)
+                    else:
+                        st.write("✅ No missing values remaining!")
+                
+            except Exception as e:
+                st.error(f"❌ Error applying '{method}' method: {str(e)}")
+                st.info("Please try a different method or check your data.")
 
     # if activate_chatbot:
 
@@ -2922,13 +3203,20 @@ plt.show()
         utils.save_image(plt, "pie_chart.png")
 
     if check_preprocess:
-        # st.write("Running readiness assessment...")
-        readiness_summary = assess_data_readiness(st.session_state.df)
-        # st.write("Readiness assessment complete.")
-        # Display the readiness summary using Streamlit
-        # Display the readiness summary using Streamlit
-        st.subheader("Data Readiness Summary")
-        st.info("Original Column Sequence")
+        # Display detailed readiness assessment results
+        st.subheader("📊 Detailed Data Readiness Assessment")
+        
+        # We already did the assessment above, so just display the detailed results
+        if not st.session_state.modified_df.empty:
+            df_to_assess = st.session_state.modified_df
+            df_source = "Modified Dataframe (filtered/processed)"
+            st.success(f"✅ Detailed assessment of {df_source}")
+        else:
+            df_to_assess = st.session_state.df
+            df_source = "original dataset"
+            st.info(f"ℹ️ Detailed assessment of {df_source}")
+        
+        readiness_summary = assess_data_readiness(df_to_assess)
 
         try:
             if readiness_summary["data_empty"]:
@@ -2963,18 +3251,6 @@ plt.show()
         except Exception as e:
             st.write("The DataFrame isn't yet ready for readiness assessment. :)  ")
             st.write(f"Error details: {e}")
-            # st.info("Check if you need to preprocess data")
-            # missing_values, outliers, data_types, skewness, cardinality = analyze_dataframe(df)
-            # st.write("Missing values")
-            # st.write(missing_values)
-            # st.write("Outliers")
-            # st.write(outliers)
-            # st.write("Data types")
-            # st.write(data_types)
-            # st.write("Skewness")
-            # st.write(skewness)
-            # st.write("Cardinality")
-            # st.write(cardinality)
 
     if show_scatter:
         st.info("Scatterplot")
@@ -3304,25 +3580,36 @@ with tab2:
     """,
         unsafe_allow_html=True,
     )
+    
+    # Determine which dataframe to use for ML
+    if not st.session_state.modified_df.empty:
+        ml_df = st.session_state.modified_df
+        df_source = "Modified Dataframe (filtered/processed)"
+        st.success(f"✅ Using {df_source} for machine learning")
+    else:
+        ml_df = st.session_state.df
+        df_source = "original dataset"
+        st.info(f"ℹ️ Using {df_source} for machine learning. Consider using Step 2 to create a Modified Dataframe for better results.")
+    
     try:
-        x = st.session_state.df
+        x = ml_df
     except NameError:
         st.warning(
             "First upload a CSV file or choose a demo dataset from the **Data Exploration** tab"
         )
     else:
         # Filter categorical columns and numerical bivariate columns
-        categorical_cols = st.session_state.df.select_dtypes(
+        categorical_cols = ml_df.select_dtypes(
             include=[object]
         ).columns.tolist()
 
         # Add bivariate numerical columns
         numerical_bivariate_cols = [
             col
-            for col in st.session_state.df.select_dtypes(
+            for col in ml_df.select_dtypes(
                 include=["int64", "float64"]
             ).columns
-            if st.session_state.df[col].nunique() == 2
+            if ml_df[col].nunique() == 2
         ]
 
         # Combine the two lists and sort them
@@ -3330,8 +3617,8 @@ with tab2:
         categorical_cols.sort()  # sort the list of columns
 
         with st.expander("Click to see your current dataset"):
-            st.info("The first 5 rows:")
-            st.write(st.session_state.df.head())
+            st.info(f"The first 5 rows of your {df_source}:")
+            st.write(ml_df.head())
 
         st.subheader("""
         Choose the Target Column
@@ -3517,6 +3804,161 @@ with tab2:
             st.warning(
                 "Model explanation is computationally expensive and may not work well with all model types (like Ridge Classifier or KNN). Please be patient."
             )
+        
+        # Add imbalanced dataset handling options
+        st.subheader("⚖️ Imbalanced Dataset Handling")
+        st.info("""
+        **What is an imbalanced dataset?** When one class significantly outnumbers another (e.g., 95% healthy vs 5% diseased patients).
+        This can cause models to be biased toward the majority class, missing important patterns in the minority class.
+        """)
+        
+        handle_imbalance = st.checkbox(
+            "🔧 Enable imbalanced dataset handling",
+            value=False,
+            key="handle_imbalance",
+            help="Automatically detect and handle imbalanced target variables"
+        )
+        
+        imbalance_method = "none"
+        stratify_split = True
+        
+        if handle_imbalance:
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                imbalance_method = st.selectbox(
+                    "Choose handling method:",
+                    [
+                        "smote",
+                        "class_weight",
+                        "undersampling",
+                        "smote_tomek"
+                    ],
+                    format_func=lambda x: {
+                        "smote": "🔄 SMOTE (Recommended)",
+                        "class_weight": "⚖️ Class Weights",
+                        "undersampling": "📉 Random Undersampling",
+                        "smote_tomek": "🔄➖ SMOTE + Tomek Links"
+                    }[x],
+                    help="SMOTE generates synthetic samples for minority class. Class weights adjust algorithm importance. Undersampling reduces majority class."
+                )
+            
+            with col2:
+                stratify_split = st.checkbox(
+                    "📊 Stratified train/test split",
+                    value=True,
+                    help="Maintains class distribution in training and test sets"
+                )
+            
+            # Explain the selected method
+            method_explanations = {
+                "smote": """
+                **SMOTE (Synthetic Minority Oversampling Technique)**
+                - ✅ Creates synthetic examples of minority class
+                - ✅ Preserves information from both classes
+                - ✅ Works well with most algorithms
+                - ⚠️ May create unrealistic samples in some cases
+                """,
+                "class_weight": """
+                **Class Weights**
+                - ✅ Fast and memory-efficient
+                - ✅ Works during training (no data modification)
+                - ✅ Supported by many sklearn algorithms
+                - ⚠️ Not available for all model types
+                """,
+                "undersampling": """
+                **Random Undersampling**
+                - ✅ Fast and simple
+                - ✅ Reduces training time
+                - ⚠️ May lose important information
+                - ⚠️ Only recommended for very large datasets
+                """,
+                "smote_tomek": """
+                **SMOTE + Tomek Links**
+                - ✅ Combines oversampling and cleaning
+                - ✅ Removes borderline examples
+                - ✅ Often provides best results
+                - ⚠️ More computationally expensive
+                """
+            }
+            
+            with st.expander(f"About {imbalance_method.upper()}"):
+                st.markdown(method_explanations[imbalance_method])
+        
+        # Add sensitivity optimization options
+        st.subheader("🎯 Sensitivity Optimization for Outcome Detection")
+        st.info("""
+        **When to use sensitivity optimization?** When missing a positive case (false negative) is more dangerous than a false alarm.
+        
+        **Example**: In cancer screening, it's better to have false positives (healthy patients flagged for further testing) than false negatives (missing actual cancer cases).
+        """)
+        
+        optimize_sensitivity = st.checkbox(
+            "🔍 Optimize for high sensitivity (outcome detection)",
+            value=False,
+            key="optimize_sensitivity",
+            help="Adjusts prediction threshold to maximize detection of positive cases, reducing missed cases"
+        )
+        
+        target_sensitivity = 0.90  # Default 90%
+        
+        if optimize_sensitivity:
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                target_sensitivity = st.slider(
+                    "Target sensitivity level:",
+                    min_value=0.70,
+                    max_value=0.99,
+                    value=0.90,
+                    step=0.05,
+                    format="%.0f",
+                    help="Minimum percentage of positive cases to detect"
+                )
+                
+                # Display the percentage manually
+                st.write(f"**Selected target: {target_sensitivity:.0%}**")
+            
+            with col2:
+                st.markdown("**What this means:**")
+                st.write(f"• Aim to detect ≥{target_sensitivity:.0%} of positive cases")
+                st.write(f"• May increase false positives")
+                st.write(f"• Prioritizes not missing cases")
+            
+            # Educational content
+            with st.expander("🧠 Learn about Sensitivity vs Specificity"):
+                st.markdown("""
+                ### Understanding the Trade-off
+                
+                **Sensitivity (Recall)**: % of actual positive cases correctly identified
+                - High sensitivity = fewer missed positive cases
+                - Low sensitivity = more missed positive cases
+                
+                **Specificity**: % of actual negative cases correctly identified
+                - High specificity = fewer false alarms
+                - Low specificity = more false alarms
+                
+                ### Medical Context Examples
+                
+                **High Sensitivity Preferred:**
+                - Cancer screening
+                - Infectious disease detection
+                - Emergency triage
+                - Drug safety monitoring
+                
+                **High Specificity Preferred:**
+                - Expensive diagnostic procedures
+                - Invasive treatments
+                - Resource-limited settings
+                
+                ### The Optimization Process
+                1. Model generates probability scores (0-1)
+                2. Standard threshold = 0.5 (>50% = positive)
+                3. Sensitivity optimization finds threshold that achieves target sensitivity
+                4. Usually results in lower threshold (e.g., >30% = positive)
+                5. Catches more positive cases but may increase false alarms
+                """)
+        
         if st.button("Predict"):
             # Import ML functions from ml.py
             from ml import (
@@ -3550,6 +3992,10 @@ with tab2:
                         else None,
                         feature_cols=final_columns if final_columns else None,
                         perform_shapley=perform_shapley,
+                        imbalance_method=imbalance_method,
+                        stratify_split=stratify_split,
+                        optimize_sensitivity=optimize_sensitivity,
+                        target_sensitivity=target_sensitivity,
                     )
 
                     # Extract results
@@ -3562,6 +4008,30 @@ with tab2:
                     explainer = result.get("explainer")
                     shap_values = result.get("shap_values")
                     feature_names_for_equation = result.get("feature_names")
+                    imbalance_info = result.get("imbalance_info")
+                    imbalance_message = result.get("imbalance_message", "")
+                    sensitivity_results = result.get("sensitivity_results")
+                    predictions_optimized = result.get("predictions_optimized")
+                    
+                    # Import ML functions for display
+                    from ml import display_imbalance_warning, display_sensitivity_results
+
+                    # Display imbalance information and warnings
+                    if imbalance_info:
+                        st.subheader("⚖️ Dataset Balance Analysis")
+                        display_imbalance_warning(imbalance_info)
+                        
+                        if imbalance_message:
+                            st.info(f"**Imbalance Handling Applied:** {imbalance_message}")
+
+                    # Display sensitivity optimization results
+                    if optimize_sensitivity and sensitivity_results and predictions_optimized is not None:
+                        display_sensitivity_results(
+                            sensitivity_results,
+                            y_test,
+                            predictions,
+                            predictions_optimized
+                        )
 
                     # Display metrics using the modular function
                     st.subheader("Test Set Performance (most important)")
@@ -4186,17 +4656,21 @@ with tab3:
         # Ensure gpt_working_df reflects the current main dataframe or newly uploaded file
         st.session_state.gpt_working_df = st.session_state.df.copy()
 
-        # Display the current dataframe being used for analysis
-        # This could be the initially loaded df or the gpt_working_df from a previous run
-        current_analysis_df = st.session_state.get(
-            "gpt_working_df", st.session_state.df
-        )
+        # Determine which dataframe to use for GPT analysis
+        if not st.session_state.modified_df.empty:
+            current_analysis_df = st.session_state.modified_df
+            df_source = "Modified Dataframe (filtered/processed)"
+            st.success(f"✅ Using {df_source} for GPT analysis")
+        else:
+            current_analysis_df = st.session_state.df
+            df_source = "original dataset"
+            st.info(f"ℹ️ Using {df_source} for GPT analysis. Consider using Step 2 to create a Modified Dataframe for better results.")
 
         n_rows, n_cols = current_analysis_df.shape
         st.write(f"Current DataFrame shape: {n_rows} rows × {n_cols} columns")
 
         with st.expander("View the current dataframe", expanded=True):
-            st.write("### Current Data Frame")
+            st.write(f"### Current Data Frame ({df_source})")
             if current_analysis_df.empty:
                 st.info(
                     "No dataframe loaded. Please select a demo dataset or upload a file in the 'Data Exploration' tab, or upload a new file above."
