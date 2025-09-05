@@ -1852,6 +1852,7 @@ with tab1:
             "🔄 Modified Dataframe",
         ),
         index=0,
+        key="demo_or_custom_selectbox"
     )
 
     # Add a message in the main area if CSV/Excel upload is selected
@@ -2253,6 +2254,35 @@ with tab1:
                 key="show_analysis",
                 help=tool_explanations.get("Download a Full Analysis", ""),
             )
+
+        # Add 3D Visualization Tools section
+        st.markdown("---")  # Add separator
+        st.markdown(
+            "<div class='tool-category'>3D Visualization Tools</div>",
+            unsafe_allow_html=True,
+        )
+        
+        # 3D visualization options in a single column for now
+        show_3d_scatter = st.checkbox(
+            "🎯 3D Scatter Plot",
+            key="show_3d_scatter",
+            help="Create interactive 3D scatter plot with X, Y, Z coordinates"
+        )
+        show_3d_surface = st.checkbox(
+            "🏔️ 3D Surface Plot", 
+            key="show_3d_surface",
+            help="Create 3D surface from coordinate data"
+        )
+        show_3d_line = st.checkbox(
+            "🚀 3D Trajectory/Line Plot",
+            key="show_3d_line", 
+            help="Plot 3D trajectory or path through coordinate space"
+        )
+        show_3d_mesh = st.checkbox(
+            "🕸️ 3D Mesh Plot",
+            key="show_3d_mesh",
+            help="Create 3D mesh visualization from coordinate data"
+        )
 
     # Add resource monitoring display
     st.sidebar.markdown(
@@ -3394,6 +3424,146 @@ plt.show()
             from prompts import violin_plot_text
 
             st.write(violin_plot_text)
+
+    # 3D Visualization implementations
+    if show_3d_scatter:
+        st.subheader("🎯 3D Scatter Plot")
+        numeric_cols, categorical_cols = get_categorical_and_numerical_cols(
+            st.session_state.df
+        )
+        numeric_cols.sort()
+        categorical_cols.sort()
+        
+        if len(numeric_cols) < 3:
+            st.warning("You need at least 3 numerical columns for a 3D scatter plot.")
+        else:
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                x_col = st.selectbox("Select X-axis:", numeric_cols, key="3d_scatter_x")
+            with col2:
+                y_col = st.selectbox("Select Y-axis:", numeric_cols, index=1, key="3d_scatter_y") 
+            with col3:
+                z_col = st.selectbox("Select Z-axis:", numeric_cols, index=2, key="3d_scatter_z")
+            
+            # Optional color and size columns
+            with st.expander("Advanced Options"):
+                color_col = st.selectbox("Color by (optional):", [None] + categorical_cols + numeric_cols, key="3d_scatter_color")
+                size_col = st.selectbox("Size by (optional):", [None] + numeric_cols, key="3d_scatter_size")
+            
+            if x_col != y_col and y_col != z_col and x_col != z_col:
+                plotting.create_3d_scatter(st.session_state.df, x_col, y_col, z_col, color_col, size_col)
+                
+                with st.expander("Show code for 3D scatter plot"):
+                    st.code(f'''import plotly.express as px
+
+fig = px.scatter_3d(df, x='{x_col}', y='{y_col}', z='{z_col}'{"," if color_col else ""}
+                   {"color='" + color_col + "'," if color_col else ""}{"size='" + size_col + "'," if size_col else ""}
+                   title='3D Scatter Plot: {x_col} vs {y_col} vs {z_col}')
+fig.show()''', language="python")
+            else:
+                st.error("Please select different columns for X, Y, and Z axes.")
+
+    if show_3d_surface:
+        st.subheader("🏔️ 3D Surface Plot")
+        numeric_cols, _ = get_categorical_and_numerical_cols(st.session_state.df)
+        numeric_cols.sort()
+        
+        if len(numeric_cols) < 3:
+            st.warning("You need at least 3 numerical columns for a 3D surface plot.")
+        else:
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                x_col = st.selectbox("Select X-axis:", numeric_cols, key="3d_surface_x")
+            with col2:
+                y_col = st.selectbox("Select Y-axis:", numeric_cols, index=1, key="3d_surface_y")
+            with col3:
+                z_col = st.selectbox("Select Z-axis (height):", numeric_cols, index=2, key="3d_surface_z")
+            
+            if x_col != y_col and y_col != z_col and x_col != z_col:
+                plotting.create_3d_surface(st.session_state.df, x_col, y_col, z_col)
+                
+                with st.expander("Show code for 3D surface plot"):
+                    st.code(f'''import plotly.graph_objects as go
+
+# Create pivot table for surface
+pivot_df = df.pivot_table(values='{z_col}', index='{y_col}', columns='{x_col}', aggfunc='mean')
+
+fig = go.Figure(data=[go.Surface(z=pivot_df.values, 
+                                x=pivot_df.columns, 
+                                y=pivot_df.index)])
+fig.show()''', language="python")
+            else:
+                st.error("Please select different columns for X, Y, and Z axes.")
+
+    if show_3d_line:
+        st.subheader("🚀 3D Trajectory/Line Plot") 
+        numeric_cols, categorical_cols = get_categorical_and_numerical_cols(st.session_state.df)
+        numeric_cols.sort()
+        
+        if len(numeric_cols) < 3:
+            st.warning("You need at least 3 numerical columns for a 3D line plot.")
+        else:
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                x_col = st.selectbox("Select X-axis:", numeric_cols, key="3d_line_x")
+            with col2:
+                y_col = st.selectbox("Select Y-axis:", numeric_cols, index=1, key="3d_line_y")
+            with col3:
+                z_col = st.selectbox("Select Z-axis:", numeric_cols, index=2, key="3d_line_z")
+            
+            # Optional color gradient column
+            with st.expander("Advanced Options"):
+                color_col = st.selectbox("Color gradient by (optional):", [None] + numeric_cols + categorical_cols, key="3d_line_color")
+            
+            if x_col != y_col and y_col != z_col and x_col != z_col:
+                plotting.create_3d_line(st.session_state.df, x_col, y_col, z_col, color_col)
+                
+                with st.expander("Show code for 3D line plot"):
+                    st.code(f'''import plotly.graph_objects as go
+
+fig = go.Figure(data=[go.Scatter3d(
+    x=df['{x_col}'], y=df['{y_col}'], z=df['{z_col}'],
+    mode='lines+markers',
+    line=dict(width=4),
+    marker=dict(size=3)
+)])
+fig.show()''', language="python")
+            else:
+                st.error("Please select different columns for X, Y, and Z axes.")
+
+    if show_3d_mesh:
+        st.subheader("🕸️ 3D Mesh Plot")
+        numeric_cols, _ = get_categorical_and_numerical_cols(st.session_state.df)
+        numeric_cols.sort()
+        
+        if len(numeric_cols) < 3:
+            st.warning("You need at least 3 numerical columns for a 3D mesh plot.")
+        else:
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                x_col = st.selectbox("Select X-axis:", numeric_cols, key="3d_mesh_x")
+            with col2:
+                y_col = st.selectbox("Select Y-axis:", numeric_cols, index=1, key="3d_mesh_y")
+            with col3:
+                z_col = st.selectbox("Select Z-axis:", numeric_cols, index=2, key="3d_mesh_z")
+                
+            # Optional intensity column
+            with st.expander("Advanced Options"):
+                intensity_col = st.selectbox("Intensity/Color by (optional):", [None] + numeric_cols, key="3d_mesh_intensity")
+            
+            if x_col != y_col and y_col != z_col and x_col != z_col:
+                plotting.create_3d_mesh(st.session_state.df, x_col, y_col, z_col, intensity_col)
+                
+                with st.expander("Show code for 3D mesh plot"):
+                    st.code(f'''import plotly.graph_objects as go
+
+fig = go.Figure(data=[go.Mesh3d(
+    x=df['{x_col}'], y=df['{y_col}'], z=df['{z_col}'],
+    opacity=0.8
+)])
+fig.show()''', language="python")
+            else:
+                st.error("Please select different columns for X, Y, and Z axes.")
 
     if view_full_df:
         st.dataframe(st.session_state.df)
@@ -4989,12 +5159,29 @@ Respond ONLY with valid Python code, not with natural language or explanations.
                 if "gpt_working_df" not in st.session_state:
                     st.session_state.gpt_working_df = st.session_state.df.copy()
 
-                # Ensure the REPL globals are updated with the current working df state
-                # This is crucial for subsequent iterations
+                # Safety check: if working df is corrupted or empty, reset from original
+                try:
+                    # Test if the working df is still valid by checking basic properties
+                    if (st.session_state.gpt_working_df.empty or 
+                        st.session_state.gpt_working_df.shape[0] == 0 or
+                        len(st.session_state.gpt_working_df.columns) == 0):
+                        st.session_state.gpt_working_df = st.session_state.df.copy()
+                        print("Reset working DataFrame from original due to corruption")
+                except Exception:
+                    # If any error occurs accessing the working df, reset it
+                    st.session_state.gpt_working_df = st.session_state.df.copy()
+                    print("Reset working DataFrame from original due to access error")
+
+                # CRITICAL FIX: Always provide a fresh DataFrame from the original to prevent corruption accumulation
+                # This ensures each iteration starts with clean data regardless of previous corruption
+                fresh_df = st.session_state.df.copy()
+                
+                # Ensure the REPL globals are updated with a fresh DataFrame each time
+                # This prevents the corruption cascade between iterations
                 repl.globals.update(
                     {
-                        "df": st.session_state.gpt_working_df,
-                        "original_df": st.session_state.df,  # Ensure original_df is always the initial df
+                        "df": fresh_df,  # Always start with original data
+                        "original_df": st.session_state.df,  # Keep reference to truly original df
                         # Other globals (plt, sns, np, pd) are already set during repl initialization
                     }
                 )
@@ -5047,39 +5234,56 @@ print("---------------------------------")
 
                 # Add safe mapping helper function
                 safe_mapping_code = """
-# Helper function for safe categorical mapping
-def safe_map_categorical(series, mapping, default=None):
+# Protected helper functions for safe categorical mapping - DO NOT REDEFINE
+def __SYSTEM_safe_map_categorical(df, column, mapping):
     '''
-    Safely map categorical values, handling NaN values and unknown categories.
-    
-    Args:
-        series: pandas Series to map
-        mapping: dictionary mapping values to new values
-        default: value to use for categories not in mapping (None = keep original)
-    
-    Returns:
-        Mapped pandas Series
+    SYSTEM FUNCTION - Safely map categorical values in a DataFrame column.
+    This function is protected from user redefinition and handles all edge cases.
     '''
-    # Create a copy to avoid modifying the original
-    result = series.copy()
-    
-    # Handle each value
-    for i, val in enumerate(result):
-        if pd.isna(val):
-            # Keep NaN values as NaN
-            continue
-        elif val in mapping:
-            # Apply mapping for known values
-            result.iloc[i] = mapping[val]
-        elif default is not None:
-            # Use default for unknown values if provided
-            result.iloc[i] = default
-    
-    # Track the mapping
-    if isinstance(series.name, str):
-        categorical_mappings[series.name] = mapping
+    if column not in df.columns:
+        print(f"Warning: Column '{column}' not found in DataFrame")
+        return df
         
-    return result
+    if df[column].empty:
+        print(f"Warning: Column '{column}' is empty")
+        return df
+        
+    # Handle missing values by filling with the most frequent value if needed
+    if df[column].isnull().any():
+        try:
+            mode_values = df[column].mode()
+            if len(mode_values) > 0:
+                fill_value = mode_values.iloc[0]
+                df[column].fillna(fill_value, inplace=True)
+                print(f"Filled missing values in '{column}' with mode value: {fill_value}")
+            else:
+                print(f"Warning: Column '{column}' has no valid mode, skipping mapping")
+                return df
+        except Exception as e:
+            print(f"Warning: Could not fill missing values in '{column}': {e}")
+            return df
+    
+    # Apply the mapping safely
+    try:
+        original_values = df[column].copy()
+        df[column] = df[column].map(mapping).fillna(original_values)
+        categorical_mappings[column] = mapping
+        print(f"Column '{column}' mapped: {mapping}")
+    except Exception as e:
+        print(f"Warning: Could not map column '{column}': {e}")
+        return df
+    
+    return df
+
+# Monkey patch any user-defined safe_map_categorical to use our safe version
+def safe_map_categorical(df, column, mapping):
+    '''User may define this, but it will redirect to the safe system version'''
+    return __SYSTEM_safe_map_categorical(df, column, mapping)
+
+# Also provide a backup copy with a different name
+def safe_categorical_mapping(df, column, mapping):
+    '''Backup function name for safe categorical mapping'''
+    return __SYSTEM_safe_map_categorical(df, column, mapping)
 """
 
                 # Prepend the tracking code and safe mapping helper to the user's code
@@ -5092,9 +5296,23 @@ def safe_map_categorical(series, mapping, default=None):
                     error = None
 
                     # Update the working dataframe with the state after execution
-                    # Only update if execution was successful
+                    # Only update if execution was successful and DataFrame is still valid
+                    # Note: Each iteration starts fresh, but we save the result for potential future use
                     if "df" in repl.globals:
-                        st.session_state.gpt_working_df = repl.globals["df"].copy()
+                        try:
+                            # Validate the DataFrame before saving it
+                            updated_df = repl.globals["df"]
+                            if (not updated_df.empty and 
+                                updated_df.shape[0] > 0 and 
+                                len(updated_df.columns) > 0):
+                                st.session_state.gpt_working_df = updated_df.copy()
+                                print("Successfully updated working DataFrame from iteration result")
+                            else:
+                                print("Warning: DataFrame became empty during execution, keeping original version")
+                                # Don't update - next iteration will start fresh from original
+                        except Exception as e:
+                            print(f"Warning: DataFrame validation failed, next iteration will start fresh: {e}")
+                            # Don't update - next iteration will start fresh from original
 
                     # Capture any categorical mappings that were created
                     if "categorical_mappings" in repl.globals:

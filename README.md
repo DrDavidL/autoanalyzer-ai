@@ -13,6 +13,7 @@ AutoAnalyzer is an interactive data exploration and machine learning application
 - Assess data readiness
 - Filter and preprocess data
 - Create visualizations (scatter plots, histograms, box plots, etc.)
+- **3D Interactive Visualizations** (3D scatter plots, surface plots, trajectory plots, mesh plots)
 - Perform statistical tests (t-test, ANOVA, chi-square, etc.)
 - Generate Table 1 summaries
 
@@ -29,7 +30,15 @@ AutoAnalyzer is an interactive data exploration and machine learning application
 - Iterative refinement of results
 - Export results to Word documents
 
-## New Performance Features
+## New Features
+
+### 3D Visualization Tools
+- **Interactive 3D Scatter Plots** - Visualize coordinate data with optional color coding and size mapping
+- **3D Surface Plots** - Create surfaces from X,Y,Z coordinate data using interpolation
+- **3D Trajectory/Line Plots** - Plot paths through 3D space with sequence-based coloring
+- **3D Mesh Plots** - Generate mesh visualizations from coordinate data
+- All 3D plots feature rotation, zoom, pan, and customizable color schemes
+- Built with Plotly for high-performance interactive visualization
 
 ### Resource Monitoring
 - Real-time monitoring of memory and CPU usage
