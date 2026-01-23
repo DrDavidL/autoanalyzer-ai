@@ -91,7 +91,7 @@ jupyterlab-widgets==1.1.9
 kiwisolver==1.4.8
 langchain==0.2.7
 langchain-community==0.2.19
-langchain-core==0.2.18
+langchain-core==0.3.81
 langchain-experimental==0.0.62
 langchain-openai==0.1.15
 langchain-text-splitters==0.2.2
