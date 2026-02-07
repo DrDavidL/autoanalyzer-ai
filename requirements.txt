@@ -94,7 +94,7 @@ langchain-community==0.2.19
 langchain-core==0.3.81
 langchain-experimental==0.0.62
 langchain-openai==0.1.15
-langchain-text-splitters==0.2.2
+langchain-text-splitters==0.3.9
 langsmith==0.1.85
 levenshtein==0.27.1
 lifelines==0.28.0
