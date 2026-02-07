@@ -102,7 +102,6 @@ target/
 docs/_build/
 
 # Streamlit cache and logs
-.streamlit/
 .streamlit/secrets.toml
 cache*
 .aider*
@@ -192,4 +191,5 @@ public/build/
 logs/
 *.log
 yarn.lock
- 
+gpt_analysis.html
+
