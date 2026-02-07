@@ -148,7 +148,7 @@ ply==3.11
 probableparsing==0.0.1
 prometheus-client==0.20.0
 prompt-toolkit==3.0.47
-protobuf==5.27.3
+protobuf==5.29.6
 psutil==7.0.0
 ptyprocess==0.7.0
 pure-eval==0.2.3
