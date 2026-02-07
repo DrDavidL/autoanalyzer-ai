@@ -1,4 +1,3 @@
-
 kaplan_meier = """The Kaplan-Meier survival curve is a graphical representation of the probability of survival over time in a group of patients or study participants. It is commonly used in medical research and clinical trials to analyze and visualize survival data.
 
 Here's a step-by-step explanation of how the Kaplan-Meier survival curve is constructed:
@@ -90,13 +89,13 @@ A Shapley force plot is a graphical representation that helps to explain the out
 
 ### Example
 
-Let's say you have a binary classification model predicting whether a loan will default or not. The base value is 0.4 (average default rate), and the model predicts a specific loan to have a 0.7 probability of default.
+Let's say you have a binary classification model predicting whether a patient will develop a disease. The base value is 0.3 (average disease rate), and the model predicts a specific patient to have a 0.7 probability of developing the disease.
 
-- A high income (red arrow pointing right with length 0.2) may push the prediction up.
-- A low credit score (red arrow pointing right with length 0.1) may also increase the default probability.
-- A stable job (blue arrow pointing left with length -0.1) may reduce the default probability.
+- A high blood pressure (red arrow pointing right with length 0.2) may push the prediction up.
+- A high BMI (red arrow pointing right with length 0.1) may also increase the disease probability.
+- Regular exercise (blue arrow pointing left with length -0.1) may reduce the disease probability.
 
-The sum of all these contributions (0.4 base + 0.2 income + 0.1 credit score - 0.1 job) equals the output value (0.6).
+The sum of all these contributions (0.3 base + 0.2 blood pressure + 0.1 BMI - 0.1 exercise + other factors) equals the output value (0.7).
 
 > For further reading, consider diving into the [Shapley Values paper](https://arxiv.org/abs/1705.07874) by Lundberg and Lee, which provides a comprehensive mathematical background on the topic.
 """

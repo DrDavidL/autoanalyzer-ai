@@ -1,0 +1,20 @@
+[server]
+# Increase the message size limit to handle larger datasets
+maxMessageSize = 500
+
+# Enable file watcher for better development experience
+fileWatcherType = "auto"
+
+# Increase upload size limit
+maxUploadSize = 1000
+
+[browser]
+# Disable usage stats collection
+gatherUsageStats = false
+
+[theme]
+# Optional: Set a consistent theme
+primaryColor = "#1E88E5"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F0F2F6"
+textColor = "#262730"

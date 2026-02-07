@@ -1,5 +1,5 @@
 # Use Python 3.11 slim image as the base image
-FROM python:3.10-slim
+FROM python:3.11-slim
 
 # Set the working directory to /auto_analyze within the container
 WORKDIR /auto_analyze
@@ -21,7 +21,7 @@ RUN pip install --upgrade pip && \
     pip install -r requirements.txt
 
 # Copy the main application code and additional necessary files
-COPY main.py prompts.py markdown_to_docx.py ./
+COPY main.py prompts.py markdown_to_docx.py data_gov_search.py session_cleanup.py ./
 COPY data/ ./data/
 COPY .streamlit/ ./.streamlit/
 COPY explanations/ ./explanations/
